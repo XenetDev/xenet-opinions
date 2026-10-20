@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_5b2e9f01c3a8",
+    "task_id": "b3a7e4d1-52c9-4f0a-8e66-9a1d03c7f2b5",
+    "status": "preparing",
+    "message": "Preparation started",
+    "expected_entities_count": 24,
+    "entity_types": ["Customer", "Competitor"],
+    "already_prepared": false
+  }
+}

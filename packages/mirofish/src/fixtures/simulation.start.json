@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_a1b2c3d4e5f6",
+    "runner_status": "starting",
+    "process_pid": 48213,
+    "twitter_running": true,
+    "reddit_running": true,
+    "started_at": "2026-10-19T09:14:02.511000",
+    "total_rounds": 72,
+    "max_rounds_applied": 72,
+    "graph_memory_update_enabled": true
+  }
+}

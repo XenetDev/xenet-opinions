@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "data": {
+    "report_id": "report_a47c20e9d315",
+    "simulation_id": "sim_5b2e9f01c3a8",
+    "graph_id": "mirofish_8c41d5e2a9b7",
+    "simulation_requirement": "How will customers react to a 20% price increase?",
+    "status": "completed",
+    "outline": {
+      "title": "Reaction to the 20% price increase",
+      "summary": "Customers split between acceptance and switching.",
+      "sections": [{ "title": "Overall sentiment" }, { "title": "Churn risk by segment" }]
+    },
+    "markdown_content": "# Reaction to the 20% price increase\n\n## Overall sentiment\n\nMost simulated customers voiced mild frustration but stayed.\n\n## Churn risk by segment\n\nSmall teams were the most likely to switch.\n",
+    "created_at": "2026-10-19T10:30:00.000",
+    "completed_at": "2026-10-19T10:41:12.000",
+    "error": null
+  }
+}

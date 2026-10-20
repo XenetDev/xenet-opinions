@@ -1,0 +1,5 @@
+{
+  "success": false,
+  "error": "Simulation not found: sim_000000000000",
+  "traceback": "Traceback (most recent call last):\n  File \"app/api/simulation.py\", line 120, in get_run_status\nKeyError: 'sim_000000000000'\n"
+}

@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_5b2e9f01c3a8",
+    "project_id": "proj_3f9a1c07b2de",
+    "graph_id": "mirofish_8c41d5e2a9b7",
+    "status": "created",
+    "enable_twitter": true,
+    "enable_reddit": true,
+    "created_at": "2026-10-19T09:20:00.000"
+  }
+}

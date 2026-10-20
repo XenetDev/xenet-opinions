@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_3f9a1c07b2de",
+    "graph_id": "mirofish_8c41d5e2a9b7",
+    "reused": true,
+    "message": "Graph already built"
+  }
+}

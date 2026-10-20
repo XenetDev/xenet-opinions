@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://xo:xo@localhost:5432/xo
+      BETTER_AUTH_SECRET: Y2ktZHVtbXktc2VjcmV0LW5vdC1mb3ItcHJvZHVjdGk=
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      MIROFISH_URL: http://localhost:5001
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: xo
+          POSTGRES_PASSWORD: xo
+          POSTGRES_DB: xo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xo -d xo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @xo/db db:migrate
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Write web env file
+        run: |
+          printf '%s\n' \
+            "DATABASE_URL=$DATABASE_URL" \
+            "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
+            "BETTER_AUTH_URL=$BETTER_AUTH_URL" \
+            "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+            "MIROFISH_URL=$MIROFISH_URL" > apps/web/.env
+      - run: pnpm --filter web build

@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "task_id": "6f1d2c9e-8a47-4b53-9d0e-1c2b7a5e4f38",
+    "task_type": "graph_build",
+    "status": "completed",
+    "progress": 100,
+    "message": "Graph build completed",
+    "result": { "project_id": "proj_3f9a1c07b2de", "graph_id": "mirofish_8c41d5e2a9b7", "node_count": 42, "edge_count": 97, "chunk_count": 7 },
+    "error": null,
+    "created_at": "2026-10-19T09:12:03.411",
+    "updated_at": "2026-10-19T09:15:44.120"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "data": {
+    "response": "Small teams were the most likely to switch, mainly citing the size of the increase.",
+    "tool_calls": [{ "tool": "quick_search", "parameters": { "query": "small team churn" } }],
+    "sources": ["simulation posts", "knowledge graph"],
+    "model": "mirofish-report-agent"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "data": {
+    "project_id": "proj_3f9a1c07b2de",
+    "project_name": "Q3 pricing change",
+    "ontology": {
+      "entity_types": [
+        { "name": "Customer", "description": "A paying account affected by the change", "attributes": [{ "name": "segment", "type": "text" }] },
+        { "name": "Competitor", "description": "A rival vendor", "attributes": [] }
+      ],
+      "edge_types": [{ "name": "SWITCHES_TO", "description": "Customer moves to a competitor", "source_targets": [{ "source": "Customer", "target": "Competitor" }] }]
+    },
+    "analysis_summary": "The documents describe a planned 20% price increase and its likely reception.",
+    "files": [{ "filename": "pricing-memo.md", "size": 5120 }],
+    "total_text_length": 4893,
+    "ontology_version": 2
+  }
+}

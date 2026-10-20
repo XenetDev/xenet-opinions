@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_5b2e9f01c3a8",
+    "runner_status": "running",
+    "current_round": 12,
+    "total_rounds": 40,
+    "progress_percent": 30,
+    "twitter_running": true,
+    "reddit_running": true,
+    "twitter_actions_count": 88,
+    "reddit_actions_count": 61,
+    "total_actions_count": 149,
+    "started_at": "2026-10-19T09:40:00.000",
+    "error": null
+  }
+}

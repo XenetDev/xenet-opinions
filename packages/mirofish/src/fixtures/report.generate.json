@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "data": {
+    "simulation_id": "sim_5b2e9f01c3a8",
+    "report_id": "report_a47c20e9d315",
+    "task_id": "d90f6b28-17e3-4a5c-b8d4-3e7a52c1f609",
+    "status": "generating",
+    "message": "Report generation started",
+    "already_generated": false
+  }
+}

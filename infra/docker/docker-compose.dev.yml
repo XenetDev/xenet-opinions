@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: xo
+      POSTGRES_PASSWORD: xo
+      POSTGRES_DB: xo
+    ports:
+      - "${XO_PG_PORT:-5432}:5432"
+    volumes:
+      - xo-pg:/var/lib/postgresql
+
+volumes:
+  xo-pg:

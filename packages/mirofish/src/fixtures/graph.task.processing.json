@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "data": {
+    "task_id": "6f1d2c9e-8a47-4b53-9d0e-1c2b7a5e4f38",
+    "task_type": "graph_build",
+    "status": "processing",
+    "progress": 45,
+    "message": "Adding text chunks to graph (3/7)",
+    "progress_detail": { "chunks_done": 3, "chunks_total": 7 },
+    "result": null,
+    "error": null,
+    "created_at": "2026-10-19T09:12:03.411",
+    "updated_at": "2026-10-19T09:13:10.902"
+  }
+}
