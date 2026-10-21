@@ -1,16 +1,37 @@
 'use client'
 
 import { useChat } from '@ai-sdk/react'
+import { useState } from 'react'
 import { DefaultChatTransport } from 'ai'
-import type { OpinionsUIMessage } from '@xo/engine'
+import type { OpinionsUIMessage } from '@xo/engine/parts'
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
 import { Message, MessageContent } from '@/components/ai-elements/message'
-import { PromptInput, PromptInputSubmit, PromptInputTextarea } from '@/components/ai-elements/prompt-input'
+import { Composer } from './composer/composer'
 import { MessageParts } from './message-parts'
 
-export function Chat({ chatId, initialMessages }: { chatId: string; initialMessages: OpinionsUIMessage[] }) {
+export function Chat({
+  chatId,
+  initialMessages,
+  initialRunActive = false,
+}: {
+  chatId: string
+  initialMessages: OpinionsUIMessage[]
+  initialRunActive?: boolean
+}) {
+  const [notice, setNotice] = useState<string | null>(null)
   const { messages, sendMessage, status, stop } = useChat<OpinionsUIMessage>({
     id: chatId,
+    onError: (error) => {
+      if (/run_active|run_finished/.test(error.message)) {
+        setNotice(
+          error.message.includes('run_finished')
+            ? 'This run has finished. Start a new chat to continue.'
+            : 'A run is already in progress for this chat.',
+        )
+      } else {
+        setNotice('Something went wrong sending your message')
+      }
+    },
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: `/api/chats/${chatId}/messages`,
@@ -32,10 +53,21 @@ export function Chat({ chatId, initialMessages }: { chatId: string; initialMessa
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
-      <PromptInput onSubmit={({ text }) => (text.trim() ? sendMessage({ text }) : undefined)} className="mt-4">
-        <PromptInputTextarea placeholder="Send a message" />
-        <PromptInputSubmit status={status} onStop={stop} />
-      </PromptInput>
+      {notice && (
+        <p role="status" className="mt-2 text-sm text-muted-foreground">
+          {notice}
+        </p>
+      )}
+      <Composer
+        chatId={chatId}
+        status={status}
+        onStop={stop}
+        disabled={status === 'submitted' || status === 'streaming' || initialRunActive}
+        onSend={async (text, uploadIds, runOptions) => {
+          setNotice(null)
+          void sendMessage({ text }, { body: { uploadIds, runOptions } })
+        }}
+      />
     </div>
   )
 }

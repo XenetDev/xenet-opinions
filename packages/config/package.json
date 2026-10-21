@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./tsconfig.base.json": "./tsconfig.base.json",
+    "./env": "./env.ts",
     "./vitest.base": "./vitest.base.ts"
   }
 }

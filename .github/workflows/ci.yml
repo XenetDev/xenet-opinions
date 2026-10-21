@@ -13,6 +13,8 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       MIROFISH_URL: http://localhost:5001
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: .data/uploads
     services:
       postgres:
         image: postgres:18
@@ -38,12 +40,4 @@ jobs:
       - run: pnpm --filter @xo/db db:migrate
       - run: pnpm typecheck
       - run: pnpm test
-      - name: Write web env file
-        run: |
-          printf '%s\n' \
-            "DATABASE_URL=$DATABASE_URL" \
-            "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" \
-            "BETTER_AUTH_URL=$BETTER_AUTH_URL" \
-            "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
-            "MIROFISH_URL=$MIROFISH_URL" > apps/web/.env
       - run: pnpm --filter web build

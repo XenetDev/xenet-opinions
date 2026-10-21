@@ -1,0 +1,22 @@
+{
+  "name": "@xo/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1153.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@xo/config": "workspace:*",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}

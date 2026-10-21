@@ -8,6 +8,13 @@
       "when": 1792491007578,
       "tag": "0000_far_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792496151745,
+      "tag": "0001_fearless_ultimo",
+      "breakpoints": true
     }
   ]
 }

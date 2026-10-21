@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mock": "./mock/server.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "mock": "tsx mock/server.ts",
     "capture-fixtures": "tsx scripts/capture-fixtures.ts"
   },
   "dependencies": {

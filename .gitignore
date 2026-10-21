@@ -4,6 +4,7 @@ dist
 .turbo
 .env
 .env.local
+.data/
 coverage
 .context/
 .superpowers/

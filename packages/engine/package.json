@@ -4,14 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./parts": "./src/parts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "ai": "7.0.143"
+    "@xo/db": "workspace:*",
+    "@xo/mirofish": "workspace:*",
+    "@xo/storage": "workspace:*",
+    "ai": "7.0.143",
+    "drizzle-orm": "0.45.4",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

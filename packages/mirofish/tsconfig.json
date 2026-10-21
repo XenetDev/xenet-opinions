@@ -1,4 +1,4 @@
 {
   "extends": "@xo/config/tsconfig.base.json",
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "mock", "vitest.config.ts"]
 }

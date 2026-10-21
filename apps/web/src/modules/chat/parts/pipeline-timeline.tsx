@@ -1,5 +1,5 @@
 import { CheckCircle2Icon, CircleDashedIcon, XCircleIcon } from 'lucide-react'
-import { STAGES, type Stage, type StageData, type StageStatus } from '@xo/engine'
+import { STAGES, type Stage, type StageData, type StageStatus } from '@xo/engine/parts'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { cn } from '@/lib/utils'
