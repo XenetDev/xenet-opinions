@@ -1,6 +1,6 @@
 # Xenet Opinions
 
-Xenet Opinions is an open-source, chat-first interface for running MiroFish simulations and reading the resulting opinions. A pipeline timeline in the chat shows each stage of a run as it streams in. Phase 1 connects it to MiroFish through a background worker; a mock MiroFish lets you run the whole pipeline locally.
+Xenet Opinions is an open-source, chat-first interface for running MiroFish simulations and reading the resulting opinions. A pipeline timeline in the chat shows each stage of a run as it streams in. Phase 1 connects it to MiroFish through a background worker and Phase 2 adds resume, cancel, retry and conversation history; a mock MiroFish lets you run the whole pipeline locally.
 
 ## Quickstart
 
@@ -32,13 +32,13 @@ MOCK_SPEED=5 pnpm mock   # terminal 1, listens on :5001
 pnpm dev                 # terminal 2, web on :3000 and the worker
 ```
 
-Open http://localhost:3000, start a new conversation, attach a `.txt`, `.md` or `.pdf`, ask a question and choose the number of simulation rounds. The chat then shows the run as it happens: the attached sources, a timeline of six running stages plus a final Done row, ontology chips, a graph preview, the persona roster as it fills, the simulation feed round by round, the report workbench steps and finally the report text. Reloading the page shows the same persisted parts. While a run is active the composer is locked and the API answers further messages with 409 `run_active`. Uploads accept `.pdf`, `.md` and `.txt` files, up to 5 files per message and 10 MB each. Follow-up questions in a finished conversation arrive in Phase 3; for now they get 409 `run_finished`.
+Open http://localhost:3000, start a new conversation, attach a `.txt`, `.md` or `.pdf`, ask a question and choose the number of simulation rounds. The chat then shows the run as it happens: the attached sources, a timeline of six running stages plus a final Done row, ontology chips, a graph preview, the persona roster as it fills, the simulation feed round by round, the report workbench steps and finally the report text. Reloading the page, switching tabs or hitting the stream cap is harmless: the page reattaches to the run and catches up from the stored events. The Stop button cancels an active run and the timeline shows the stage it stopped at as Cancelled, a failed run can be retried from its failed stage with the button on the timeline, and the sidebar lists your conversations and lets you rename or delete them. While a run is active the composer is locked and the API answers further messages with 409 `run_active`. Uploads accept `.pdf`, `.md` and `.txt` files, up to 5 files per message and 10 MB each. Follow-up questions in a finished conversation arrive in Phase 3; for now they get 409 `run_finished`.
 
-`MOCK_SPEED` divides the mock's delays (higher is faster), `MOCK_FAIL_STAGE` (`graph_build`, `sim_prepare`, `sim_run` or `report`) makes that stage fail with "Injected failure", `MOCK_TOKEN` requires the token header and `MOCK_LOG=1` prints one line per request.
+`MOCK_SPEED` divides the mock's delays (higher is faster), `MOCK_FAIL_STAGE` (`graph_build`, `sim_prepare`, `sim_run` or `report`) makes that stage fail with "Injected failure", `MOCK_TOKEN` requires the token header and `MOCK_LOG=1` prints one line per request. `POST /__mock/fail-stage` with `{"stage":"sim_prepare"}` (or `null`) switches the injected failure at runtime; a task that already failed stays failed, so clearing the flag and pressing Retry runs the stage again against a fresh task.
 
 ## Running against a real MiroFish
 
-Set `MIROFISH_URL` in `.env` to your MiroFish backend, and set `MIROFISH_TOKEN` as well if the fork's token middleware is enabled. Zep Cloud and LLM keys belong in MiroFish's own `.env`, not here. A real run takes roughly 20 to 60 minutes depending on agent count and rounds, so keep the worker running for the whole time. Restarting it is safe: it resumes the run from the stored cursors without starting the simulation twice.
+Set `MIROFISH_URL` in `.env` to your MiroFish backend, and set `MIROFISH_TOKEN` as well if the fork's token middleware is enabled. Zep Cloud and LLM keys belong in MiroFish's own `.env`, not here. A real run takes roughly 20 to 60 minutes depending on agent count and rounds, so keep the worker running for the whole time. The page reattaches automatically if you reload, switch tabs or outlast the 280 s stream cap, so you can close it and come back. Restarting the worker is safe: it resumes the run from the stored cursors without starting the simulation twice. A graceful shutdown (SIGTERM) releases the run's lease after the current step; only a worker killed without SIGTERM leaves a lease that the next worker waits about 60 s to reclaim.
 
 ## Worker
 

@@ -9,7 +9,7 @@ export const simCreate: StageHandler = {
       projectId: need(run.ids.projectId, 'projectId'),
       graphId: need(run.ids.graphId, 'graphId'),
     })
-    const entered = await deps.store.update(run.id, { ids: { simulationId: sim.simulation_id } })
+    const entered = await deps.store.update(run.id, { ids: { simulationId: sim.simulation_id } }, deps.fence)
     await running(deps, entered, 'sim_create', { message: 'Creating the simulation' })
     return advance(deps, entered, 'sim_create', 'sim_prepare')
   },

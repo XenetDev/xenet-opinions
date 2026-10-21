@@ -1,26 +1,31 @@
 import { schema, type Db, type Run } from '@xo/db'
 import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm'
 import { payloadSchemaFor, type RunEventInput } from '../events'
-import type { RunPatch, RunStore } from './types'
+import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
 const { runs, runEvents, messages, uploads } = schema
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
-const lockRun = async (tx: Tx, id: string) => {
-  const [current] = await tx.select().from(runs).where(eq(runs.id, id)).for('update')
-  if (!current) throw new Error('run_not_found')
-  return current
+const fenced = (id: string, fence?: Fence) =>
+  fence ? and(eq(runs.id, id), eq(runs.status, 'running'), eq(runs.leaseOwner, fence.owner)) : eq(runs.id, id)
+
+const lockRun = async (tx: Tx, id: string, fence?: Fence) => {
+  const [current] = await tx.select().from(runs).where(fenced(id, fence)).for('update')
+  if (current) return current
+  if (fence) throw new FenceError(id)
+  throw new Error('run_not_found')
 }
 
-const applyPatch = async (tx: Tx, current: Run, patch: RunPatch) => {
+const applyPatch = async (tx: Tx, current: Run, patch: RunPatch, fence?: Fence) => {
   const { ids, cursors, ...rest } = patch
   const set: Partial<Run> = { ...rest }
   if (ids) set.ids = { ...current.ids, ...ids }
   if (cursors) set.cursors = { ...current.cursors, ...cursors }
   if (Object.keys(set).length === 0) return current
-  const [row] = await tx.update(runs).set(set).where(eq(runs.id, current.id)).returning()
-  return row!
+  const [row] = await tx.update(runs).set(set).where(fenced(current.id, fence)).returning()
+  if (!row) throw new FenceError(current.id)
+  return row
 }
 
 const validate = (events: RunEventInput[]) => events.map((e) => ({ ...e, payload: payloadSchemaFor(e.kind).parse(e.payload) }))
@@ -107,21 +112,30 @@ export function createDrizzleStore(db: Db): RunStore {
         .returning({ id: runs.id })
       return rows.length > 0
     },
-    async update(id, patch) {
-      return db.transaction(async (tx) => applyPatch(tx, await lockRun(tx, id), patch))
+    async releaseLease(id, owner) {
+      const rows = await db
+        .update(runs)
+        .set({ leaseUntil: sql`now()` })
+        .where(and(eq(runs.id, id), eq(runs.leaseOwner, owner), eq(runs.status, 'running')))
+        .returning({ id: runs.id })
+      return rows.length > 0
     },
-    async transition(id, patch, events) {
+    async update(id, patch, fence) {
+      return db.transaction(async (tx) => applyPatch(tx, await lockRun(tx, id, fence), patch, fence))
+    },
+    async transition(id, patch, events, fence, opts) {
       const valid = validate(events)
       return db.transaction(async (tx) => {
-        const current = await lockRun(tx, id)
+        const current = await lockRun(tx, id, fence)
+        if (opts?.expectStatus && !opts.expectStatus.includes(current.status)) throw new Error('run_not_active')
         await insertEvents(tx, id, valid)
-        return applyPatch(tx, current, patch)
+        return applyPatch(tx, current, patch, fence)
       })
     },
-    async appendEvent(runId, event) {
+    async appendEvent(runId, event, fence) {
       const [valid] = validate([event])
       return db.transaction(async (tx) => {
-        await lockRun(tx, runId)
+        await lockRun(tx, runId, fence)
         const [row] = await insertEvents(tx, runId, [valid!])
         return row!
       })
@@ -132,6 +146,13 @@ export function createDrizzleStore(db: Db): RunStore {
         .from(runEvents)
         .where(and(eq(runEvents.runId, runId), gt(runEvents.seq, afterSeq)))
         .orderBy(asc(runEvents.seq))
+    },
+    async lastSeq(runId) {
+      const [row] = await db
+        .select({ seq: sql<number>`coalesce(max(${runEvents.seq}), 0)::int` })
+        .from(runEvents)
+        .where(eq(runEvents.runId, runId))
+      return row?.seq ?? 0
     },
     async setMessageParts(messageId, parts) {
       await db.update(messages).set({ parts }).where(eq(messages.id, messageId))

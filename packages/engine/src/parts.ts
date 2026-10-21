@@ -6,7 +6,7 @@ export type Stage = (typeof STAGES)[number]
 
 const StageSchema = z.enum(STAGES)
 
-export const StageStatusSchema = z.enum(['pending', 'running', 'done', 'failed'])
+export const StageStatusSchema = z.enum(['pending', 'running', 'done', 'failed', 'cancelled'])
 export type StageStatus = z.infer<typeof StageStatusSchema>
 
 export const StageDataSchema = z.object({

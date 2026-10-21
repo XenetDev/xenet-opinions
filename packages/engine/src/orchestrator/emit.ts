@@ -11,7 +11,7 @@ export const event = <K extends EventKind>(kind: K, payload: RunEventPayloads[K]
 })
 
 export const emit = async <K extends EventKind>(deps: Deps, run: Run, kind: K, payload: RunEventPayloads[K]) => {
-  await deps.store.appendEvent(run.id, event(kind, payload))
+  await deps.store.appendEvent(run.id, event(kind, payload), deps.fence)
 }
 
 export const running = (deps: Deps, run: Run, stage: Stage, extra: Omit<StageData, 'stage' | 'status'> = {}) =>
@@ -19,7 +19,7 @@ export const running = (deps: Deps, run: Run, stage: Stage, extra: Omit<StageDat
 
 export const advance = async (deps: Deps, run: Run, stage: Stage, next: Stage) => {
   await emit(deps, run, 'stage', { stage, status: 'done' })
-  return deps.store.update(run.id, { stage: next })
+  return deps.store.update(run.id, { stage: next }, deps.fence)
 }
 
 export const need = <T>(value: T | undefined | null, what: string): T => {

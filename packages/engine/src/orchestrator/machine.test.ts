@@ -2,6 +2,7 @@ import { MiroFishError } from '@xo/mirofish'
 import { StorageError } from '@xo/storage'
 import { describe, expect, it, vi } from 'vitest'
 import type { StageData } from '../parts'
+import { FenceError } from '../store/types'
 import { tick } from './machine'
 import { LOGS, NOW, drive, setupRun as setup } from './test-helpers'
 
@@ -425,5 +426,20 @@ describe('failures', () => {
     expect(next.status).toBe('failed')
     expect(next.error).toEqual({ stage: 'ontology', code: 'internal', message: 'upload missing' })
     expect(deps.mirofish.graph.generateOntology).not.toHaveBeenCalled()
+  })
+
+  it('rejects with FenceError and writes nothing when another worker owns the lease', async () => {
+    const { store, deps, run } = await setup()
+    store.runs.set(run.id, { ...store.runs.get(run.id)!, leaseOwner: 'w2' })
+    await expect(tick(run, { ...deps, fence: { owner: 'w1' } })).rejects.toBeInstanceOf(FenceError)
+    expect(store.events.get(run.id) ?? []).toEqual([])
+    expect(store.runs.get(run.id)).toMatchObject({ status: 'running', stage: 'ontology', ids: {} })
+  })
+
+  it('flows fenced writes when the fence matches the lease owner', async () => {
+    const { store, deps, run } = await setup()
+    const next = await tick(run, { ...deps, fence: { owner: 'w1' } })
+    expect(next.stage).toBe('graph_build')
+    expect((store.events.get(run.id) ?? []).map(label)).toEqual(['stage:ontology:running', 'sources', 'ontology', 'stage:ontology:done'])
   })
 })

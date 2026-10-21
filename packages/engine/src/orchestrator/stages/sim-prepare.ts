@@ -10,7 +10,7 @@ const fetchAgents = async (deps: Deps, simulationId: string) =>
 const emitAgents = async (run: Run, deps: Deps, agents: AgentsData) => {
   if (agents.count === (run.cursors.lastAgentCount ?? 0)) return run
   await emit(deps, run, 'agents', agents)
-  return deps.store.update(run.id, { cursors: { lastAgentCount: agents.count } })
+  return deps.store.update(run.id, { cursors: { lastAgentCount: agents.count } }, deps.fence)
 }
 
 const finish = async (run: Run, deps: Deps, agents: AgentsData) =>
@@ -28,11 +28,11 @@ export const simPrepare: StageHandler = {
     const simulationId = need(run.ids.simulationId, 'simulationId')
     const started = await deps.mirofish.simulation.prepare({ simulationId })
     if (started.already_prepared) {
-      const entered = await deps.store.update(run.id, { cursors: { prepareReady: true } })
+      const entered = await deps.store.update(run.id, { cursors: { prepareReady: true } }, deps.fence)
       await running(deps, entered, 'sim_prepare', { progress: 100, message: 'Agents already prepared' })
       return finish(entered, deps, await fetchAgents(deps, simulationId))
     }
-    const entered = await deps.store.update(run.id, { ids: { prepareTaskId: need(started.task_id, 'prepare task id') } })
+    const entered = await deps.store.update(run.id, { ids: { prepareTaskId: need(started.task_id, 'prepare task id') } }, deps.fence)
     await running(deps, entered, 'sim_prepare', { progress: 0, message: 'Generating agent profiles' })
     return entered
   },

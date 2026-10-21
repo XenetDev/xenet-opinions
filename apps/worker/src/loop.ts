@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { type Deps, fail, materialiseRun, tick } from '@xo/engine'
+import { type Deps, FenceError, fail, materialiseRun, tick } from '@xo/engine'
 
 export type WorkerLoopOptions = Deps & {
   owner: string
@@ -34,18 +34,77 @@ export async function runWorkerLoop(opts: WorkerLoopOptions): Promise<void> {
     }
   }
 
+  const cleanupCancelled = async (run: Run) => {
+    const simulationId = run.ids.simulationId
+    if (!simulationId || (run.stage !== 'sim_run' && run.stage !== 'report')) return
+    try {
+      await opts.mirofish.simulation.stop(simulationId)
+    } catch (error) {
+      log('simulation stop failed', { runId: run.id, simulationId, error })
+    }
+    try {
+      await opts.mirofish.simulation.closeEnv(simulationId)
+    } catch (error) {
+      log('simulation closeEnv failed', { runId: run.id, simulationId, error })
+    }
+  }
+
+  const handleLost = async (run: Run) => {
+    try {
+      const latest = await store.get(run.id)
+      if (!latest) {
+        await cleanupCancelled(run)
+        log('run deleted', { runId: run.id, owner })
+        return
+      }
+      if (latest.status === 'cancelled') {
+        await cleanupCancelled(latest)
+        await materialise(latest)
+        log('run cancelled', { runId: run.id, owner })
+        return
+      }
+    } catch (error) {
+      log('cancel check failed', { runId: run.id, error })
+    }
+    log('lease lost', { runId: run.id, owner })
+  }
+
+  const release = async (run: Run) => {
+    try {
+      await store.releaseLease(run.id, owner)
+      log('lease released', { runId: run.id, owner })
+    } catch (error) {
+      log('lease release failed', { runId: run.id, error })
+    }
+  }
+
+  const tickWithHeartbeat = async (run: Run, deps: Deps) => {
+    const timer = setInterval(() => {
+      store.renewLease(run.id, owner, leaseMs).catch((error) => log('lease renew failed', { runId: run.id, error }))
+    }, leaseMs / 3)
+    try {
+      return await tick(run, deps)
+    } finally {
+      clearInterval(timer)
+    }
+  }
+
   const drive = async (claimed: Run) => {
+    const deps: Deps = { ...opts, fence: { owner } }
     let run = claimed
     let stage = run.stage
     while (!isTerminal(run) && !signal.aborted) {
-      if (!(await store.renewLease(run.id, owner, leaseMs))) {
-        log('lease lost', { runId: run.id, owner })
-        return
-      }
+      if (!(await store.renewLease(run.id, owner, leaseMs))) return handleLost(run)
       try {
-        run = await tick(run, opts)
+        run = await tickWithHeartbeat(run, deps)
       } catch (err) {
-        run = await fail(run, opts, run.stage, err)
+        if (err instanceof FenceError) return handleLost(run)
+        try {
+          run = await fail(run, deps, run.stage, err)
+        } catch (failErr) {
+          if (failErr instanceof FenceError) return handleLost(run)
+          throw failErr
+        }
       }
       if (run.stage !== stage || isTerminal(run)) {
         stage = run.stage
@@ -53,6 +112,7 @@ export async function runWorkerLoop(opts: WorkerLoopOptions): Promise<void> {
       }
       if (!isTerminal(run)) await wait(pollMs)
     }
+    if (!isTerminal(run)) await release(run)
   }
 
   while (!signal.aborted) {

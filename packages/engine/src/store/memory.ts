@@ -1,6 +1,6 @@
 import type { Run, RunEvent, Upload } from '@xo/db'
 import { payloadSchemaFor, type RunEventInput } from '../events'
-import type { RunPatch, RunStore } from './types'
+import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
 const ACTIVE = ['queued', 'running']
 
@@ -18,9 +18,10 @@ export function createMemoryStore(): RunStore & {
   const order = new Map<string, number>()
   let counter = 0
 
-  const mustGet = (id: string): Run => {
+  const mustGet = (id: string, fence?: Fence): Run => {
     const run = runs.get(id)
-    if (!run) throw new Error('run_not_found')
+    if (!run) throw fence ? new FenceError(id) : new Error('run_not_found')
+    if (fence && (run.status !== 'running' || run.leaseOwner !== fence.owner)) throw new FenceError(id)
     return run
   }
   const applyPatch = (run: Run, patch: RunPatch): Run => {
@@ -120,18 +121,28 @@ export function createMemoryStore(): RunStore & {
       runs.set(id, { ...run, leaseUntil: new Date(Date.now() + leaseMs) })
       return true
     },
-    async update(id, patch) {
-      return applyPatch(mustGet(id), patch)
+    async releaseLease(id, owner) {
+      const run = runs.get(id)
+      if (!run || run.status !== 'running' || run.leaseOwner !== owner) return false
+      runs.set(id, { ...run, leaseUntil: new Date(Date.now() - 1) })
+      return true
     },
-    async transition(id, patch, input) {
-      const run = mustGet(id)
+    async update(id, patch, fence) {
+      return applyPatch(mustGet(id, fence), patch)
+    },
+    async transition(id, patch, input, fence, opts) {
+      const run = mustGet(id, fence)
+      if (opts?.expectStatus && !opts.expectStatus.includes(run.status)) throw new Error('run_not_active')
       const valid = validate(input)
       appendRows(id, valid)
       return applyPatch(run, patch)
     },
-    async appendEvent(runId, event) {
-      mustGet(runId)
+    async appendEvent(runId, event, fence) {
+      mustGet(runId, fence)
       return appendRows(runId, validate([event]))[0]!
+    },
+    async lastSeq(runId) {
+      return events.get(runId)?.at(-1)?.seq ?? 0
     },
     async listEvents(runId, afterSeq) {
       return (events.get(runId) ?? []).filter((e) => e.seq > afterSeq)

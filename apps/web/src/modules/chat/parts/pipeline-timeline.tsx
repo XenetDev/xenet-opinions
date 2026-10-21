@@ -1,7 +1,8 @@
-import { CheckCircle2Icon, CircleDashedIcon, XCircleIcon } from 'lucide-react'
+import { BanIcon, CheckCircle2Icon, CircleDashedIcon, XCircleIcon } from 'lucide-react'
 import { STAGES, type Stage, type StageData, type StageStatus } from '@xo/engine/parts'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const STAGE_TITLES: Record<Stage, string> = {
@@ -19,6 +20,7 @@ const STATUS_LABELS: Record<StageStatus, string> = {
   running: 'Running',
   done: 'Done',
   failed: 'Failed',
+  cancelled: 'Cancelled',
 }
 
 function StageHeading({ status, title }: { status: StageStatus; title: string }) {
@@ -26,6 +28,7 @@ function StageHeading({ status, title }: { status: StageStatus; title: string })
     <>
       {status === 'done' && <CheckCircle2Icon aria-hidden className="size-4 text-emerald-600" />}
       {status === 'failed' && <XCircleIcon aria-hidden className="size-4" />}
+      {status === 'cancelled' && <BanIcon aria-hidden className="size-4" />}
       {(status === 'pending' || status === 'running') && (
         <CircleDashedIcon aria-hidden className="size-4" />
       )}
@@ -35,7 +38,7 @@ function StageHeading({ status, title }: { status: StageStatus; title: string })
   )
 }
 
-export function PipelineTimeline({ stages }: { stages: StageData[] }) {
+export function PipelineTimeline({ stages, onRetry }: { stages: StageData[]; onRetry?: () => void }) {
   const byStage = new Map(stages.map((data) => [data.stage, data]))
 
   return (
@@ -46,7 +49,7 @@ export function PipelineTimeline({ stages }: { stages: StageData[] }) {
         const title = STAGE_TITLES[stage]
         const tone = cn(
           'flex w-full items-center gap-2 text-sm',
-          status === 'pending' && 'text-muted-foreground',
+          (status === 'pending' || status === 'cancelled') && 'text-muted-foreground',
           status === 'failed' && 'text-destructive',
         )
         const rowProps = { 'data-testid': 'stage-row', 'data-status': status }
@@ -58,6 +61,13 @@ export function PipelineTimeline({ stages }: { stages: StageData[] }) {
                 <StageHeading status={status} title={title} />
               </div>
               {data?.message && <p className="pl-6 text-sm text-destructive">{data.message}</p>}
+              {onRetry && (
+                <div className="pl-6">
+                  <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                    Retry from here
+                  </Button>
+                </div>
+              )}
             </div>
           )
         }

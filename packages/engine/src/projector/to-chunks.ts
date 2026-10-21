@@ -14,6 +14,8 @@ export const eventToChunks = (event: { kind: EventKind; partId: string | null; p
       ]
     case 'error':
       return [{ type: 'error', errorText: (event.payload as ErrorData).message }]
+    case 'cancelled':
+      return [{ type: 'abort', reason: (event.payload as { message: string }).message }, { type: 'finish' }]
     case 'done':
       return [{ type: 'finish' }]
     default:

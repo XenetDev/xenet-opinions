@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDb, schema } from '@xo/db'
-import { type Deps, createDrizzleStore } from '@xo/engine'
+import { type Deps, cancelRun, createDrizzleStore } from '@xo/engine'
 import { createMiroFishClient } from '@xo/mirofish'
 import { startMockMiroFish } from '@xo/mirofish/mock'
 import { createLocalStorage, uploadKey } from '@xo/storage'
@@ -119,4 +119,23 @@ e2e('does not restart a simulation after a worker restart', { timeout: 90_000 },
   await loop2
   expect((await store.get(runId))!.status).toBe('done')
   expect(mock.calls['POST /api/simulation/start']).toBe(1)
+})
+
+e2e('stops the simulation and ends cancelled when cancelled during sim_run', { timeout: 30_000 }, async () => {
+  const { store, mock, deps, runId } = await fixture()
+  const ac = new AbortController()
+  const loop = runWorkerLoop({ ...deps, ...opts, signal: ac.signal })
+  await waitFor(async () => {
+    const run = (await store.get(runId))!
+    return run.stage === 'sim_run' && Boolean(run.cursors.startAcked)
+  })
+  await cancelRun(store, runId, new Date())
+  await waitFor(async () => mock.calls['POST /api/simulation/stop'] === 1, 10_000)
+  await new Promise((r) => setTimeout(r, 200))
+  ac.abort()
+  await loop
+  const run = (await store.get(runId))!
+  expect(run.status).toBe('cancelled')
+  expect(mock.calls['POST /api/simulation/stop']).toBe(1)
+  expect((await store.listEvents(runId, 0)).at(-1)?.kind).toBe('cancelled')
 })

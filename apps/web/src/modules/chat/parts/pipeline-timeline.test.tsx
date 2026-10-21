@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PipelineTimeline } from './pipeline-timeline'
 
 afterEach(cleanup)
@@ -24,6 +24,12 @@ describe('PipelineTimeline', () => {
     render(<PipelineTimeline stages={[{ stage: 'graph_build', status: 'failed', message: 'Graph exploded' }]} />)
     expect(screen.getAllByTestId('stage-row')[1]?.getAttribute('data-status')).toBe('failed')
     expect(screen.getByText('Graph exploded')).toBeTruthy()
+  })
+
+  it('shows a cancelled stage as muted text', () => {
+    render(<PipelineTimeline stages={[{ stage: 'sim_run', status: 'cancelled', message: 'Cancelled by user' }]} />)
+    expect(screen.getAllByTestId('stage-row')[4]?.getAttribute('data-status')).toBe('cancelled')
+    expect(screen.getAllByText('Cancelled')).toHaveLength(1)
   })
 
   it('exposes status as text on every row', () => {
@@ -54,5 +60,16 @@ describe('PipelineTimeline', () => {
   it('uses a button trigger only for rows with a message', () => {
     render(<PipelineTimeline stages={[{ stage: 'ontology', status: 'running', message: 'Echoing' }]} />)
     expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+  it('offers a retry on the failed row when onRetry is given', () => {
+    const onRetry = vi.fn()
+    render(<PipelineTimeline stages={[{ stage: 'sim_prepare', status: 'failed', message: 'Boom' }]} onRetry={onRetry} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry from here' }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no retry without onRetry', () => {
+    render(<PipelineTimeline stages={[{ stage: 'sim_prepare', status: 'failed', message: 'Boom' }]} />)
+    expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()
   })
 })

@@ -11,6 +11,7 @@ export type Deps = {
   now(): Date
   sleep(ms: number): Promise<void>
   log(msg: string, meta?: Record<string, unknown>): void
+  fence?: { owner: string }
 }
 
 export type ActiveStage = Exclude<Stage, 'finished'>

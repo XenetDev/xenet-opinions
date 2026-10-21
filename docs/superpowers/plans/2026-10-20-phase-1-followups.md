@@ -3,15 +3,15 @@
 Source: SDD ledger for docs/superpowers/plans/2026-10-20-phase-1-pipeline.md. The final whole-branch reviewer triaged every deferred minor; fix-before-merge items were applied in eae787c..344ac79. Everything below is Phase 2+ or dropped-with-reason.
 
 ## Phase 2 design notes from the final review (binding inputs to the Phase 2 plan)
-- Retry-from-stage must create a NEW run row + assistant message (or record a seq boundary): the tail replays from seq 0 and stops at the first `error`, so retrying on the same row never streams. A retry must also clear `simStarted`, `startAcked`, `startAttempts`, `idlePolls`.
-- Fence writes: `update`/`appendEvent`/`fail`/`transition` should be conditional on `status='running' AND lease_owner=$owner` so a cancel cannot be overwritten by a late `fail`/`finished`.
-- Cancel needs a terminal event kind (`cancelled`) and a `StageStatus` for it; the tail never reads run status.
-- Page loader for terminal runs should re-project from `run_events` (materialised `messages.parts` is a cache).
-- `GET /api/chats/:id/stream` reuses `tailRunAsUIMessageStream`; floor `pollMs` at 1; add resume tests (pre-aborted signal, listEvents throws, backoff).
-- Release the lease on SIGTERM (`lease_until = now()`), and heartbeat-renew during long calls (ontology up to 600 s) before a second worker exists.
-- Transient DB errors inside a handler currently fail the run permanently; poll-only errors should be retried more leniently than enter errors.
-- `ontology.poll` resume should re-emit the `ontology` card.
-- Document the 280 s tail limit for real-MiroFish runs until resume lands; note the ~60 s lease wait on worker restart.
+- [x] Retry-from-stage must create a NEW run row + assistant message (or record a seq boundary): the tail replays from seq 0 and stops at the first `error`, so retrying on the same row never streams. A retry must also clear `simStarted`, `startAcked`, `startAttempts`, `idlePolls`. (resolved in Phase 2)
+- [x] Fence writes: `update`/`appendEvent`/`fail`/`transition` should be conditional on `status='running' AND lease_owner=$owner` so a cancel cannot be overwritten by a late `fail`/`finished`. (resolved in Phase 2)
+- [x] Cancel needs a terminal event kind (`cancelled`) and a `StageStatus` for it; the tail never reads run status. (resolved in Phase 2)
+- [x] Page loader re-projects un-materialised terminal runs from `run_events` (materialised `messages.parts` is a cache); cancel materialises explicitly. (resolved in Phase 2)
+- [x] `GET /api/chats/:id/stream` reuses `tailRunAsUIMessageStream`; floor `pollMs` at 1; add resume tests (pre-aborted signal, listEvents throws, backoff). (resolved in Phase 2)
+- [x] Release the lease on SIGTERM (`lease_until = now()`), and heartbeat-renew during long calls (ontology up to 600 s) before a second worker exists. (resolved in Phase 2)
+- [ ] Transient DB errors inside a handler currently fail the run permanently; poll-only errors should be retried more leniently than enter errors.
+- [ ] `ontology.poll` resume should re-emit the `ontology` card.
+- [x] Document the 280 s tail limit for real-MiroFish runs until resume lands; note the ~60 s lease wait on worker restart. (resolved in Phase 2)
 
 ## Deferred minors (per-task reviewers; final triage: Phase 2/4/5 or drop)
 - Task 1: minor (deferred): empty-string S3 vars not normalised to undefined; WORKER_POLL_MS/MAX_CONCURRENT_RUNS accept 0/negatives (should be positive); s3 refine test only covers the all-missing case; no default assertions for STORAGE_LOCAL_DIR/MAX_CONCURRENT_RUNS; next.config passes console as log (possible duplicate "Loaded env" line)

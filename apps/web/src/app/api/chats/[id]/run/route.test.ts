@@ -1,0 +1,61 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
+vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
+vi.mock('@/server/runs', () => ({ runStore: { getLatestByChat: vi.fn(), lastSeq: vi.fn() } }))
+
+import { getSessionUser } from '@/lib/session'
+import { getOwnedChat } from '@/server/chats'
+import { runStore } from '@/server/runs'
+import { GET } from './route'
+
+const call = () => GET(new Request('http://localhost/api/chats/c1/run'), { params: Promise.resolve({ id: 'c1' }) })
+
+beforeEach(() => {
+  vi.resetAllMocks()
+})
+
+describe('GET /api/chats/[id]/run', () => {
+  it('returns 401 json when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null)
+    const res = await call()
+    expect(res.status).toBe(401)
+    expect(await res.json()).toEqual({ error: 'unauthenticated' })
+  })
+
+  it('returns 404 json when the chat is not owned', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue(null)
+    const res = await call()
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'not_found' })
+    expect(getOwnedChat).toHaveBeenCalledWith('c1', 'user1')
+    expect(runStore.getLatestByChat).not.toHaveBeenCalled()
+  })
+
+  it('returns status none when the chat has no runs', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ status: 'none' })
+  })
+
+  it('returns the latest run with its last event seq', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'running',
+      stage: 'graph_build',
+      assistantMessageId: 'a1',
+      config: { requirement: 'secret' },
+    } as never)
+    vi.mocked(runStore.lastSeq).mockResolvedValue(7)
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ runId: 'r1', status: 'running', stage: 'graph_build', assistantMessageId: 'a1', lastSeq: 7 })
+    expect(runStore.lastSeq).toHaveBeenCalledWith('r1')
+  })
+})

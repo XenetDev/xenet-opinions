@@ -1,6 +1,9 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+import { readUIMessageStream } from 'ai'
+import type { OpinionsUIMessage } from '../parts'
 import { createMemoryStore } from '../store/memory'
+import { materialiseRun } from './materialise'
 import { tailRunAsUIMessageStream } from './tail'
 
 const setup = async () => {
@@ -60,6 +63,15 @@ describe('tailRunAsUIMessageStream', () => {
     expect(chunks.slice(-2)).toEqual([{ type: 'error', errorText: 'boom' }, { type: 'finish' }])
   })
 
+  it('ends with abort then finish after a cancelled event', async () => {
+    const { store, runId } = await setup()
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:sim_run', payload: { stage: 'sim_run', status: 'cancelled', message: 'Cancelled by user' } })
+    await store.appendEvent(runId, { kind: 'cancelled', partId: null, payload: { stage: 'sim_run', message: 'Cancelled by user' } })
+    const chunks = await collect(tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5 }))
+    expect(chunks.slice(-2)).toEqual([{ type: 'abort', reason: 'Cancelled by user' }, { type: 'finish' }])
+    expect(chunks.filter((c) => c.type === 'finish')).toHaveLength(1)
+  })
+
   it('ends without finish when maxDurationMs elapses on an idle run', async () => {
     const { store, runId } = await setup()
     await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'running' } })
@@ -92,5 +104,41 @@ describe('tailRunAsUIMessageStream', () => {
     const { store } = await setup()
     const chunks = await collect(tailRunAsUIMessageStream({ store, runId: 'nope', messageId: 'm1', pollMs: 5 }))
     expect(chunks).toEqual([{ type: 'start', messageId: 'm1' }, { type: 'error', errorText: 'run_not_found' }, { type: 'finish' }])
+  })
+
+  it('ends after start without finish when the signal is already aborted', async () => {
+    const { store, runId } = await setup()
+    const chunks = await collect(tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, signal: AbortSignal.abort() }))
+    expect(chunks).toEqual([{ type: 'start', messageId: 'm1' }])
+  })
+
+  it('writes an error chunk then ends when listEvents throws', async () => {
+    const { store, runId } = await setup()
+    vi.spyOn(store, 'listEvents').mockRejectedValue(new Error('db down'))
+    const chunks = await collect(tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5 }))
+    expect(chunks).toEqual([{ type: 'start', messageId: 'm1' }, { type: 'error', errorText: 'An error occurred.' }])
+  })
+
+  it('a second tail from seq 0 after a partial first tail reconciles to the materialised parts', async () => {
+    const { store, runId } = await setup()
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'running' } })
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'done' } })
+    await store.appendEvent(runId, { kind: 'ontology', partId: 'ontology', payload: { entityTypes: ['A'], relationTypes: ['R'] } })
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:graph_build', payload: { stage: 'graph_build', status: 'running', progress: 10 } })
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:graph_build', payload: { stage: 'graph_build', status: 'running', progress: 60 } })
+    const [firstStream, firstChunks] = tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, maxDurationMs: 30 }).tee()
+    const firstTypes = collect(firstChunks).then((chunks) => chunks.map((c) => c.type))
+    let held: OpinionsUIMessage | undefined
+    for await (const message of readUIMessageStream<OpinionsUIMessage>({ stream: firstStream })) held = message
+    expect(await firstTypes).not.toContain('finish')
+    expect(held!.parts.length).toBeGreaterThan(0)
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:graph_build', payload: { stage: 'graph_build', status: 'done' } })
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:sim_run', payload: { stage: 'sim_run', status: 'running' } })
+    await store.appendEvent(runId, { kind: 'report_text', partId: 'report', payload: { markdown: '# R' } })
+    await store.appendEvent(runId, { kind: 'done', partId: null, payload: {} })
+    const stream = tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5 })
+    let parts: OpinionsUIMessage['parts'] = []
+    for await (const message of readUIMessageStream<OpinionsUIMessage>({ stream, message: held })) parts = message.parts
+    expect(parts).toEqual(await materialiseRun(store, runId))
   })
 })

@@ -1,10 +1,10 @@
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { generateId } from 'ai'
 import { schema, type Run } from '@xo/db'
-import { createDrizzleStore } from '@xo/engine'
+import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
 import { db } from '@/lib/db'
 
-const { messages, runs, uploads } = schema
+const { chats, messages, runs, uploads } = schema
 
 export const runStore = createDrizzleStore(db)
 
@@ -15,7 +15,28 @@ export class RunActiveError extends Error {
   }
 }
 
-function isActiveRunViolation(error: unknown): boolean {
+export class RunNotActiveError extends Error {
+  constructor() {
+    super('run_not_active')
+    this.name = 'RunNotActiveError'
+  }
+}
+
+export class RunNotFoundError extends Error {
+  constructor() {
+    super('run_not_found')
+    this.name = 'RunNotFoundError'
+  }
+}
+
+export class RunNotFailedError extends Error {
+  constructor() {
+    super('run_not_failed')
+    this.name = 'RunNotFailedError'
+  }
+}
+
+export function isActiveRunViolation(error: unknown): boolean {
   for (let current = error as { message?: string; cause?: unknown } | undefined, depth = 0; current && depth < 4; depth++) {
     if (typeof current.message === 'string' && current.message.includes('runs_one_active_per_chat')) return true
     current = current.cause as typeof current
@@ -65,6 +86,10 @@ export async function startRun(input: {
           config: { requirement: input.text, maxRounds: input.maxRounds, uploadIds: input.uploadIds },
         })
         .returning()
+      await tx
+        .update(chats)
+        .set({ title: sql`case when ${chats.title} = '' then ${input.text.slice(0, 60)} else ${chats.title} end`, updatedAt: sql`now()` })
+        .where(eq(chats.id, input.chatId))
       return row!
     })
     return { run, assistantMessageId }
@@ -72,4 +97,25 @@ export async function startRun(input: {
     if (isActiveRunViolation(error)) throw new RunActiveError()
     throw error
   }
+}
+
+export async function cancelActiveRun(chatId: string): Promise<Run> {
+  const run = await runStore.getActiveByChat(chatId)
+  if (!run) {
+    if (!(await runStore.getLatestByChat(chatId))) throw new RunNotFoundError()
+    throw new RunNotActiveError()
+  }
+  let cancelled: Run
+  try {
+    cancelled = await cancelRun(runStore, run.id, new Date())
+  } catch (error) {
+    if (error instanceof Error && error.message === 'run_not_active') throw new RunNotActiveError()
+    throw error
+  }
+  try {
+    await materialiseRun(runStore, run.id)
+  } catch (error) {
+    console.error('materialise after cancel failed', { runId: run.id, error })
+  }
+  return cancelled
 }

@@ -15,6 +15,10 @@ import {
 } from './parts'
 
 describe('parts', () => {
+  it('accepts a cancelled stage status', () => {
+    expect(StageDataSchema.safeParse({ stage: 'sim_run', status: 'cancelled' }).success).toBe(true)
+  })
+
   it('builds stage part ids', () => {
     expect(stagePartId('ontology')).toBe('stage:ontology')
   })

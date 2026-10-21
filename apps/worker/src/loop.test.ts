@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { type Deps, createMemoryStore } from '@xo/engine'
+import { type Deps, cancelRun, createMemoryStore } from '@xo/engine'
 import type { MiroFishClient } from '@xo/mirofish'
 import { describe, expect, it, vi } from 'vitest'
 import { runWorkerLoop } from './loop'
@@ -190,5 +190,78 @@ describe('runWorkerLoop', () => {
     ac.abort()
     await loop
     expect(Date.now() - started).toBeLessThan(100)
+  })
+
+  it('stops the simulation and never fails the run when it is cancelled mid-run', async () => {
+    const running = { runner_status: 'running', current_round: 1, total_rounds: 5, progress_percent: 20 }
+    const { store, deps, runId } = await setup({ simulation: { runStatus: vi.fn(async () => running) } as never })
+    await store.update(runId, { stage: 'sim_run', ids: { simulationId: 's1' }, cursors: { simStarted: true, startAcked: true } })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
+    await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.runStatus)).toHaveBeenCalled())
+    await cancelRun(store, runId, new Date())
+    await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledTimes(1))
+    await new Promise((r) => setTimeout(r, 50))
+    ac.abort()
+    await loop
+    expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledWith('s1')
+    expect(vi.mocked(deps.mirofish.simulation.closeEnv)).toHaveBeenCalledWith('s1')
+    const run = (await store.get(runId)) as Run
+    expect(run.status).toBe('cancelled')
+    const events = await store.listEvents(runId, 0)
+    expect(events.at(-1)?.kind).toBe('cancelled')
+    expect(events.some((e) => e.kind === 'error')).toBe(false)
+    expect(store.parts.get('m1')).toContainEqual(expect.objectContaining({ type: 'data-stage', data: expect.objectContaining({ stage: 'sim_run', status: 'cancelled' }) }))
+  })
+
+  it('stops the simulation once and stops driving when the run is deleted mid-run', async () => {
+    const running = { runner_status: 'running', current_round: 1, total_rounds: 5, progress_percent: 20 }
+    const { store, deps, runId } = await setup({ simulation: { runStatus: vi.fn(async () => running) } as never })
+    await store.update(runId, { stage: 'sim_run', ids: { simulationId: 's1' }, cursors: { simStarted: true, startAcked: true } })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
+    await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.runStatus)).toHaveBeenCalled())
+    store.runs.delete(runId)
+    await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(vi.mocked(deps.log)).toHaveBeenCalledWith('run deleted', { runId, owner: 'w1' }))
+    const polls = vi.mocked(deps.mirofish.simulation.runStatus).mock.calls.length
+    await new Promise((r) => setTimeout(r, 50))
+    expect(vi.mocked(deps.mirofish.simulation.runStatus).mock.calls.length).toBe(polls)
+    ac.abort()
+    await loop
+    expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledWith('s1')
+    expect(vi.mocked(deps.mirofish.simulation.closeEnv)).toHaveBeenCalledWith('s1')
+    expect((store.events.get(runId) ?? []).some((e) => e.kind === 'error')).toBe(false)
+  })
+
+  it('renews the lease on a heartbeat while a tick is in flight', async () => {
+    let settled = false
+    const getTask = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 1000))
+      settled = true
+      return { task_id: 'gtask_1', status: 'processing', progress: 10 }
+    })
+    const { store, deps, runId } = await setup({ graph: { getTask } as never })
+    await store.update(runId, { stage: 'graph_build', ids: { graphTaskId: 'gtask_1' } })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, leaseMs: 300, signal: ac.signal })
+    await vi.waitFor(() => expect(getTask).toHaveBeenCalled())
+    await vi.waitFor(() => expect(settled).toBe(true), { timeout: 3000 })
+    expect(vi.mocked(store.renewLease).mock.calls.length).toBeGreaterThanOrEqual(3)
+    ac.abort()
+    await loop
+  })
+
+  it('releases the lease once on abort with a run in flight', async () => {
+    const { store, deps, runId } = await setup({ graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'processing', progress: 10 })) } as never })
+    store.releaseLease = vi.fn(store.releaseLease.bind(store))
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
+    await vi.waitFor(() => expect(vi.mocked(deps.mirofish.graph.getTask)).toHaveBeenCalled())
+    ac.abort()
+    await loop
+    expect(vi.mocked(store.releaseLease).mock.calls).toEqual([[runId, 'w1']])
   })
 })

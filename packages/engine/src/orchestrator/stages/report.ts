@@ -21,7 +21,7 @@ const drain = async (run: Run, deps: Deps, reportId: string, untilEmpty: boolean
         reportEventCount: startN + events.length,
         ...(outline ? { reportOutline: outline } : {}),
       },
-    })
+    }, deps.fence)
     if (!untilEmpty && !page.has_more) break
   }
   return { run: current, exhausted: false }
@@ -34,7 +34,7 @@ export const report: StageHandler = {
     const started = await deps.mirofish.report.generate({ simulationId: need(run.ids.simulationId, 'simulationId') })
     const entered = await deps.store.update(run.id, {
       ids: { reportId: started.report_id, ...(started.task_id ? { reportTaskId: started.task_id } : {}) },
-    })
+    }, deps.fence)
     await running(deps, entered, 'report', { message: 'Writing the report' })
     return entered
   },

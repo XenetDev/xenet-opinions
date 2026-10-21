@@ -22,12 +22,14 @@ const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
 
 export function Composer({
   chatId,
+  initialText,
   onSend,
   disabled = false,
   status,
   onStop,
 }: {
   chatId: string
+  initialText?: string
   onSend: (text: string, uploadIds: string[], runOptions: RunOptionsValue) => void | Promise<void>
   disabled?: boolean
   status?: ChatStatus
@@ -41,7 +43,7 @@ export function Composer({
   const uploading = files.some((f) => f.status === 'uploading')
 
   return (
-    <PromptInputProvider>
+    <PromptInputProvider initialInput={initialText}>
       <PromptInput
         className="mt-4"
         onSubmit={async ({ text }) => {

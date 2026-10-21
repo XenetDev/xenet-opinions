@@ -23,5 +23,5 @@ export async function fail(run: Run, deps: Deps, stage: Stage, err: unknown): Pr
   return deps.store.transition(run.id, { status: 'failed', finishedAt: deps.now(), error: { stage, code, message } }, [
     event('stage', { stage, status: 'failed', message }),
     event('error', { stage, code, message }),
-  ])
+  ], deps.fence)
 }

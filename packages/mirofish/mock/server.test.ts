@@ -125,4 +125,40 @@ describe('mock MiroFish options', () => {
       await mock.close()
     }
   })
+
+  it('keeps a failed task failed after the toggle clears and succeeds a new task', async () => {
+    const mock = await startMockMiroFish({ port: 0, speed: 100 })
+    const toggle = (stage: string | null) =>
+      fetch(`${mock.url}/__mock/fail-stage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stage }) })
+    try {
+      const client = createMiroFishClient({ baseUrl: mock.url })
+      expect(await (await toggle('sim_prepare')).json()).toEqual({ success: true, data: { failStage: 'sim_prepare' } })
+      const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
+      const graphTask = await client.graph.build({ projectId: project_id })
+      const graph = await poll(() => client.graph.getTask(graphTask.task_id!), (t) => t.status === 'completed')
+      const sim = await client.simulation.create({ projectId: project_id, graphId: (graph.result as { graph_id: string }).graph_id })
+      const first = await client.simulation.prepare({ simulationId: sim.simulation_id })
+      expect((await client.simulation.prepareStatus({ taskId: first.task_id! })).status).toBe('failed')
+
+      expect(await (await toggle(null)).json()).toEqual({ success: true, data: { failStage: null } })
+      await new Promise((r) => setTimeout(r, 60))
+      expect((await client.simulation.prepareStatus({ taskId: first.task_id! })).status).toBe('failed')
+
+      const second = await client.simulation.prepare({ simulationId: sim.simulation_id })
+      const done = await poll(() => client.simulation.prepareStatus({ taskId: second.task_id! }), (t) => t.status !== 'processing')
+      expect(done.status).toBe('completed')
+    } finally {
+      await mock.close()
+    }
+  })
+
+  it('rejects an unknown fail stage', async () => {
+    const mock = await startMockMiroFish({ port: 0, speed: 100 })
+    try {
+      const res = await fetch(`${mock.url}/__mock/fail-stage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"stage":"nope"}' })
+      expect(res.status).toBe(400)
+    } finally {
+      await mock.close()
+    }
+  })
 })

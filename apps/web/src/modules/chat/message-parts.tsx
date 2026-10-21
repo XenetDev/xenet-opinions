@@ -14,7 +14,7 @@ function lastData<K extends keyof OpinionsDataParts>(parts: OpinionsUIMessage['p
   return match && 'data' in match ? (match.data as OpinionsDataParts[K]) : undefined
 }
 
-export function MessageParts({ parts }: { parts: OpinionsUIMessage['parts'] }) {
+export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['parts']; onRetry?: () => void }) {
   const stages = parts.flatMap((part) => (part.type === 'data-stage' ? [part.data] : []))
   const sources = lastData(parts, 'sources')
   const ontology = lastData(parts, 'ontology')
@@ -38,7 +38,7 @@ export function MessageParts({ parts }: { parts: OpinionsUIMessage['parts'] }) {
       )}
       {stages.length > 0 && (
         <div data-part="timeline">
-          <PipelineTimeline stages={stages} />
+          <PipelineTimeline stages={stages} onRetry={onRetry} />
         </div>
       )}
       {ontology && (

@@ -11,7 +11,7 @@ import {
   ontologyFixture,
   reportMarkdown,
 } from './fixtures'
-import { type FailStage, Timeline, createStore, hexId } from './state'
+import { FAIL_STAGES, type FailStage, type Failable, Timeline, createStore, hexId } from './state'
 
 export type MockOptions = { port?: number; speed?: number; failStage?: FailStage; token?: string }
 
@@ -69,12 +69,16 @@ const send = (res: ServerResponse, status: number, body: unknown) => {
   res.end(JSON.stringify(body))
 }
 
-export const startMockMiroFish = async (opts: MockOptions = {}) => {
+export const startMockMiroFish = async (options: MockOptions = {}) => {
+  const opts = { ...options }
   const speed = opts.speed && opts.speed > 0 ? opts.speed : 1
   const scale = (ms: number) => ms / speed
   const store = createStore()
   const calls: Record<string, number> = {}
-  const fails = (stage: FailStage) => opts.failStage === stage
+  const fails = (entity: Failable, stage: FailStage) => {
+    if (opts.failStage === stage) entity.failed = true
+    return entity.failed === true
+  }
 
   const need = <T>(value: T | undefined, what: string): T => {
     if (value === undefined) throw new HttpError(404, `${what} not found`)
@@ -85,11 +89,11 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
     id: string,
     type: string,
     timeline: Timeline,
-    stage: FailStage,
+    failed: boolean,
     result: () => unknown,
     extra: Record<string, unknown> = {},
   ) => {
-    if (fails(stage)) {
+    if (failed) {
       const progress = Math.min(99, Math.floor(timeline.progress * 100))
       return { task_id: id, task_type: type, status: 'failed', progress, message: FAILURE, result: null, error: FAILURE }
     }
@@ -107,7 +111,7 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
     return {
       simulation_id: simulationId,
       already_prepared: false,
-      ...taskView(task.id, 'simulation_prepare', task.timeline, 'sim_prepare', () => ({ simulation_id: simulationId }), {
+      ...taskView(task.id, 'simulation_prepare', task.timeline, fails(task, 'sim_prepare'), () => ({ simulation_id: simulationId }), {
         progress_detail: { current_item: current, total_items: PROFILE_COUNT },
       }),
     }
@@ -117,7 +121,7 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
     const sim = need(store.simulations.get(simulationId), 'simulation')
     const run = sim.run
     if (!run) return { simulation_id: simulationId, runner_status: 'idle', current_round: 0, total_rounds: 0, progress_percent: 0, error: null }
-    const failed = fails('sim_run')
+    const failed = fails(run, 'sim_run')
     const round = run.timeline.done ? run.maxRounds : Math.floor(run.timeline.progress * run.maxRounds)
     const runner = failed ? 'failed' : run.stopped ? 'stopped' : run.timeline.done ? 'completed' : 'running'
     return {
@@ -141,7 +145,7 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
   const reportView = (reportId: string) => {
     const report = need(store.reports.get(reportId), 'report')
     const base = { report_id: report.id, simulation_id: report.simulationId }
-    if (fails('report')) return { ...base, status: 'failed', markdown_content: null, error: FAILURE }
+    if (fails(report, 'report')) return { ...base, status: 'failed', markdown_content: null, error: FAILURE }
     if (logLinesAvailable(report.timeline) < agentLogFixture.length) {
       return { ...base, status: 'generating', markdown_content: null, error: null }
     }
@@ -155,6 +159,14 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
   }
 
   const routes: Route[] = [
+    compile('POST', '/__mock/fail-stage', ({ body }) => {
+      const stage = body.stage ?? null
+      if (stage !== null && !(FAIL_STAGES as readonly unknown[]).includes(stage)) {
+        throw new HttpError(400, `stage must be one of ${FAIL_STAGES.join(', ')} or null`)
+      }
+      opts.failStage = (stage as FailStage | null) ?? undefined
+      return { failStage: opts.failStage ?? null }
+    }),
     compile('POST', '/api/graph/ontology/generate', async ({ req }) => {
       const form = await readForm(req)
       const files = form.getAll('files').filter((v) => typeof v !== 'string')
@@ -177,7 +189,7 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
     }),
     compile('GET', '/api/graph/task/:id', ({ params }) => {
       const task = need(store.graphTasks.get(params.id as string), 'task')
-      return taskView(task.id, 'graph_build', task.timeline, 'graph_build', () => ({
+      return taskView(task.id, 'graph_build', task.timeline, fails(task, 'graph_build'), () => ({
         project_id: task.projectId,
         graph_id: task.graphId,
         node_count: 80,
@@ -317,7 +329,7 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
       if (process.env.MOCK_LOG === '1') console.log(`${method} ${url.pathname}`)
       const key = `${method} ${matched.route.pattern}`
       calls[key] = (calls[key] ?? 0) + 1
-      if (opts.token && req.headers['x-mirofish-token'] !== opts.token) throw new HttpError(401, 'unauthorized')
+      if (opts.token && !url.pathname.startsWith('/__mock/') && req.headers['x-mirofish-token'] !== opts.token) throw new HttpError(401, 'unauthorized')
       const isForm = matched.route.pattern === '/api/graph/ontology/generate'
       const body = method === 'POST' && !isForm ? await readBody(req) : {}
       const data = await matched.route.handler({ params: matched.params, query: url.searchParams, body, req })
@@ -345,11 +357,9 @@ export const startMockMiroFish = async (opts: MockOptions = {}) => {
   }
 }
 
-const STAGES: FailStage[] = ['graph_build', 'sim_prepare', 'sim_run', 'report']
-
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const failStage = process.env.MOCK_FAIL_STAGE as FailStage | undefined
-  if (failStage && !STAGES.includes(failStage)) throw new Error(`MOCK_FAIL_STAGE must be one of ${STAGES.join(', ')}`)
+  if (failStage && !FAIL_STAGES.includes(failStage)) throw new Error(`MOCK_FAIL_STAGE must be one of ${FAIL_STAGES.join(', ')}`)
   const mock = await startMockMiroFish({
     port: Number(process.env.PORT ?? 5001),
     speed: Number(process.env.MOCK_SPEED ?? 1),

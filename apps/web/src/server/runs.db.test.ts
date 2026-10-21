@@ -7,6 +7,8 @@ vi.mock('@/lib/db', async () => {
   return { db: createDb(process.env.DATABASE_URL ?? 'postgresql://localhost:1/none') }
 })
 
+vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
+
 import { db } from '@/lib/db'
 import { listMessages } from './chats'
 import { RunActiveError, startRun } from './runs'
@@ -45,6 +47,20 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
       [assistantMessageId, 'assistant'],
     ])
     expect(listed[1]!.createdAt.getTime() - listed[0]!.createdAt.getTime()).toBe(1)
+  })
+
+  it('titles an untitled chat from the first message and touches updated_at', async () => {
+    const chatId = await mkChat()
+    const [before] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+    const first = { ...input(chatId), text: 'x'.repeat(80) }
+    await startRun(first)
+    const [after] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+    expect(after!.title).toBe('x'.repeat(60))
+    expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime())
+    await db.update(schema.runs).set({ status: 'done' }).where(eq(schema.runs.chatId, chatId))
+    await startRun({ ...input(chatId), text: 'second' })
+    const [again] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+    expect(again!.title).toBe('x'.repeat(60))
   })
 
   it('lets exactly one of two concurrent starts win', async () => {

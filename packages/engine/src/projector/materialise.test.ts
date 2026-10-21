@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RunEventInput } from '../events'
+import { event } from '../orchestrator/emit'
 import { fail } from '../orchestrator/machine'
 import { drive, setupRun } from '../orchestrator/test-helpers'
 import type { Deps } from '../orchestrator/types'
@@ -64,5 +65,18 @@ describe('materialiseRun', () => {
   it('rejects a missing run', async () => {
     const { store } = await setup([])
     await expect(materialiseRun(store, 'nope')).rejects.toThrow('run_not_found')
+  })
+
+  it('records a cancelled report stage without report text', async () => {
+    const events = (await drivenEvents()).filter((e) => !(e.kind === 'stage' && (e.payload as { stage: string }).stage === 'finished'))
+    const cut = events.findIndex((e) => e.kind === 'report_text')
+    const { store, run } = await setup([
+      ...events.slice(0, cut),
+      event('stage', { stage: 'report', status: 'cancelled', message: 'Cancelled by user' }),
+      event('cancelled', { stage: 'report', message: 'Cancelled by user' }),
+    ])
+    const parts = await materialiseRun(store, run.id)
+    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:report')).toMatchObject({ data: { stage: 'report', status: 'cancelled' } })
+    expect(count(parts, 'text')).toBe(0)
   })
 })

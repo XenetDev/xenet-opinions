@@ -10,7 +10,7 @@ export const writeRunEvents = (write: (chunk: UIMessageChunk) => void, events: R
   for (const event of events) {
     for (const chunk of eventToChunks({ ...event, kind: event.kind as EventKind })) write(chunk)
     if (event.kind === 'error') write({ type: 'finish' })
-    if (event.kind === 'error' || event.kind === 'done') return true
+    if (event.kind === 'error' || event.kind === 'done' || event.kind === 'cancelled') return true
   }
   return false
 }
@@ -35,7 +35,8 @@ export function tailRunAsUIMessageStream(input: {
   maxDurationMs?: number
   signal?: AbortSignal
 }): ReadableStream<UIMessageChunk> {
-  const { store, runId, messageId, pollMs = 1000, maxDurationMs, signal } = input
+  const { store, runId, messageId, maxDurationMs, signal } = input
+  const pollMs = Math.max(1, input.pollMs ?? 1000)
   const stop = new AbortController()
   const abort = () => stop.abort()
 

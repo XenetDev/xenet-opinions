@@ -60,9 +60,18 @@ describe('eventToChunks', () => {
   })
 })
 
+describe('eventToChunks cancelled', () => {
+  it('maps cancelled to abort then finish', () => {
+    expect(eventToChunks({ kind: 'cancelled', partId: null, payload: { stage: 'sim_run', message: 'Cancelled by user' } })).toEqual([
+      { type: 'abort', reason: 'Cancelled by user' },
+      { type: 'finish' },
+    ])
+  })
+})
+
 describe('partIdFor', () => {
   it('returns the part id per kind', () => {
-    expect(EVENT_KINDS).toHaveLength(11)
+    expect(EVENT_KINDS).toHaveLength(12)
     expect(partIdFor('stage', { stage: 'sim_run', status: 'running' })).toBe('stage:sim_run')
     expect(partIdFor('ontology', {})).toBe('ontology')
     expect(partIdFor('graph', {})).toBe('graph')
@@ -74,5 +83,6 @@ describe('partIdFor', () => {
     expect(partIdFor('report_text', { markdown: '' })).toBe('report')
     expect(partIdFor('error', {})).toBeNull()
     expect(partIdFor('done', {})).toBeNull()
+    expect(partIdFor('cancelled', {})).toBeNull()
   })
 })

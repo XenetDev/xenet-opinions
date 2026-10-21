@@ -9,6 +9,7 @@ import {
   SimFeedDataSchema,
   SourcesDataSchema,
   StageDataSchema,
+  STAGES,
   stagePartId,
 } from './parts'
 import type {
@@ -35,6 +36,7 @@ export const EVENT_KINDS = [
   'report_text',
   'error',
   'done',
+  'cancelled',
 ] as const
 export type EventKind = (typeof EVENT_KINDS)[number]
 
@@ -52,10 +54,13 @@ export type RunEventPayloads = {
   report_text: { markdown: string }
   error: ErrorData
   done: Record<string, never>
+  cancelled: CancelledData
 }
 
 export const ReportTextDataSchema = z.object({ markdown: z.string() })
 export const DoneDataSchema = z.object({})
+export const CancelledDataSchema = z.object({ stage: z.enum(STAGES), message: z.string() })
+export type CancelledData = z.infer<typeof CancelledDataSchema>
 
 const SCHEMAS = {
   stage: StageDataSchema,
@@ -69,6 +74,7 @@ const SCHEMAS = {
   report_text: ReportTextDataSchema,
   error: ErrorDataSchema,
   done: DoneDataSchema,
+  cancelled: CancelledDataSchema,
 } as const
 
 export const payloadSchemaFor = <K extends EventKind>(kind: K): (typeof SCHEMAS)[K] => SCHEMAS[kind]
@@ -83,6 +89,7 @@ export const partIdFor = <K extends EventKind>(kind: K, payload: RunEventPayload
       return 'report'
     case 'error':
     case 'done':
+    case 'cancelled':
       return null
     default:
       return kind

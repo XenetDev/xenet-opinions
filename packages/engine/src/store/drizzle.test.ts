@@ -2,7 +2,9 @@ import { createDb, schema } from '@xo/db'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 import { ZodError } from 'zod'
+import { cancelRun } from '../orchestrator/cancel'
 import { createDrizzleStore } from './drizzle'
+import { FenceError } from './types'
 
 const config = { requirement: 'r', maxRounds: 3, uploadIds: [] }
 
@@ -117,6 +119,16 @@ run('renewLease requires owner and running status', () =>
   }),
 )
 
+run('reports the last event seq, 0 when empty', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    expect(await store.lastSeq(created.id)).toBe(0)
+    await store.appendEvent(created.id, { kind: 'report_text', partId: 'p', payload: { markdown: 'x' } })
+    await store.appendEvent(created.id, { kind: 'done', partId: null, payload: {} })
+    expect(await store.lastSeq(created.id)).toBe(2)
+  }),
+)
+
 run('appends events with sequential seq and lists after a cursor', () =>
   withFixture(async ({ store, userId, mkChat }) => {
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
@@ -180,5 +192,105 @@ run('sets message parts and lists uploads in id order', () =>
     for (const id of ids) await db.insert(schema.uploads).values({ id, userId, chatId, storageKey: 'k', filename: 'f', mediaType: 't', sizeBytes: 1 })
     expect((await store.listUploads([ids[1]!, ids[0]!, 'nope'])).map((u) => u.id)).toEqual([ids[1], ids[0]])
     expect(await store.listUploads([])).toEqual([])
+  }),
+)
+
+const stageDone = { kind: 'stage' as const, partId: 'stage:finished', payload: { stage: 'finished' as const, status: 'done' as const } }
+const doneEvent = { kind: 'done' as const, partId: null, payload: {} }
+
+const claimAs = async (db: ReturnType<typeof createDb>, id: string, owner: string) => {
+  await db.update(schema.runs).set({ status: 'running', leaseOwner: owner, leaseUntil: new Date(Date.now() + 60000) }).where(eq(schema.runs.id, id))
+}
+
+run('fenced update by the wrong owner throws and changes nothing', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await claimAs(db, created.id, 'a')
+    const before = await store.get(created.id)
+    const err = await store.update(created.id, { stage: 'graph_build', ids: { projectId: 'p' } }, { owner: 'b' }).catch((e) => e)
+    expect(err).toBeInstanceOf(FenceError)
+    expect(err).toMatchObject({ name: 'FenceError', code: 'run_fenced' })
+    expect(await store.get(created.id)).toEqual(before)
+    expect((await store.update(created.id, { stage: 'graph_build' }, { owner: 'a' })).stage).toBe('graph_build')
+  }),
+)
+
+run('fenced transition by the right owner applies events and patch', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await claimAs(db, created.id, 'a')
+    const done = await store.transition(created.id, { status: 'done' }, [stageDone, doneEvent], { owner: 'a' })
+    expect(done.status).toBe('done')
+    expect((await store.listEvents(created.id, 0)).map((e) => e.kind)).toEqual(['stage', 'done'])
+  }),
+)
+
+run('fenced transition after cancelRun throws and leaves the run cancelled', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await claimAs(db, created.id, 'a')
+    await cancelRun(store, created.id, new Date())
+    await expect(store.transition(created.id, { status: 'done' }, [stageDone, doneEvent], { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+    expect((await store.get(created.id))?.status).toBe('cancelled')
+    expect((await store.listEvents(created.id, 0)).at(-1)?.kind).toBe('cancelled')
+  }),
+)
+
+run('fenced appendEvent by the wrong owner throws and appends nothing', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await claimAs(db, created.id, 'a')
+    await expect(store.appendEvent(created.id, doneEvent, { owner: 'b' })).rejects.toBeInstanceOf(FenceError)
+    expect(await store.listEvents(created.id, 0)).toEqual([])
+    expect((await store.appendEvent(created.id, doneEvent, { owner: 'a' })).seq).toBe(1)
+  }),
+)
+
+run('unfenced writes ignore lease ownership', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await claimAs(db, created.id, 'a')
+    await store.update(created.id, { status: 'done' })
+    expect((await store.update(created.id, { stage: 'report' })).stage).toBe('report')
+    expect((await store.appendEvent(created.id, doneEvent)).seq).toBe(1)
+    expect((await store.transition(created.id, { status: 'failed' }, [])).status).toBe('failed')
+  }),
+)
+
+run('releaseLease expires the owner lease so the run is reclaimable', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    await assertNoForeignActive(db, userId)
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    expect(await store.releaseLease(created.id, 'a')).toBe(false)
+    expect((await store.claimNext('a', 60000, 1))?.id).toBe(created.id)
+    expect(await store.releaseLease(created.id, 'b')).toBe(false)
+    expect(await store.claimNext('b', 60000, 1)).toBeNull()
+    expect(await store.releaseLease(created.id, 'a')).toBe(true)
+    const reclaimed = await store.claimNext('b', 60000, 1)
+    expect(reclaimed?.id).toBe(created.id)
+    expect(reclaimed?.leaseOwner).toBe('b')
+    await store.update(created.id, { status: 'done' })
+    expect(await store.releaseLease(created.id, 'b')).toBe(false)
+  }),
+)
+
+run('transition with expectStatus rejects a mismatched run and writes nothing', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await store.update(created.id, { status: 'done' })
+    await expect(
+      store.transition(created.id, { status: 'cancelled' }, [doneEvent], undefined, { expectStatus: ['queued', 'running'] }),
+    ).rejects.toThrow('run_not_active')
+    expect((await store.get(created.id))?.status).toBe('done')
+    expect(await store.listEvents(created.id, 0)).toEqual([])
+  }),
+)
+
+run('fenced writes to a missing run throw FenceError; unfenced throw run_not_found', () =>
+  withFixture(async ({ store }) => {
+    await expect(store.update('missing', { stage: 'report' }, { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+    await expect(store.transition('missing', { status: 'done' }, [], { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+    await expect(store.appendEvent('missing', doneEvent, { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+    await expect(store.update('missing', { stage: 'report' })).rejects.toThrow('run_not_found')
   }),
 )

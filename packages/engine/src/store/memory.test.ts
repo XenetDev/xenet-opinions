@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { ZodError } from 'zod'
+import { cancelRun } from '../orchestrator/cancel'
 import { createMemoryStore } from './memory'
+import { FenceError } from './types'
 
 const config = { requirement: 'r', maxRounds: 3, uploadIds: [] }
 const input = (chatId: string, assistantMessageId = `a_${chatId}`) => ({ chatId, userId: 'u1', assistantMessageId, config })
@@ -93,6 +95,16 @@ it('appends events with sequential seq and lists after a cursor', async () => {
   expect(await store.listEvents('missing', 0)).toEqual([])
 })
 
+it('reports the last event seq, 0 when empty', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  expect(await store.lastSeq(run.id)).toBe(0)
+  await store.appendEvent(run.id, { kind: 'report_text', partId: 'p', payload: { markdown: 'x' } })
+  await store.appendEvent(run.id, { kind: 'done', partId: null, payload: {} })
+  expect(await store.lastSeq(run.id)).toBe(2)
+  expect(await store.lastSeq('missing')).toBe(0)
+})
+
 it('validates event payloads and missing runs', async () => {
   const store = createMemoryStore()
   const run = await store.create(input('c1'))
@@ -149,4 +161,92 @@ it('getLatestByChat returns the most recent run on same-ms ties', async () => {
   await store.update(first.id, { status: 'done' })
   const second = await store.create(input('c1', 'a2'))
   expect((await store.getLatestByChat('c1'))?.id).toBe(second.id)
+})
+
+const stageDone = { kind: 'stage' as const, partId: 'stage:finished', payload: { stage: 'finished' as const, status: 'done' as const } }
+
+it('fenced update by the wrong owner throws and changes nothing', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.claimNext('a', 60000, 1)
+  const before = await store.get(run.id)
+  const err = await store.update(run.id, { stage: 'graph_build', ids: { projectId: 'p' } }, { owner: 'b' }).catch((e) => e)
+  expect(err).toBeInstanceOf(FenceError)
+  expect(err).toMatchObject({ name: 'FenceError', code: 'run_fenced' })
+  expect(await store.get(run.id)).toEqual(before)
+  expect((await store.update(run.id, { stage: 'graph_build' }, { owner: 'a' })).stage).toBe('graph_build')
+})
+
+it('fenced transition by the right owner applies events and patch', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.claimNext('a', 60000, 1)
+  const done = await store.transition(run.id, { status: 'done' }, [stageDone, { kind: 'done', partId: null, payload: {} }], { owner: 'a' })
+  expect(done.status).toBe('done')
+  expect((await store.listEvents(run.id, 0)).map((e) => e.kind)).toEqual(['stage', 'done'])
+})
+
+it('fenced transition after cancelRun throws and leaves the run cancelled', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.claimNext('a', 60000, 1)
+  await cancelRun(store, run.id, new Date())
+  await expect(
+    store.transition(run.id, { status: 'done' }, [stageDone, { kind: 'done', partId: null, payload: {} }], { owner: 'a' }),
+  ).rejects.toBeInstanceOf(FenceError)
+  expect((await store.get(run.id))?.status).toBe('cancelled')
+  expect((await store.listEvents(run.id, 0)).at(-1)?.kind).toBe('cancelled')
+})
+
+it('fenced appendEvent by the wrong owner throws and appends nothing', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.claimNext('a', 60000, 1)
+  await expect(store.appendEvent(run.id, { kind: 'done', partId: null, payload: {} }, { owner: 'b' })).rejects.toBeInstanceOf(FenceError)
+  expect(await store.listEvents(run.id, 0)).toEqual([])
+  expect((await store.appendEvent(run.id, { kind: 'done', partId: null, payload: {} }, { owner: 'a' })).seq).toBe(1)
+})
+
+it('unfenced writes ignore lease ownership', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.claimNext('a', 60000, 1)
+  await store.update(run.id, { status: 'done' })
+  expect((await store.update(run.id, { stage: 'report' })).stage).toBe('report')
+  expect((await store.appendEvent(run.id, { kind: 'done', partId: null, payload: {} })).seq).toBe(1)
+  expect((await store.transition(run.id, { status: 'failed' }, [])).status).toBe('failed')
+})
+
+it('releaseLease expires the owner lease so the run is reclaimable', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  expect(await store.releaseLease(run.id, 'a')).toBe(false)
+  await store.claimNext('a', 60000, 1)
+  expect(await store.releaseLease(run.id, 'b')).toBe(false)
+  expect(await store.claimNext('b', 60000, 1)).toBeNull()
+  expect(await store.releaseLease(run.id, 'a')).toBe(true)
+  const reclaimed = await store.claimNext('b', 60000, 1)
+  expect(reclaimed?.id).toBe(run.id)
+  expect(reclaimed?.leaseOwner).toBe('b')
+  await store.update(run.id, { status: 'done' })
+  expect(await store.releaseLease(run.id, 'b')).toBe(false)
+})
+
+it('transition with expectStatus rejects a mismatched run and writes nothing', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  await store.update(run.id, { status: 'done' })
+  await expect(
+    store.transition(run.id, { status: 'cancelled' }, [{ kind: 'done', partId: null, payload: {} }], undefined, { expectStatus: ['queued', 'running'] }),
+  ).rejects.toThrow('run_not_active')
+  expect((await store.get(run.id))?.status).toBe('done')
+  expect(await store.listEvents(run.id, 0)).toEqual([])
+})
+
+it('fenced writes to a missing run throw FenceError; unfenced throw run_not_found', async () => {
+  const store = createMemoryStore()
+  await expect(store.update('missing', { stage: 'report' }, { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+  await expect(store.transition('missing', { status: 'done' }, [], { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+  await expect(store.appendEvent('missing', { kind: 'done', partId: null, payload: {} }, { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+  await expect(store.update('missing', { stage: 'report' })).rejects.toThrow('run_not_found')
 })
