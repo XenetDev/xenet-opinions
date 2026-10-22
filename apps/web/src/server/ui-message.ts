@@ -4,6 +4,7 @@ import {
   AgentsDataSchema,
   ErrorDataSchema,
   GraphDataSchema,
+  InterviewDataSchema,
   OntologyDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
@@ -31,6 +32,7 @@ const dataSchemas: Record<string, z.ZodType> = {
   'data-report_event': ReportEventDataSchema,
   'data-sources': SourcesDataSchema,
   'data-error': ErrorDataSchema,
+  'data-interview': InterviewDataSchema,
 }
 
 function validPart(part: unknown, rowId: string): boolean {

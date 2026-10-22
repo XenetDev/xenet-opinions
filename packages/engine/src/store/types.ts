@@ -31,5 +31,7 @@ export type RunStore = {
   listEvents(runId: string, afterSeq: number): Promise<RunEvent[]>
   lastSeq(runId: string): Promise<number>
   setMessageParts(messageId: string, parts: unknown[]): Promise<void>
+  listEnvsToSweep(now: Date, limit?: number): Promise<Run[]>
+  closeEnv(id: string): Promise<boolean>
   listUploads(ids: string[]): Promise<Upload[]>
 }

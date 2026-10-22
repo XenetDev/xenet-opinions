@@ -19,7 +19,7 @@ export default async function ChatPage({
   const chat = await getOwnedChat(id, user.id)
   if (!chat) notFound()
 
-  const { initialMessages, activeRun } = await loadChatPage(chat.id, user.id)
+  const { initialMessages, activeRun, latestRun } = await loadChatPage(chat.id, user.id)
 
   return (
     <Chat
@@ -27,6 +27,7 @@ export default async function ChatPage({
       chatId={chat.id}
       initialMessages={initialMessages}
       activeRun={activeRun}
+      latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       initialText={typeof q === 'string' ? q : undefined}
     />
   )

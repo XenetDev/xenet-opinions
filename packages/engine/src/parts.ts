@@ -91,6 +91,16 @@ export type SourcesData = z.infer<typeof SourcesDataSchema>
 export const ErrorDataSchema = z.object({ stage: StageSchema, code: z.string(), message: z.string() })
 export type ErrorData = z.infer<typeof ErrorDataSchema>
 
+export const InterviewDataSchema = z.object({
+  agentId: z.string(),
+  agentName: z.string(),
+  question: z.string(),
+  status: z.enum(['pending', 'done', 'failed']),
+  answer: z.string().optional(),
+  error: z.string().optional(),
+})
+export type InterviewData = z.infer<typeof InterviewDataSchema>
+
 export type OpinionsDataParts = {
   stage: StageData
   ontology: OntologyData
@@ -101,8 +111,11 @@ export type OpinionsDataParts = {
   report_event: ReportEventData
   sources: SourcesData
   error: ErrorData
+  interview: InterviewData
 }
 
 export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>
 
 export const stagePartId = (stage: Stage) => `stage:${stage}` as const
+export const interviewPartId = (agentId: string) => `interview:${agentId}` as const
+export { MAX_INTERVIEW_AGENTS } from './follow-up/keepalive'

@@ -50,12 +50,39 @@ describe('GET /api/chats/[id]/run', () => {
       status: 'running',
       stage: 'graph_build',
       assistantMessageId: 'a1',
+      envState: 'open',
+      envKeepaliveUntil: new Date('2026-10-21T10:00:00.000Z'),
       config: { requirement: 'secret' },
     } as never)
     vi.mocked(runStore.lastSeq).mockResolvedValue(7)
     const res = await call()
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ runId: 'r1', status: 'running', stage: 'graph_build', assistantMessageId: 'a1', lastSeq: 7 })
+    expect(await res.json()).toEqual({
+      runId: 'r1',
+      status: 'running',
+      stage: 'graph_build',
+      assistantMessageId: 'a1',
+      lastSeq: 7,
+      envState: 'open',
+      envKeepaliveUntil: '2026-10-21T10:00:00.000Z',
+    })
     expect(runStore.lastSeq).toHaveBeenCalledWith('r1')
+  })
+
+  it('narrows unknown env state to none and null deadline', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'done',
+      stage: 'report',
+      assistantMessageId: 'a1',
+      envState: 'weird',
+      envKeepaliveUntil: null,
+    } as never)
+    vi.mocked(runStore.lastSeq).mockResolvedValue(1)
+    const json = await (await call()).json()
+    expect(json.envState).toBe('none')
+    expect(json.envKeepaliveUntil).toBeNull()
   })
 })

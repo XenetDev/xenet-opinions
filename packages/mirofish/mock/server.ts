@@ -273,11 +273,13 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       return { simulation_id: sim.id, stopped: true }
     }),
     compile('POST', '/api/simulation/close-env', ({ body }) => {
-      need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      sim.envClosed = true
       return { closed: true }
     }),
     compile('POST', '/api/simulation/interview/batch', ({ body }) => {
-      need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      if (sim.envClosed) throw new HttpError(400, 'simulation environment is closed')
       const interviews = Array.isArray(body.interviews) ? (body.interviews as Array<{ agent_id?: unknown }>) : []
       return { results: interviews.map((i) => ({ agent_id: i.agent_id, response: 'Mock interview response.' })) }
     }),

@@ -3,7 +3,7 @@
 Source: SDD ledger for docs/superpowers/plans/2026-10-21-phase-2-resume.md. Fix-before-merge items were applied in 6475a69..4584bb4. Everything below is Phase 3+ or dropped-with-reason.
 
 ## Phase 3 design notes (binding inputs)
-- Dedicated test database (`TEST_DATABASE_URL`, default `xo_test`) migrated in a vitest `globalSetup` that clears leftover `queued|running` runs; then drop `--concurrency=1`.
+- [x] Dedicated test database (`TEST_DATABASE_URL`, default `xo_test`) migrated in a vitest `globalSetup` that clears leftover `queued|running` runs; then drop `--concurrency=1`. (resolved in Phase 3)
 - Fence on lease epoch/`attempt` (not only owner) before running more than one worker replica with a fixed `WORKER_ID`.
 - Extract a `withOwnedChat` route helper (auth + ownership boilerplate is now in 7 routes).
 - Pass the worker abort signal into MiroFish calls so SIGTERM releases the lease promptly even during a 600 s ontology call; README says "after the current step".

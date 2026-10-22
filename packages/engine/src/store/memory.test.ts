@@ -250,3 +250,32 @@ it('fenced writes to a missing run throw FenceError; unfenced throw run_not_foun
   await expect(store.appendEvent('missing', { kind: 'done', partId: null, payload: {} }, { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
   await expect(store.update('missing', { stage: 'report' })).rejects.toThrow('run_not_found')
 })
+
+it('lists open environments past their deadline, oldest first, limited', async () => {
+  const store = createMemoryStore()
+  const mk = async (chatId: string, patch: Parameters<typeof store.update>[1]) => {
+    const r = await store.create(input(chatId))
+    return store.update(r.id, patch)
+  }
+  const t = (m: number) => new Date(Date.UTC(2026, 9, 21, 12, m))
+  const late = await mk('c1', { status: 'done', envState: 'open', envKeepaliveUntil: t(5) })
+  const early = await mk('c2', { status: 'done', envState: 'open', envKeepaliveUntil: t(1) })
+  await mk('c3', { status: 'done', envState: 'open', envKeepaliveUntil: t(30) })
+  await mk('c4', { status: 'done', envState: 'closed', envKeepaliveUntil: t(0) })
+  await mk('c5', { status: 'done', envState: 'open', envKeepaliveUntil: null })
+  expect((await store.listEnvsToSweep(t(10))).map((r) => r.id)).toEqual([early.id, late.id])
+  expect((await store.listEnvsToSweep(t(10), 1)).map((r) => r.id)).toEqual([early.id])
+  expect((await store.listEnvsToSweep(t(5))).map((r) => r.id)).toEqual([early.id, late.id])
+})
+
+it('closeEnv closes an open environment once and reports whether it won', async () => {
+  const store = createMemoryStore()
+  const open = await store.update((await store.create(input('c1'))).id, { status: 'done', envState: 'open' })
+  const none = await store.create(input('c2'))
+  expect(await store.closeEnv(open.id)).toBe(true)
+  expect((await store.get(open.id))?.envState).toBe('closed')
+  expect(await store.closeEnv(open.id)).toBe(false)
+  expect(await store.closeEnv(none.id)).toBe(false)
+  expect((await store.get(none.id))?.envState).toBe(none.envState)
+  expect(await store.closeEnv('missing')).toBe(false)
+})

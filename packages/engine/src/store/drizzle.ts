@@ -1,5 +1,5 @@
 import { schema, type Db, type Run } from '@xo/db'
-import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
@@ -156,6 +156,22 @@ export function createDrizzleStore(db: Db): RunStore {
     },
     async setMessageParts(messageId, parts) {
       await db.update(messages).set({ parts }).where(eq(messages.id, messageId))
+    },
+    async listEnvsToSweep(now, limit = 50) {
+      return db
+        .select()
+        .from(runs)
+        .where(and(eq(runs.envState, 'open'), isNotNull(runs.envKeepaliveUntil), lte(runs.envKeepaliveUntil, now)))
+        .orderBy(asc(runs.envKeepaliveUntil))
+        .limit(limit)
+    },
+    async closeEnv(id) {
+      const rows = await db
+        .update(runs)
+        .set({ envState: 'closed' })
+        .where(and(eq(runs.id, id), eq(runs.envState, 'open')))
+        .returning({ id: runs.id })
+      return rows.length > 0
     },
     async listUploads(ids) {
       if (ids.length === 0) return []

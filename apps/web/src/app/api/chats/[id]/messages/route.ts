@@ -2,6 +2,7 @@ import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
 import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
+import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { messageText, parseMessageBody } from '@/server/message-body'
 import { RunActiveError, countOwnedUploads, runStore, startRun } from '@/server/runs'
 
@@ -25,7 +26,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (await runStore.getActiveByChat(chatId)) return Response.json({ error: 'run_active' }, { status: 409 })
   const latest = await runStore.getLatestByChat(chatId)
-  if (latest?.status === 'done') return Response.json({ error: 'run_finished' }, { status: 409 })
+  if (latest?.status === 'done') {
+    try {
+      return await runFollowUp({
+        chat,
+        run: latest,
+        userMessage: { id: body.message.id, parts: body.message.parts },
+        text,
+        target: body.target,
+        agentIds: body.agentIds,
+      })
+    } catch (e) {
+      if (e instanceof FollowUpError) return Response.json({ error: e.code }, { status: e.code === 'invalid_body' ? 400 : 409 })
+      throw e
+    }
+  }
 
   const uploadIds = [...new Set(body.uploadIds)]
   if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {

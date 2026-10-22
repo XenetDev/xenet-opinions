@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_INTERVIEW_AGENTS } from '@xo/engine'
 import { MAX_FILES } from './upload-rules'
 
 const messageBodySchema = z.object({
@@ -9,6 +10,8 @@ const messageBodySchema = z.object({
     parts: z.array(z.unknown()),
   }),
   uploadIds: z.array(z.string()).max(MAX_FILES).default([]),
+  target: z.enum(['report', 'agents']).default('report'),
+  agentIds: z.array(z.string().min(1).max(64)).max(MAX_INTERVIEW_AGENTS).default([]),
   runOptions: z.object({ maxRounds: z.number().int().min(1).max(40).default(3) }).default({ maxRounds: 3 }),
 })
 

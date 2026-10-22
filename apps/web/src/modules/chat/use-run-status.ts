@@ -5,7 +5,14 @@ import type { Stage } from '@xo/engine/parts'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 
 export type RunStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
-export type RunStatusState = { status: RunStatus; stage?: Stage; runId?: string; assistantMessageId?: string }
+export type RunStatusState = {
+  status: RunStatus
+  stage?: Stage
+  runId?: string
+  assistantMessageId?: string
+  envState?: 'none' | 'open' | 'closed'
+  envKeepaliveUntil?: string | null
+}
 
 const MAX_STALE_POLLS = 6
 
@@ -46,7 +53,14 @@ export function useRunStatus(
       }
       if (cancelled) return
       if (next) {
-        const exposed = { status: next.status, stage: next.stage, runId: next.runId, assistantMessageId: next.assistantMessageId }
+        const exposed: RunStatusState = {
+          status: next.status,
+          stage: next.stage,
+          runId: next.runId,
+          assistantMessageId: next.assistantMessageId,
+          envState: next.envState,
+          envKeepaliveUntil: next.envKeepaliveUntil,
+        }
         polls++
         if (baseline === undefined) baseline = next.status === 'none' || isActive(next.status) ? null : (next.runId ?? null)
         if (isActive(next.status)) {

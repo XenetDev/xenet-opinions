@@ -66,4 +66,19 @@ describe('MessageParts', () => {
     const { container } = render(<MessageParts parts={[]} />)
     expect(container.querySelectorAll('[data-part]')).toHaveLength(0)
   })
+
+  it('renders interviews after text, deduped by agent with last winning', () => {
+    const parts: Parts = [
+      { type: 'text', text: 'Report' },
+      { type: 'data-interview', data: { agentId: 'a', agentName: 'Ada', question: 'Q?', status: 'pending' } },
+      { type: 'data-interview', data: { agentId: 'b', agentName: 'Bo', question: 'Q?', status: 'pending' } },
+      { type: 'data-interview', data: { agentId: 'a', agentName: 'Ada', question: 'Q?', status: 'done', answer: 'Ada says yes' } },
+    ]
+    const { container } = render(<MessageParts parts={parts} />)
+    const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
+    expect(order).toEqual(['text', 'interviews'])
+    expect(screen.getAllByText('Ada')).toHaveLength(1)
+    expect(screen.getByText('Ada says yes')).toBeTruthy()
+    expect(screen.getByText('Bo')).toBeTruthy()
+  })
 })

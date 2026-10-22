@@ -3,6 +3,7 @@ import { MessageResponse } from '@/components/ai-elements/message'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AgentRoster } from './parts/agent-roster'
 import { GraphPreview } from './parts/graph-preview'
+import { InterviewCard } from './parts/interview-card'
 import { OntologyCard } from './parts/ontology-card'
 import { PipelineTimeline } from './parts/pipeline-timeline'
 import { ReportWorkbench } from './parts/report-workbench'
@@ -27,6 +28,9 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
     .sort((a, b) => a.n - b.n)
   const texts = parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
   const errors = parts.flatMap((part) => (part.type === 'data-error' ? [part.data] : []))
+  const interviews = [
+    ...new Map(parts.flatMap((part) => (part.type === 'data-interview' ? [[part.data.agentId, part.data] as const] : []))).values(),
+  ]
   const hasText = texts.length > 0
 
   return (
@@ -71,6 +75,13 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
           <MessageResponse>{text}</MessageResponse>
         </div>
       ))}
+      {interviews.length > 0 && (
+        <div data-part="interviews" className="flex flex-col gap-2">
+          {interviews.map((interview) => (
+            <InterviewCard key={interview.agentId} data={interview} />
+          ))}
+        </div>
+      )}
       {errors.map((error, i) => (
         <div key={i} data-part="error">
           <Alert variant="destructive">

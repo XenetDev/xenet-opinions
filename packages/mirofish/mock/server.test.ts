@@ -162,3 +162,25 @@ describe('mock MiroFish options', () => {
     }
   })
 })
+
+describe('mock MiroFish env lifecycle', () => {
+  it('rejects interviews after close-env but still answers report chat', async () => {
+    const mock = await startMockMiroFish({ port: 0, speed: 100 })
+    try {
+      const client = createMiroFishClient({ baseUrl: mock.url })
+      const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
+      const sim = await client.simulation.create({ projectId: project_id })
+      const ok = await client.simulation.interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] })
+      expect(ok.results).toHaveLength(1)
+      await client.simulation.closeEnv(sim.simulation_id)
+      const err = await client.simulation.interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] }).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(MiroFishError)
+      expect((err as MiroFishError).status).toBe(400)
+      expect((err as MiroFishError).message).toContain('simulation environment is closed')
+      const chat = await client.report.chat({ simulationId: sim.simulation_id, message: 'hi', history: [] })
+      expect(chat.response).toBe('Mock report agent reply.')
+    } finally {
+      await mock.close()
+    }
+  })
+})

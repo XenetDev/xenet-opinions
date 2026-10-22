@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { AgentRoster } from './agent-roster'
+import { InterviewSelectionProvider } from '../interview-selection'
 
 afterEach(cleanup)
 
@@ -28,5 +29,41 @@ describe('AgentRoster', () => {
     fireEvent.click(screen.getAllByTestId('agent-card')[0]!)
     expect(screen.getByText('Writes programs')).toBeTruthy()
     expect(screen.getByText('engines')).toBeTruthy()
+  })
+
+  describe('when selection is enabled', () => {
+    const renderEnabled = (max?: number) =>
+      render(
+        <InterviewSelectionProvider enabled max={max}>
+          <AgentRoster data={{ count: 3, profiles }} />
+        </InterviewSelectionProvider>,
+      )
+
+    it('toggles aria-pressed on card click without opening the sheet', () => {
+      renderEnabled()
+      const card = screen.getAllByTestId('agent-card')[0]!
+      expect(card.getAttribute('aria-pressed')).toBe('false')
+      fireEvent.click(card)
+      expect(card.getAttribute('aria-pressed')).toBe('true')
+      expect(screen.queryByText('Writes programs')).toBeNull()
+      fireEvent.click(card)
+      expect(card.getAttribute('aria-pressed')).toBe('false')
+    })
+
+    it('opens the sheet from the details button', () => {
+      renderEnabled()
+      fireEvent.click(screen.getByRole('button', { name: 'About Ada Lovelace' }))
+      expect(screen.getByText('Writes programs')).toBeTruthy()
+    })
+
+    it('shows a hint when the selection is full', () => {
+      renderEnabled(2)
+      const cards = screen.getAllByTestId('agent-card')
+      fireEvent.click(cards[0]!)
+      fireEvent.click(cards[1]!)
+      fireEvent.click(cards[2]!)
+      expect(screen.getByText('Up to 2 personas per interview')).toBeTruthy()
+      expect(cards[2]!.getAttribute('aria-pressed')).toBe('false')
+    })
   })
 })

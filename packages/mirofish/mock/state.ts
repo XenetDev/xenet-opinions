@@ -33,6 +33,7 @@ export type SimulationRecord = {
   graphId: string
   prepare?: PrepareTask
   run?: RunState
+  envClosed?: boolean
 }
 export type ReportRecord = Failable & { id: string; simulationId: string; timeline: Timeline }
 

@@ -38,6 +38,11 @@ export async function updateMessageParts(id: string, parts: unknown[]): Promise<
   await db.update(messages).set({ parts }).where(eq(messages.id, id))
 }
 
+export async function getMessage(id: string): Promise<Message | null> {
+  const [message] = await db.select().from(messages).where(eq(messages.id, id)).limit(1)
+  return message ?? null
+}
+
 export async function listMessages(chatId: string): Promise<Message[]> {
   return db.select().from(messages).where(eq(messages.chatId, chatId)).orderBy(asc(messages.createdAt))
 }

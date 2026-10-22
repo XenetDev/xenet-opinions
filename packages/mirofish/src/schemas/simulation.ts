@@ -54,5 +54,19 @@ export type RunStatus = z.infer<typeof RunStatus>
 export const Posts = z.object({}).loose()
 export type Posts = z.infer<typeof Posts>
 
-export const InterviewBatchResult = z.object({}).loose()
+export const InterviewBatchResult = z
+  .object({
+    results: z
+      .array(
+        z
+          .object({
+            agent_id: z.union([z.number(), z.string()]),
+            response: z.string().optional(),
+            error: z.string().nullish(),
+          })
+          .loose(),
+      )
+      .optional(),
+  })
+  .loose()
 export type InterviewBatchResult = z.infer<typeof InterviewBatchResult>

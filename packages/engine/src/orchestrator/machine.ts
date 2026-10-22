@@ -1,4 +1,5 @@
 import type { Run } from '@xo/db'
+import { keepaliveAfterFinish } from '../follow-up/keepalive'
 import { event } from './emit'
 import { FenceError } from '../store/types'
 import { fail, isRetriable, messageOf } from './fail'
@@ -11,7 +12,9 @@ const BACKOFF_MS = [2000, 4000, 8000]
 
 export async function tick(run: Run, deps: Deps): Promise<Run> {
   if (run.stage === 'finished') {
-    return deps.store.transition(run.id, { status: 'done', finishedAt: deps.now(), envState: 'open' }, [
+    const finishedAt = deps.now()
+    const envKeepaliveUntil = keepaliveAfterFinish(finishedAt, deps.envKeepaliveMs)
+    return deps.store.transition(run.id, { status: 'done', finishedAt, envState: 'open', envKeepaliveUntil }, [
       event('stage', { stage: 'finished', status: 'done' }),
       event('done', {}),
     ], deps.fence)

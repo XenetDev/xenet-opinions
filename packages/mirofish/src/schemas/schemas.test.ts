@@ -4,7 +4,7 @@ import type { z } from 'zod'
 import { Envelope, PlatformSchema } from './common'
 import { BuildStarted, OntologyResult, Task } from './graph'
 import { AgentLogPage, ChatResponse, Report, ReportStarted } from './report'
-import { PrepareStarted, RunStatus, SimulationState, StartResult } from './simulation'
+import { InterviewBatchResult, PrepareStarted, RunStatus, SimulationState, StartResult } from './simulation'
 
 const readFixture = (file: string): unknown =>
   JSON.parse(readFileSync(new URL(`../fixtures/${file}`, import.meta.url), 'utf8'))
@@ -24,6 +24,7 @@ const FIXTURE_TO_SCHEMA: Array<[string, z.ZodType]> = [
   ['report.get.completed.json', Report],
   ['report.agent-log.json', AgentLogPage],
   ['report.chat.json', ChatResponse],
+  ['simulation.interview-batch.mock-derived.json', InterviewBatchResult],
 ]
 
 describe('fixtures', () => {

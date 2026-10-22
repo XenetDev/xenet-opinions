@@ -12,6 +12,7 @@ export type Deps = {
   sleep(ms: number): Promise<void>
   log(msg: string, meta?: Record<string, unknown>): void
   fence?: { owner: string }
+  envKeepaliveMs?: number
 }
 
 export type ActiveStage = Exclude<Stage, 'finished'>

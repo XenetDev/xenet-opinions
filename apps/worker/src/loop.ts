@@ -1,11 +1,12 @@
 import type { Run } from '@xo/db'
-import { type Deps, FenceError, fail, materialiseRun, tick } from '@xo/engine'
+import { type Deps, FenceError, fail, materialiseRun, sweepEnvs, tick } from '@xo/engine'
 
 export type WorkerLoopOptions = Deps & {
   owner: string
   leaseMs: number
   pollMs: number
   maxConcurrent: number
+  sweepIntervalMs: number
   signal: AbortSignal
 }
 
@@ -115,18 +116,38 @@ export async function runWorkerLoop(opts: WorkerLoopOptions): Promise<void> {
     if (!isTerminal(run)) await release(run)
   }
 
-  while (!signal.aborted) {
+  let sweeping = false
+  const sweep = async () => {
+    if (sweeping) return
+    sweeping = true
     try {
-      const run = await store.claimNext(owner, leaseMs, maxConcurrent)
-      if (!run) {
-        await wait(pollMs)
-        continue
-      }
-      log('run claimed', { runId: run.id, owner, stage: run.stage })
-      await drive(run)
-    } catch (err) {
-      log('worker loop error', { owner, error: err })
-      await wait(pollMs)
+      const closed = await sweepEnvs(opts)
+      if (closed.length) log('envs swept', { owner, runIds: closed })
+    } catch (error) {
+      log('env sweep failed', { owner, error })
+    } finally {
+      sweeping = false
     }
+  }
+  const sweepTimer = opts.sweepIntervalMs > 0 ? setInterval(sweep, opts.sweepIntervalMs) : undefined
+  if (sweepTimer) void sweep()
+
+  try {
+    while (!signal.aborted) {
+      try {
+        const run = await store.claimNext(owner, leaseMs, maxConcurrent)
+        if (!run) {
+          await wait(pollMs)
+          continue
+        }
+        log('run claimed', { runId: run.id, owner, stage: run.stage })
+        await drive(run)
+      } catch (err) {
+        log('worker loop error', { owner, error: err })
+        await wait(pollMs)
+      }
+    }
+  } finally {
+    clearInterval(sweepTimer)
   }
 }

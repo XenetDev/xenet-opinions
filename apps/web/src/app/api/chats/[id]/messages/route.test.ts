@@ -12,11 +12,22 @@ vi.mock('@/server/runs', () => {
     startRun: vi.fn(),
   }
 })
-vi.mock('@xo/engine', () => ({ tailRunAsUIMessageStream: vi.fn() }))
+vi.mock('@/server/follow-up', () => {
+  class FollowUpError extends Error {
+    code: string
+    constructor(code: string) {
+      super(code)
+      this.code = code
+    }
+  }
+  return { FollowUpError, runFollowUp: vi.fn() }
+})
+vi.mock('@xo/engine', () => ({ MAX_INTERVIEW_AGENTS: 5, tailRunAsUIMessageStream: vi.fn() }))
 
 import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
+import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { RunActiveError, countOwnedUploads, runStore, startRun } from '@/server/runs'
 import { POST } from './route'
 
@@ -85,13 +96,60 @@ describe('POST /api/chats/[id]/messages', () => {
     expect(startRun).not.toHaveBeenCalled()
   })
 
-  it('returns 409 run_finished when the latest run is done', async () => {
+  it('routes a done latest run to runFollowUp and never starts a run', async () => {
     authed()
+    const latest = { id: 'r1', status: 'done' }
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue(latest as never)
+    vi.mocked(runFollowUp).mockResolvedValue(new Response('ok'))
+    const res = await call(userMessage('hi'), { target: 'agents', agentIds: ['a1'], uploadIds: ['foreign'] })
+    expect(res.status).toBe(200)
+    expect(startRun).not.toHaveBeenCalled()
+    expect(countOwnedUploads).not.toHaveBeenCalled()
+    expect(runFollowUp).toHaveBeenCalledWith({
+      chat: { id: 'c1' },
+      run: latest,
+      userMessage: { id: 'u1', parts: [{ type: 'text', text: 'hi' }] },
+      text: 'hi',
+      target: 'agents',
+      agentIds: ['a1'],
+    })
+  })
+
+  it('defaults follow-up target to report', async () => {
+    authed()
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
+    vi.mocked(runFollowUp).mockResolvedValue(new Response('ok'))
+    await call(userMessage('hi'))
+    expect(runFollowUp).toHaveBeenCalledWith(expect.objectContaining({ target: 'report', agentIds: [] }))
+  })
+
+  it.each([
+    ['invalid_body', 400],
+    ['env_closed', 409],
+    ['follow_up_unavailable', 409],
+  ])('maps FollowUpError %s to %i', async (code, status) => {
+    authed()
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
+    vi.mocked(runFollowUp).mockRejectedValue(new FollowUpError(code as never))
+    const res = await call(userMessage('hi'))
+    expect(res.status).toBe(status)
+    expect(await res.json()).toEqual({ error: code })
+  })
+
+  it('rethrows unexpected follow-up errors', async () => {
+    authed()
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
+    vi.mocked(runFollowUp).mockRejectedValue(new Error('boom'))
+    await expect(call(userMessage('hi'))).rejects.toThrow('boom')
+  })
+
+  it('still returns 409 run_active before follow-up when a run is active', async () => {
+    authed()
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r2', status: 'running' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
     const res = await call(userMessage('hi'))
     expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ error: 'run_finished' })
-    expect(startRun).not.toHaveBeenCalled()
+    expect(runFollowUp).not.toHaveBeenCalled()
   })
 
   it('returns 400 invalid_body when an upload id is not owned by this chat', async () => {

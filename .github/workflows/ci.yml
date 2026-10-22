@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://xo:xo@localhost:5432/xo
+      TEST_DATABASE_URL: postgresql://xo:xo@localhost:5432/xo_test
       BETTER_AUTH_SECRET: Y2ktZHVtbXktc2VjcmV0LW5vdC1mb3ItcHJvZHVjdGk=
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000

@@ -21,5 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     stage: run.stage,
     assistantMessageId: run.assistantMessageId,
     lastSeq: await runStore.lastSeq(run.id),
+    envState: run.envState === 'open' || run.envState === 'closed' ? run.envState : 'none',
+    envKeepaliveUntil: run.envKeepaliveUntil ? run.envKeepaliveUntil.toISOString() : null,
   })
 }

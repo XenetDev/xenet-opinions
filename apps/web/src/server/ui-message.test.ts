@@ -25,4 +25,12 @@ describe('toUIMessages', () => {
     ])
     expect(error).toHaveBeenCalledTimes(4)
   })
+
+  it('whitelists data-interview parts and drops invalid ones', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const good = { type: 'data-interview', id: 'interview:a1', data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' } }
+    const bad = { type: 'data-interview', data: { agentId: 'a1', status: 'nope' } }
+    const [message] = toUIMessages([row([good, bad])])
+    expect(message?.parts).toEqual([good])
+  })
 })

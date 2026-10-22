@@ -120,7 +120,7 @@ const setup = async (o: Overrides = {}) => {
   return { store, deps, runId: created.id, stages }
 }
 
-const loopOpts = { owner: 'w1', leaseMs: 60_000, pollMs: 10, maxConcurrent: 1 }
+const loopOpts = { owner: 'w1', leaseMs: 60_000, pollMs: 10, maxConcurrent: 1, sweepIntervalMs: 0 }
 
 const runUntilTerminal = async (store: ReturnType<typeof createMemoryStore>, runId: string, deps: Deps) => {
   const ac = new AbortController()
@@ -263,5 +263,51 @@ describe('runWorkerLoop', () => {
     ac.abort()
     await loop
     expect(vi.mocked(store.releaseLease).mock.calls).toEqual([[runId, 'w1']])
+  })
+
+  it('closes an expired environment within the sweep interval and stops sweeping on abort', async () => {
+    const { store, deps, runId } = await setup()
+    await store.update(runId, { status: 'done', ids: { simulationId: 's1' }, envState: 'open', envKeepaliveUntil: new Date(NOW.getTime() - 1) })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, sweepIntervalMs: 20, signal: ac.signal })
+    await vi.waitFor(async () => expect((await store.get(runId))?.envState).toBe('closed'), { timeout: 500 })
+    expect(vi.mocked(deps.mirofish.simulation.stop)).toHaveBeenCalledWith('s1')
+    expect(vi.mocked(deps.mirofish.simulation.closeEnv)).toHaveBeenCalledTimes(1)
+    ac.abort()
+    await loop
+    const calls = vi.mocked(deps.log).mock.calls.length
+    const listed = vi.spyOn(store, 'listEnvsToSweep')
+    await new Promise((r) => setTimeout(r, 60))
+    expect(listed).not.toHaveBeenCalled()
+    expect(vi.mocked(deps.log).mock.calls.length).toBe(calls)
+  })
+
+  it('does not sweep when the interval is 0', async () => {
+    const { store, deps, runId } = await setup()
+    await store.update(runId, { status: 'done', envState: 'open', envKeepaliveUntil: new Date(NOW.getTime() - 1) })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
+    await new Promise((r) => setTimeout(r, 50))
+    ac.abort()
+    await loop
+    expect((await store.get(runId))?.envState).toBe('open')
+  })
+
+  it('skips a sweep tick while the previous sweep is still running and survives sweep errors', async () => {
+    const { store, deps } = await setup()
+    let calls = 0
+    store.listEnvsToSweep = vi.fn(async () => {
+      calls++
+      if (calls === 1) throw new Error('db down')
+      await new Promise((r) => setTimeout(r, 100))
+      return []
+    })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...loopOpts, sweepIntervalMs: 10, signal: ac.signal })
+    await new Promise((r) => setTimeout(r, 70))
+    expect(calls).toBe(2)
+    expect(vi.mocked(deps.log)).toHaveBeenCalledWith('env sweep failed', expect.objectContaining({ error: expect.any(Error) }))
+    ac.abort()
+    await loop
   })
 })

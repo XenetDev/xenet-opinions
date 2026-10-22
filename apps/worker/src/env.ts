@@ -16,6 +16,8 @@ export const workerEnvSchema = z.object({
   S3_SECRET_ACCESS_KEY: optional,
   S3_FORCE_PATH_STYLE: optional,
   WORKER_POLL_MS: z.coerce.number().int().positive().default(2000),
+  ENV_KEEPALIVE_MS: z.coerce.number().int().positive().default(1_200_000),
+  ENV_SWEEP_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60_000),
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(1),
   WORKER_ID: z.string().min(1).default(`${hostname()}-${process.pid}`),
 })

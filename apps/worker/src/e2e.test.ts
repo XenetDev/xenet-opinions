@@ -76,7 +76,7 @@ const waitFor = async (check: () => Promise<boolean>, ms = 60_000) => {
   throw new Error('waitFor timed out')
 }
 
-const opts = { owner: 'w1', leaseMs: 60_000, pollMs: 20, maxConcurrent: 1 }
+const opts = { owner: 'w1', leaseMs: 60_000, pollMs: 20, maxConcurrent: 1, sweepIntervalMs: 0 }
 const e2e = it.skipIf(!process.env.DATABASE_URL)
 
 e2e('drives a queued run to done and materialises the report', { timeout: 90_000 }, async () => {
@@ -138,4 +138,20 @@ e2e('stops the simulation and ends cancelled when cancelled during sim_run', { t
   expect(run.status).toBe('cancelled')
   expect(mock.calls['POST /api/simulation/stop']).toBe(1)
   expect((await store.listEvents(runId, 0)).at(-1)?.kind).toBe('cancelled')
+})
+
+e2e('closes the environment once after the keepalive deadline', { timeout: 90_000 }, async () => {
+  const { store, mock, deps, runId } = await fixture()
+  const ac = new AbortController()
+  const loop = runWorkerLoop({ ...deps, ...opts, sweepIntervalMs: 50, signal: ac.signal })
+  await waitFor(async () => (await store.get(runId))!.status === 'done')
+  const done = (await store.get(runId))!
+  expect(done.envState).toBe('open')
+  expect(done.envKeepaliveUntil!.getTime()).toBeGreaterThan(Date.now())
+  await store.update(runId, { envKeepaliveUntil: new Date(Date.now() - 1000) })
+  await waitFor(async () => (await store.get(runId))!.envState === 'closed', 10_000)
+  await new Promise((r) => setTimeout(r, 200))
+  ac.abort()
+  await loop
+  expect(mock.calls['POST /api/simulation/close-env']).toBe(1)
 })

@@ -150,6 +150,18 @@ export function createMemoryStore(): RunStore & {
     async setMessageParts(messageId, value) {
       parts.set(messageId, value)
     },
+    async listEnvsToSweep(now, limit = 50) {
+      return [...runs.values()]
+        .filter((r) => r.envState === 'open' && r.envKeepaliveUntil && r.envKeepaliveUntil.getTime() <= now.getTime())
+        .sort((a, b) => a.envKeepaliveUntil!.getTime() - b.envKeepaliveUntil!.getTime())
+        .slice(0, limit)
+    },
+    async closeEnv(id) {
+      const run = runs.get(id)
+      if (!run || run.envState !== 'open') return false
+      runs.set(id, { ...run, envState: 'closed' })
+      return true
+    },
     async listUploads(ids) {
       return ids.flatMap((id) => uploads.get(id) ?? [])
     },

@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentsDataSchema,
   ErrorDataSchema,
+  InterviewDataSchema,
+  interviewPartId,
   GraphDataSchema,
   OntologyDataSchema,
   ReportEventDataSchema,
@@ -74,5 +76,12 @@ describe('parts', () => {
   it('parses error data', () => {
     const d = { stage: 'graph_build' as const, code: 'E', message: 'boom' }
     expect(ErrorDataSchema.parse(d)).toEqual(d)
+  })
+
+  it('parses interview data and builds part ids', () => {
+    const d = { agentId: '3', agentName: 'Ada', question: 'Why?', status: 'done' as const, answer: 'Because' }
+    expect(InterviewDataSchema.parse(d)).toEqual(d)
+    expect(InterviewDataSchema.safeParse({ ...d, status: 'nope' }).success).toBe(false)
+    expect(interviewPartId('3')).toBe('interview:3')
   })
 })

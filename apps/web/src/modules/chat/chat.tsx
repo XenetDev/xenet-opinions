@@ -9,7 +9,10 @@ import { Conversation, ConversationContent, ConversationScrollButton } from '@/c
 import { Message, MessageContent } from '@/components/ai-elements/message'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 import { Composer } from './composer/composer'
+import { EnvBadge } from './env-badge'
+import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
+import { useEnvStatus, type EnvState } from './use-env-status'
 import { useRunStatus } from './use-run-status'
 
 const CANCEL_NOTICES: Record<string, string> = {
@@ -17,15 +20,32 @@ const CANCEL_NOTICES: Record<string, string> = {
   not_found: 'There is no run to cancel yet',
 }
 
+const SEND_NOTICES: Record<string, string> = {
+  run_active: 'A run is already in progress for this chat.',
+  env_closed: 'The personas for this conversation are offline now. You can still ask the report.',
+  follow_up_failed: 'The report agent did not answer. Try again.',
+  follow_up_unavailable: 'Follow-ups are not available for this run.',
+}
+
+type LatestRun = {
+  id: string
+  status: string
+  assistantMessageId: string
+  envState: EnvState
+  envKeepaliveUntil: string | null
+}
+
 export function Chat({
   chatId,
   initialMessages,
   activeRun,
+  latestRun,
   initialText,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
   activeRun: { id: string; assistantMessageId: string; stage: Stage } | null
+  latestRun: LatestRun | null
   initialText?: string
 }) {
   const router = useRouter()
@@ -35,15 +55,18 @@ export function Chat({
   const [notice, setNotice] = useState<string | null>(null)
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
+  const [envRefreshKey, setEnvRefreshKey] = useState(0)
+  const followUpRef = useRef(false)
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
+    onFinish: () => {
+      if (followUpRef.current) setEnvRefreshKey((key) => key + 1)
+    },
     onError: (error) => {
-      if (/run_active|run_finished/.test(error.message)) {
-        setNotice(
-          error.message.includes('run_finished')
-            ? 'This run has finished. Start a new chat to continue.'
-            : 'A run is already in progress for this chat.',
-        )
+      const match = Object.entries(SEND_NOTICES).find(([code]) => error.message.includes(code))
+      if (match) {
+        setNotice(match[1])
+        if (match[0] === 'env_closed') setEnvRefreshKey((key) => key + 1)
       } else if (!runActiveRef.current) {
         setNotice('Something went wrong sending your message')
       }
@@ -65,9 +88,21 @@ export function Chat({
   })
   const resumeGuard = useRef(!!activeRun)
   const runActive = run.status === 'queued' || run.status === 'running'
+  const followUpMode = run.status === 'done' || (run.status === 'none' && latestRun?.status === 'done')
+  const env = useEnvStatus(chatId, {
+    seed:
+      run.status === 'done' && run.envState
+        ? { envState: run.envState, envKeepaliveUntil: run.envKeepaliveUntil ?? null }
+        : latestRun && { envState: latestRun.envState, envKeepaliveUntil: latestRun.envKeepaliveUntil },
+    refreshKey: envRefreshKey,
+  })
 
   const wasActive = useRef(runActive)
   const lastPoll = useRef(run)
+
+  useEffect(() => {
+    followUpRef.current = followUpMode
+  }, [followUpMode])
 
   useEffect(() => {
     if (status === 'streaming') resumeGuard.current = false
@@ -98,6 +133,10 @@ export function Chat({
   }
 
   const handleStop = async () => {
+    if (followUpMode && !runActive) {
+      void stop()
+      return
+    }
     const shouldCancel = runActive || status === 'submitted' || status === 'streaming'
     if (!shouldCancel) {
       void stop()
@@ -126,44 +165,53 @@ export function Chat({
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl flex-col p-4">
-      <Conversation className="min-h-0 flex-1">
-        <ConversationContent>
-          {messages.map((message) => (
-            <Message key={message.id} from={message.role}>
-              <MessageContent>
-                <MessageParts
-                  parts={message.parts}
-                  onRetry={
-                    latestFailed && message === lastMessage && message.role === 'assistant' ? () => void handleRetry() : undefined
-                  }
-                />
-              </MessageContent>
-            </Message>
-          ))}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
-      {notice && (
-        <p role="status" className="mt-2 text-sm text-muted-foreground">
-          {notice}
-        </p>
-      )}
-      <Composer
-        chatId={chatId}
-        initialText={initialText}
-        status={status}
-        onStop={() => void handleStop()}
-        disabled={status === 'submitted' || status === 'streaming' || runActive}
-        onSend={async (text, uploadIds, runOptions) => {
-          setNotice(null)
-          const title = chats.find((chat) => chat.id === chatId)?.title
-          upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
-          if (initialText) window.history.replaceState(null, '', pathname)
-          setSendCount((count) => count + 1)
-          setWatching(true)
-          void sendMessage({ text }, { body: { uploadIds, runOptions } })
-        }}
-      />
+      <InterviewSelectionProvider enabled={followUpMode && env.state === 'open'}>
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent>
+            {messages.map((message) => (
+              <Message key={message.id} from={message.role}>
+                <MessageContent>
+                  <MessageParts
+                    parts={message.parts}
+                    onRetry={
+                      latestFailed && message === lastMessage && message.role === 'assistant' ? () => void handleRetry() : undefined
+                    }
+                  />
+                </MessageContent>
+              </Message>
+            ))}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+        {followUpMode && <EnvBadge state={env.state} minutesLeft={env.minutesLeft} />}
+        {notice && (
+          <p role="status" className="mt-2 text-sm text-muted-foreground">
+            {notice}
+          </p>
+        )}
+        <Composer
+          chatId={chatId}
+          initialText={initialText}
+          mode={followUpMode ? 'followUp' : 'run'}
+          envOpen={env.state === 'open'}
+          status={status}
+          onStop={() => void handleStop()}
+          disabled={status === 'submitted' || status === 'streaming' || runActive}
+          onSend={async (text, submit) => {
+            setNotice(null)
+            if (submit.kind === 'followUp') {
+              void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
+              return
+            }
+            const title = chats.find((chat) => chat.id === chatId)?.title
+            upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+            if (initialText) window.history.replaceState(null, '', pathname)
+            setSendCount((count) => count + 1)
+            setWatching(true)
+            void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+          }}
+        />
+      </InterviewSelectionProvider>
     </div>
   )
 }

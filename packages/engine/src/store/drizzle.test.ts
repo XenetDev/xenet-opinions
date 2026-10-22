@@ -294,3 +294,36 @@ run('fenced writes to a missing run throw FenceError; unfenced throw run_not_fou
     await expect(store.update('missing', { stage: 'report' })).rejects.toThrow('run_not_found')
   }),
 )
+
+run('lists open environments past their deadline, oldest first, limited', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const base = Date.now() + 10 * 365 * 24 * 3_600_000
+    const t = (m: number) => new Date(base + m * 60_000)
+    const mk = async (patch: Parameters<typeof store.update>[1]) => {
+      const r = await store.create({ chatId: await mkChat(), userId, assistantMessageId: `a_${crypto.randomUUID()}`, config })
+      return store.update(r.id, patch)
+    }
+    const late = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(5) })
+    const early = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(1) })
+    const future = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(30) })
+    const closed = await mk({ status: 'done', envState: 'closed', envKeepaliveUntil: t(0) })
+    const noDeadline = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: null })
+    const ids = (rows: { id: string }[]) => rows.map((r) => r.id).filter((id) => [late.id, early.id, future.id, closed.id, noDeadline.id].includes(id))
+    expect(ids(await store.listEnvsToSweep(t(10), 1000))).toEqual([early.id, late.id])
+    expect((await store.listEnvsToSweep(t(0), 1000)).map((r) => r.id)).not.toContain(early.id)
+  }),
+)
+
+run('closeEnv closes an open environment once, even under concurrent callers', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const mk = async () => store.create({ chatId: await mkChat(), userId, assistantMessageId: `a_${crypto.randomUUID()}`, config })
+    const open = await store.update((await mk()).id, { status: 'done', envState: 'open' })
+    const none = await mk()
+    expect((await Promise.all([store.closeEnv(open.id), store.closeEnv(open.id)])).filter(Boolean)).toHaveLength(1)
+    expect((await store.get(open.id))?.envState).toBe('closed')
+    expect(await store.closeEnv(open.id)).toBe(false)
+    expect(await store.closeEnv(none.id)).toBe(false)
+    expect((await store.get(none.id))?.envState).toBe(none.envState)
+    expect(await store.closeEnv(crypto.randomUUID())).toBe(false)
+  }),
+)

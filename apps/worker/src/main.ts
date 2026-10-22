@@ -54,12 +54,14 @@ async function main() {
       mirofish: createMiroFishClient({ baseUrl: env.MIROFISH_URL, token: env.MIROFISH_TOKEN }),
       storage: createStorageFromEnv({ ...env, STORAGE_LOCAL_DIR: localDir }),
       now: () => new Date(),
+      envKeepaliveMs: env.ENV_KEEPALIVE_MS,
       sleep,
       log,
       owner: env.WORKER_ID,
       leaseMs: LEASE_MS,
       pollMs: env.WORKER_POLL_MS,
       maxConcurrent: env.MAX_CONCURRENT_RUNS,
+      sweepIntervalMs: env.ENV_SWEEP_INTERVAL_MS,
       signal: controller.signal,
     })
   } finally {

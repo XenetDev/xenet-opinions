@@ -18,6 +18,15 @@ const label = (e: { kind: string; payload: unknown }) => {
 const ids = { projectId: 'proj_1', graphId: 'graph_1', simulationId: 'sim_1' }
 
 describe('tick', () => {
+  it('sets the env keepalive deadline when a run finishes', async () => {
+    const { deps, run } = await setup({}, { stage: 'finished', ids })
+    const done = await tick(run, deps)
+    expect(done.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 20 * 60_000))
+    const short = await setup({}, { stage: 'finished', ids })
+    const quick = await tick(short.run, { ...short.deps, envKeepaliveMs: 60_000 })
+    expect(quick.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 60_000))
+  })
+
   it('drives a run through every stage to done', async () => {
     const { store, deps, run } = await setup()
     const done = await drive(run, deps)
