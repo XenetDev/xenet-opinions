@@ -7,6 +7,7 @@ import { DefaultChatTransport } from 'ai'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
 import { Message, MessageContent } from '@/components/ai-elements/message'
+import type { Limits } from '@/server/limits'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 import { Composer } from './composer/composer'
 import { EnvBadge } from './env-badge'
@@ -25,7 +26,11 @@ const SEND_NOTICES: Record<string, string> = {
   env_closed: 'The personas for this conversation are offline now. You can still ask the report.',
   follow_up_failed: 'The report agent did not answer. Try again.',
   follow_up_unavailable: 'Follow-ups are not available for this run.',
+  demo_paused: 'The demo is paused right now. Try again later.',
 }
+
+const quotaNotice = (runs: number) => `You've used today's ${runs === 1 ? '' : `${runs === 2 ? 'two' : runs} `}run${runs === 1 ? '' : 's'}. Come back tomorrow.`
+
 
 type LatestRun = {
   id: string
@@ -41,12 +46,14 @@ export function Chat({
   activeRun,
   latestRun,
   initialText,
+  limits,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
   activeRun: { id: string; assistantMessageId: string; stage: Stage } | null
   latestRun: LatestRun | null
   initialText?: string
+  limits: Limits
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -63,7 +70,12 @@ export function Chat({
       if (followUpRef.current) setEnvRefreshKey((key) => key + 1)
     },
     onError: (error) => {
-      const match = Object.entries(SEND_NOTICES).find(([code]) => error.message.includes(code))
+      const notices: Record<string, string> = {
+        ...SEND_NOTICES,
+        quota_exceeded: quotaNotice(limits.maxRunsPerDay),
+        rounds_exceeded: `The demo allows up to ${limits.maxRounds} rounds.`,
+      }
+      const match = Object.entries(notices).find(([code]) => error.message.includes(code))
       if (match) {
         setNotice(match[1])
         if (match[0] === 'env_closed') setEnvRefreshKey((key) => key + 1)
@@ -189,14 +201,20 @@ export function Chat({
             {notice}
           </p>
         )}
+        {limits.paused && (
+          <p role="status" className="mt-2 text-sm text-muted-foreground">
+            The demo is paused
+          </p>
+        )}
         <Composer
+          maxRounds={limits.maxRounds}
           chatId={chatId}
           initialText={initialText}
           mode={followUpMode ? 'followUp' : 'run'}
           envOpen={env.state === 'open'}
           status={status}
           onStop={() => void handleStop()}
-          disabled={status === 'submitted' || status === 'streaming' || runActive}
+          disabled={status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode)}
           onSend={async (text, submit) => {
             setNotice(null)
             if (submit.kind === 'followUp') {

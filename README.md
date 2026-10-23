@@ -25,6 +25,17 @@ Other commands: `pnpm typecheck`, `pnpm test`, `pnpm build`.
 
 Tests run in parallel against per-package databases (`xo_test_engine`, `xo_test_worker`, `xo_test_web`, `xo_test_db`) created and migrated automatically on the same server. Set `TEST_DATABASE_URL` (for example `postgresql://xo:xo@localhost:5432/xo_test`) to choose the server and base name; without it the base is derived from `DATABASE_URL` (database name `xo_test`). If neither is set, database tests are skipped. Test databases are never the dev `xo` database.
 
+### Self-host with Docker
+
+The Compose bundle runs web, worker, Postgres, MinIO and MiroFish (or the mock) behind a token proxy, publishing only the web port. Copy the example, fill in the blank secrets (the file says how to generate each), and start it:
+
+```sh
+cp .env.selfhost.example .env.selfhost
+docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d --build
+```
+
+See [docs/hosting.md](docs/hosting.md) for profiles, environment, volumes, backups and the hosted demo setup.
+
 ## Running the full pipeline locally
 
 Start the mock MiroFish in one terminal and the web app plus worker in another:
@@ -42,7 +53,7 @@ Once a run is done the composer unlocks for follow-ups. The target selector next
 
 ## Running against a real MiroFish
 
-Set `MIROFISH_URL` in `.env` to your MiroFish backend, and set `MIROFISH_TOKEN` as well if the fork's token middleware is enabled. Zep Cloud and LLM keys belong in MiroFish's own `.env`, not here. A real run takes roughly 20 to 60 minutes depending on agent count and rounds, so keep the worker running for the whole time. The page reattaches automatically if you reload, switch tabs or outlast the 280 s stream cap, so you can close it and come back. Restarting the worker is safe: it resumes the run from the stored cursors without starting the simulation twice. A graceful shutdown (SIGTERM) releases the run's lease after the current step; only a worker killed without SIGTERM leaves a lease that the next worker waits about 60 s to reclaim.
+Set `MIROFISH_URL` in `.env` to your MiroFish backend. Upstream MiroFish runs unmodified from a pinned commit; the token is enforced by the Caddy proxy in `infra/mirofish/`, so when you go through that proxy point `MIROFISH_URL` at it and set `MIROFISH_TOKEN` to the proxy's token (see [infra/mirofish/README.md](infra/mirofish/README.md)). Zep Cloud and LLM keys belong in MiroFish's own environment, not here. A real run takes roughly 20 to 60 minutes depending on agent count and rounds, so keep the worker running for the whole time. The page reattaches automatically if you reload, switch tabs or outlast the 280 s stream cap, so you can close it and come back. Restarting the worker is safe: it resumes the run from the stored cursors without starting the simulation twice. A graceful shutdown (SIGTERM) releases the run's lease after the current step; only a worker killed without SIGTERM leaves a lease that the next worker waits about 60 s to reclaim.
 
 ## Worker
 
@@ -61,12 +72,14 @@ Uploaded files go through `@xo/storage`. `STORAGE_DRIVER=local` is the default a
 - `packages/mirofish`: typed HTTP client for the MiroFish API, plus `mock/`, a local mock server.
 - `packages/storage`: local and S3 file storage for uploads.
 - `packages/engine`: run state machine, stage handlers, event projector and shared part types.
-- `infra/docker`: Compose file for the local Postgres 18 database.
+- `infra/docker`: web and worker Dockerfiles, the self-host Compose bundle (`docker-compose.yml`) and the dev Postgres 18 Compose file (`docker-compose.dev.yml`).
+- `infra/mirofish`: MiroFish backend image, Caddy token proxy and uploads retention script.
+- `docs/hosting.md`: self-host and hosted demo guide.
 - `docs/superpowers`: design spec and implementation plans.
 
 ## License
 
-This repository is MIT licensed. Third-party components vendored into the web app are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). MiroFish (https://github.com/666ghj/MiroFish) is AGPL-3.0. This UI only talks to MiroFish over HTTP and never imports or vendors its code, so the AGPL does not apply here. Any patches to MiroFish live in a separate AGPL fork.
+This repository is MIT licensed. Third-party components vendored into the web app are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). MiroFish (https://github.com/666ghj/MiroFish) is AGPL-3.0. This UI only talks to MiroFish over HTTP and never imports or vendors its code, so the AGPL does not apply here. Upstream MiroFish runs unmodified from a pinned commit (see [infra/mirofish/README.md](infra/mirofish/README.md)); a separate AGPL fork remains an option for future patches, not a requirement.
 
 ## Documents
 

@@ -7,8 +7,9 @@ vi.mock('@/server/runs', () => {
   class RunActiveError extends Error {}
   return {
     RunActiveError,
-    runStore: { getActiveByChat: vi.fn(), getLatestByChat: vi.fn() },
+    runStore: { getActiveByChat: vi.fn(), getLatestByChat: vi.fn(), queuePosition: vi.fn() },
     countOwnedUploads: vi.fn(),
+    runsStartedSince: vi.fn(),
     startRun: vi.fn(),
   }
 })
@@ -22,13 +23,15 @@ vi.mock('@/server/follow-up', () => {
   }
   return { FollowUpError, runFollowUp: vi.fn() }
 })
-vi.mock('@xo/engine', () => ({ MAX_INTERVIEW_AGENTS: 5, tailRunAsUIMessageStream: vi.fn() }))
+vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
+vi.mock('@xo/engine', async (importOriginal) => ({ ...(await importOriginal<typeof import('@xo/engine')>()), tailRunAsUIMessageStream: vi.fn() }))
 
 import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
-import { RunActiveError, countOwnedUploads, runStore, startRun } from '@/server/runs'
+import { getLimits } from '@/server/limits'
+import { RunActiveError, countOwnedUploads, runStore, runsStartedSince, startRun } from '@/server/runs'
 import { POST } from './route'
 
 const userMessage = (text: string) => ({ id: 'u1', role: 'user', parts: [{ type: 'text', text }] })
@@ -48,7 +51,12 @@ const authed = () => {
   vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
   vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
   vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
+  limits()
+  vi.mocked(runsStartedSince).mockResolvedValue({ count: 0, oldestQueuedAt: null })
 }
+
+const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
+  vi.mocked(getLimits).mockReturnValue({ demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, ...over })
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -212,5 +220,82 @@ describe('POST /api/chats/[id]/messages', () => {
     const body = await res.text()
     const first = body.split('\n').find((line) => line.startsWith('data:'))
     expect(JSON.parse(first!.slice(5).trim())).toEqual({ type: 'start', messageId: 'a1' })
+  })
+
+  describe('demo limits', () => {
+    it('blocks new runs with 409 demo_paused', async () => {
+      authed()
+      limits({ paused: true })
+      const res = await call(userMessage('hi'))
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'demo_paused' })
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('still allows follow-ups while paused', async () => {
+      authed()
+      limits({ paused: true, demoMode: true })
+      vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
+      vi.mocked(runFollowUp).mockResolvedValue(new Response('ok'))
+      const res = await call(userMessage('why?'))
+      expect(res.status).toBe(200)
+      expect(runFollowUp).toHaveBeenCalledTimes(1)
+      expect(runsStartedSince).not.toHaveBeenCalled()
+    })
+
+    it('returns 429 quota_exceeded with resetAt when the window is full', async () => {
+      authed()
+      limits({ demoMode: true, maxRounds: 3 })
+      const oldest = new Date(Date.now() - 3_600_000)
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 2, oldestQueuedAt: oldest })
+      const res = await call(userMessage('hi'))
+      expect(res.status).toBe(429)
+      expect(await res.json()).toEqual({ error: 'quota_exceeded', resetAt: new Date(oldest.getTime() + 86_400_000).toISOString() })
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('starts a run when retry rows leave the distinct-chat count under the limit', async () => {
+      authed()
+      limits({ demoMode: true, maxRounds: 3 })
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 1, oldestQueuedAt: new Date(Date.now() - 3_600_000) })
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+      const res = await call(userMessage('hi'))
+      expect(res.status).toBe(200)
+      expect(startRun).toHaveBeenCalledTimes(1)
+      await res.body?.cancel()
+    })
+
+    it('returns 400 rounds_exceeded above the demo cap', async () => {
+      authed()
+      limits({ demoMode: true, maxRounds: 3 })
+      const res = await call(userMessage('hi'), { runOptions: { maxRounds: 5 } })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'rounds_exceeded', max: 3 })
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('does not check quota outside demo mode and allows 40 rounds', async () => {
+      authed()
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+      const res = await call(userMessage('hi'), { runOptions: { maxRounds: 40 } })
+      expect(res.status).toBe(200)
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ maxRounds: 40 }))
+      expect(runsStartedSince).not.toHaveBeenCalled()
+      await res.body?.cancel()
+    })
+
+    it('passes a queuePosition reader for the started run to the tail', async () => {
+      authed()
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(runStore.queuePosition).mockResolvedValue(2)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+      const res = await call(userMessage('hi'))
+      await res.body?.cancel()
+      const reader = vi.mocked(tailRunAsUIMessageStream).mock.calls[0]![0].queuePosition!
+      expect(await reader()).toBe(2)
+      expect(runStore.queuePosition).toHaveBeenCalledWith('r2')
+    })
   })
 })

@@ -101,6 +101,9 @@ export const InterviewDataSchema = z.object({
 })
 export type InterviewData = z.infer<typeof InterviewDataSchema>
 
+export const QueueDataSchema = z.object({ position: z.number().int().min(0) })
+export type QueueData = z.infer<typeof QueueDataSchema>
+
 export type OpinionsDataParts = {
   stage: StageData
   ontology: OntologyData
@@ -112,6 +115,7 @@ export type OpinionsDataParts = {
   sources: SourcesData
   error: ErrorData
   interview: InterviewData
+  queue: QueueData
 }
 
 export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>

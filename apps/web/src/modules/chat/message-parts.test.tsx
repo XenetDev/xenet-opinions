@@ -81,4 +81,20 @@ describe('MessageParts', () => {
     expect(screen.getByText('Ada says yes')).toBeTruthy()
     expect(screen.getByText('Bo')).toBeTruthy()
   })
+
+  it('shows the queue card and no timeline while queued', () => {
+    const { container } = render(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }]} />)
+    expect(screen.getByText('You are #2 in the queue')).toBeTruthy()
+    expect(container.querySelector('[data-part="timeline"]')).toBeNull()
+  })
+
+  it('hides the queue card once stage parts exist or the position is 0', () => {
+    const { container, rerender } = render(
+      <MessageParts parts={[{ type: 'data-queue', data: { position: 0 } }, ...stageParts]} />,
+    )
+    expect(screen.queryByText(/in the queue/)).toBeNull()
+    expect(container.querySelector('[data-part="timeline"]')).not.toBeNull()
+    rerender(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }, ...stageParts]} />)
+    expect(screen.queryByText(/in the queue/)).toBeNull()
+  })
 })

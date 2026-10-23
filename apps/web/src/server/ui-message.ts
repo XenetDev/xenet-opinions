@@ -6,6 +6,7 @@ import {
   GraphDataSchema,
   InterviewDataSchema,
   OntologyDataSchema,
+  QueueDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
   SimFeedDataSchema,
@@ -33,6 +34,7 @@ const dataSchemas: Record<string, z.ZodType> = {
   'data-sources': SourcesDataSchema,
   'data-error': ErrorDataSchema,
   'data-interview': InterviewDataSchema,
+  'data-queue': QueueDataSchema,
 }
 
 function validPart(part: unknown, rowId: string): boolean {

@@ -1,3 +1,4 @@
+import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { MiroFishError, createMiroFishClient } from '../src/index'
 import { startMockMiroFish } from './server'
@@ -100,6 +101,26 @@ describe('mock MiroFish pipeline', () => {
 })
 
 describe('mock MiroFish options', () => {
+  it('serves /health outside the token check', async () => {
+    const mock = await startMockMiroFish({ port: 0, token: 'secret' })
+    try {
+      const res = await fetch(`${mock.url}/health`)
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ success: true, data: { status: 'ok' } })
+    } finally {
+      await mock.close()
+    }
+  })
+
+  it('binds the requested host', async () => {
+    const mock = await startMockMiroFish({ port: 0, host: '0.0.0.0' })
+    try {
+      expect((mock.server.address() as AddressInfo).address).toBe('0.0.0.0')
+    } finally {
+      await mock.close()
+    }
+  })
+
   it('requires token when token is set', async () => {
     const mock = await startMockMiroFish({ port: 0, speed: 100, token: 'secret' })
     try {

@@ -279,3 +279,32 @@ it('closeEnv closes an open environment once and reports whether it won', async 
   expect((await store.get(none.id))?.envState).toBe(none.envState)
   expect(await store.closeEnv('missing')).toBe(false)
 })
+
+it('reports queue positions for queued runs only', async () => {
+  const store = createMemoryStore()
+  const [r0, r1, r2] = [await store.create(input('c1')), await store.create(input('c2')), await store.create(input('c3'))]
+  const at = (id: string, ms: number) => store.runs.set(id, { ...store.runs.get(id)!, queuedAt: new Date(ms) })
+  at(r0!.id, 1000)
+  at(r1!.id, 2000)
+  at(r2!.id, 3000)
+  store.runs.set(r0!.id, { ...store.runs.get(r0!.id)!, status: 'running' })
+  expect(await store.queuePosition(r0!.id)).toBeNull()
+  expect(await store.queuePosition(r1!.id)).toBe(2)
+  expect(await store.queuePosition(r2!.id)).toBe(3)
+  expect(await store.queuePosition('missing')).toBeNull()
+  await store.update(r0!.id, { status: 'done' })
+  await store.claimNext('a', 60000, 2)
+  expect(store.runs.get(r1!.id)!.status).toBe('running')
+  expect(await store.queuePosition(r1!.id)).toBeNull()
+  expect(await store.queuePosition(r2!.id)).toBe(2)
+})
+
+it('gives runs with identical queuedAt the same position', async () => {
+  const store = createMemoryStore()
+  const [r0, r1, r2] = [await store.create(input('c1')), await store.create(input('c2')), await store.create(input('c3'))]
+  const same = new Date(5000)
+  for (const r of [r0!, r1!, r2!]) store.runs.set(r.id, { ...store.runs.get(r.id)!, queuedAt: same })
+  expect(await store.queuePosition(r0!.id)).toBe(1)
+  expect(await store.queuePosition(r1!.id)).toBe(1)
+  expect(await store.queuePosition(r2!.id)).toBe(1)
+})

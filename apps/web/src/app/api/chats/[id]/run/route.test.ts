@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/runs', () => ({ runStore: { getLatestByChat: vi.fn(), lastSeq: vi.fn() } }))
+vi.mock('@/server/runs', () => ({ runStore: { getLatestByChat: vi.fn(), lastSeq: vi.fn(), queuePosition: vi.fn() } }))
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
@@ -55,6 +55,7 @@ describe('GET /api/chats/[id]/run', () => {
       config: { requirement: 'secret' },
     } as never)
     vi.mocked(runStore.lastSeq).mockResolvedValue(7)
+    vi.mocked(runStore.queuePosition).mockResolvedValue(null)
     const res = await call()
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
@@ -65,6 +66,7 @@ describe('GET /api/chats/[id]/run', () => {
       lastSeq: 7,
       envState: 'open',
       envKeepaliveUntil: '2026-10-21T10:00:00.000Z',
+      queuePosition: null,
     })
     expect(runStore.lastSeq).toHaveBeenCalledWith('r1')
   })
@@ -84,5 +86,15 @@ describe('GET /api/chats/[id]/run', () => {
     const json = await (await call()).json()
     expect(json.envState).toBe('none')
     expect(json.envKeepaliveUntil).toBeNull()
+  })
+
+  it('reports the queue position of a queued run', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'queued', stage: 'ontology', assistantMessageId: 'a1', envState: 'none', envKeepaliveUntil: null } as never)
+    vi.mocked(runStore.lastSeq).mockResolvedValue(0)
+    vi.mocked(runStore.queuePosition).mockResolvedValue(2)
+    expect((await (await call()).json()).queuePosition).toBe(2)
+    expect(runStore.queuePosition).toHaveBeenCalledWith('r1')
   })
 })

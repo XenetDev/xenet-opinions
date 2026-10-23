@@ -6,6 +6,7 @@ import { GraphPreview } from './parts/graph-preview'
 import { InterviewCard } from './parts/interview-card'
 import { OntologyCard } from './parts/ontology-card'
 import { PipelineTimeline } from './parts/pipeline-timeline'
+import { QueueCard } from './parts/queue-card'
 import { ReportWorkbench } from './parts/report-workbench'
 import { SimulationFeed } from './parts/simulation-feed'
 import { SourcesList } from './parts/sources-list'
@@ -17,6 +18,7 @@ function lastData<K extends keyof OpinionsDataParts>(parts: OpinionsUIMessage['p
 
 export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['parts']; onRetry?: () => void }) {
   const stages = parts.flatMap((part) => (part.type === 'data-stage' ? [part.data] : []))
+  const queue = lastData(parts, 'queue')
   const sources = lastData(parts, 'sources')
   const ontology = lastData(parts, 'ontology')
   const graph = lastData(parts, 'graph')
@@ -35,6 +37,11 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
 
   return (
     <>
+      {queue && queue.position >= 1 && stages.length === 0 && (
+        <div data-part="queue">
+          <QueueCard data={queue} />
+        </div>
+      )}
       {sources && (
         <div data-part="sources">
           <SourcesList data={sources} />

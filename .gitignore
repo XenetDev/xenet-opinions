@@ -8,3 +8,4 @@ dist
 coverage
 .context/
 .superpowers/
+.env.selfhost

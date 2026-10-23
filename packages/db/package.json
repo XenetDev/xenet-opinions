@@ -12,11 +12,13 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "tsx src/migrate.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
-    "postgres": "3.4.9"
+    "postgres": "3.4.9",
+    "tsx": "4.23.15"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

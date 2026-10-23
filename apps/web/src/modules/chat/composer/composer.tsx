@@ -16,7 +16,7 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Badge } from '@/components/ui/badge'
 import { useInterviewSelection } from '../interview-selection'
-import { DEFAULT_ROUNDS, RunOptions, type RunOptionsValue } from './run-options'
+import { RunOptions, defaultRounds, type RunOptionsValue } from './run-options'
 import { TargetSelector, type FollowUpTarget } from './target-selector'
 import { useUploads } from './use-uploads'
 
@@ -35,6 +35,7 @@ export function Composer({
   disabled = false,
   status,
   onStop,
+  maxRounds = 40,
 }: {
   chatId: string
   initialText?: string
@@ -44,9 +45,10 @@ export function Composer({
   disabled?: boolean
   status?: ChatStatus
   onStop?: () => void
+  maxRounds?: number
 }) {
   const { files, add, remove, uploadAll, reset } = useUploads(chatId)
-  const [runOptions, setRunOptions] = useState<RunOptionsValue>({ maxRounds: DEFAULT_ROUNDS })
+  const [runOptions, setRunOptions] = useState<RunOptionsValue>({ maxRounds: defaultRounds(maxRounds) })
   const [target, setTarget] = useState<FollowUpTarget>('report')
   const [notice, setNotice] = useState<string | null>(null)
   const selection = useInterviewSelection()
@@ -168,7 +170,7 @@ export function Composer({
                   <PaperclipIcon className="size-4" />
                   <span>Attach</span>
                 </PromptInputButton>
-                <RunOptions value={runOptions} onChange={setRunOptions} disabled={disabled} />
+                <RunOptions value={runOptions} onChange={setRunOptions} disabled={disabled} maxRounds={maxRounds} />
               </>
             )}
           </PromptInputTools>

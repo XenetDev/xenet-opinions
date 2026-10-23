@@ -13,7 +13,7 @@ import {
 } from './fixtures'
 import { FAIL_STAGES, type FailStage, type Failable, Timeline, createStore, hexId } from './state'
 
-export type MockOptions = { port?: number; speed?: number; failStage?: FailStage; token?: string }
+export type MockOptions = { port?: number; speed?: number; failStage?: FailStage; token?: string; host?: string }
 
 class HttpError extends Error {
   constructor(
@@ -318,6 +318,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
     try {
       const url = new URL(req.url ?? '/', 'http://mock.local')
       const method = req.method ?? 'GET'
+      if (method === 'GET' && url.pathname === '/health') return send(res, 200, { success: true, data: { status: 'ok' } })
       let matched: { route: Route; params: Record<string, string> } | undefined
       for (const route of routes) {
         if (route.method !== method) continue
@@ -344,12 +345,13 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(opts.port ?? 0, '127.0.0.1', resolve)
+    server.listen(opts.port ?? 0, opts.host ?? '127.0.0.1', resolve)
   })
   const { port } = server.address() as AddressInfo
 
   return {
     url: `http://127.0.0.1:${port}`,
+    server,
     calls,
     close: () =>
       new Promise<void>((resolve, reject) => {
@@ -364,6 +366,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (failStage && !FAIL_STAGES.includes(failStage)) throw new Error(`MOCK_FAIL_STAGE must be one of ${FAIL_STAGES.join(', ')}`)
   const mock = await startMockMiroFish({
     port: Number(process.env.PORT ?? 5001),
+    host: process.env.HOST ?? '127.0.0.1',
     speed: Number(process.env.MOCK_SPEED ?? 1),
     failStage: failStage || undefined,
     token: process.env.MOCK_TOKEN || undefined,

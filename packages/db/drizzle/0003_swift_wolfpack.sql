@@ -1,0 +1,2 @@
+ALTER TABLE "runs" ADD COLUMN "retry_of" text;--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_retry_of_runs_id_fk" FOREIGN KEY ("retry_of") REFERENCES "public"."runs"("id") ON DELETE set null ON UPDATE no action;

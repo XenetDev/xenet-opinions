@@ -13,9 +13,13 @@ function findRepoRoot(start: string): string {
   return dir
 }
 
-loadEnvConfig(findRepoRoot(process.cwd()), process.env.NODE_ENV !== 'production', console, true)
+const repoRoot = findRepoRoot(process.cwd())
+
+loadEnvConfig(repoRoot, process.env.NODE_ENV !== 'production', console, true)
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: repoRoot,
   transpilePackages: ['@xo/db', '@xo/engine', '@xo/mirofish', '@xo/storage'],
 }
 

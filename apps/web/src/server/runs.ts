@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, sql } from 'drizzle-orm'
+import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { generateId } from 'ai'
 import { schema, type Run } from '@xo/db'
 import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
@@ -51,6 +51,14 @@ export async function countOwnedUploads(input: { chatId: string; userId: string;
     .from(uploads)
     .where(and(inArray(uploads.id, input.uploadIds), eq(uploads.chatId, input.chatId), eq(uploads.userId, input.userId)))
   return row?.n ?? 0
+}
+
+export async function runsStartedSince(userId: string, since: Date): Promise<{ count: number; oldestQueuedAt: Date | null }> {
+  const [row] = await db
+    .select({ n: count(), oldest: min(runs.queuedAt) })
+    .from(runs)
+    .where(and(eq(runs.userId, userId), gte(runs.queuedAt, since), isNull(runs.retryOf)))
+  return { count: row?.n ?? 0, oldestQueuedAt: row?.oldest ?? null }
 }
 
 export async function startRun(input: {

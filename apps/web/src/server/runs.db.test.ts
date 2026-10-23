@@ -11,7 +11,7 @@ vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
 
 import { db } from '@/lib/db'
 import { listMessages } from './chats'
-import { RunActiveError, startRun } from './runs'
+import { RunActiveError, runsStartedSince, startRun } from './runs'
 
 const userId = `ur_${crypto.randomUUID()}`
 
@@ -76,6 +76,67 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
     const listed = await listMessages(chatId)
     expect(listed.filter((m) => m.role === 'assistant')).toHaveLength(1)
     expect(listed.filter((m) => m.role === 'user')).toHaveLength(1)
+  })
+
+  it('counts new runs including cancel-then-resend, excludes retries, scoped to this user and window', async () => {
+    const otherId = `ur_${crypto.randomUUID()}`
+    await db
+      .insert(schema.user)
+      .values({ id: otherId, name: 'anon', email: `${otherId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    const quotaUser = `ur_${crypto.randomUUID()}`
+    await db
+      .insert(schema.user)
+      .values({ id: quotaUser, name: 'anon', email: `${quotaUser}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    const at = (hours: number) => new Date(Date.now() - hours * 3_600_000)
+    const seed = async (owner: string, status: 'done' | 'failed' | 'queued', queuedAt: Date) => {
+      const chatId = `c_${crypto.randomUUID()}`
+      await db.insert(schema.chats).values({ id: chatId, userId: owner })
+      const messageId = `m_${crypto.randomUUID()}`
+      await db.insert(schema.messages).values({ id: messageId, chatId, role: 'assistant', parts: [] })
+      await db.insert(schema.runs).values({
+        id: crypto.randomUUID(),
+        chatId,
+        userId: owner,
+        assistantMessageId: messageId,
+        status,
+        queuedAt,
+        config: { requirement: 'x', maxRounds: 1, uploadIds: [] },
+      })
+    }
+    const oldest = at(5)
+    await seed(quotaUser, 'done', at(30))
+    await seed(quotaUser, 'failed', oldest)
+    await seed(quotaUser, 'queued', at(1))
+    await seed(otherId, 'done', at(2))
+    const seedChat = async (rows: Array<{ status: 'failed' | 'queued' | 'cancelled'; hours: number; retry?: boolean }>) => {
+      const chatId = await mkChat()
+      let previous: string | null = null
+      for (const { status, hours, retry } of rows) {
+        const messageId = `m_${crypto.randomUUID()}`
+        await db.insert(schema.messages).values({ id: messageId, chatId, role: 'assistant', parts: [] })
+        const id = crypto.randomUUID()
+        await db.insert(schema.runs).values({
+          id,
+          chatId,
+          userId: quotaUser,
+          assistantMessageId: messageId,
+          retryOf: retry ? previous : null,
+          status,
+          queuedAt: at(hours),
+          config: { requirement: 'x', maxRounds: 1, uploadIds: [] },
+        })
+        previous = id
+      }
+    }
+    await seedChat([{ status: 'failed', hours: 3 }, { status: 'queued', hours: 2, retry: true }])
+    expect((await runsStartedSince(quotaUser, at(24))).count).toBe(3)
+    await seedChat([{ status: 'cancelled', hours: 4 }, { status: 'queued', hours: 3 }])
+    const result = await runsStartedSince(quotaUser, at(24))
+    expect(result.count).toBe(5)
+    expect(result.oldestQueuedAt?.getTime()).toBe(oldest.getTime())
+    expect(await runsStartedSince(`ur_${crypto.randomUUID()}`, at(24))).toEqual({ count: 0, oldestQueuedAt: null })
+    await db.delete(schema.user).where(eq(schema.user.id, otherId))
+    await db.delete(schema.user).where(eq(schema.user.id, quotaUser))
   })
 
   afterAll(async () => {

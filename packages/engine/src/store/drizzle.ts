@@ -1,5 +1,5 @@
 import { schema, type Db, type Run } from '@xo/db'
-import { and, asc, desc, eq, gt, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
@@ -73,6 +73,15 @@ export function createDrizzleStore(db: Db): RunStore {
     async getLatestByChat(chatId) {
       const [row] = await db.select().from(runs).where(eq(runs.chatId, chatId)).orderBy(desc(runs.queuedAt)).limit(1)
       return row ?? null
+    },
+    async queuePosition(runId) {
+      const [run] = await db.select({ status: runs.status, queuedAt: runs.queuedAt }).from(runs).where(eq(runs.id, runId))
+      if (!run || run.status !== 'queued') return null
+      const [ahead] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(runs)
+        .where(and(inArray(runs.status, ['queued', 'running']), lt(runs.queuedAt, run.queuedAt)))
+      return 1 + (ahead?.n ?? 0)
     },
     async claimNext(owner, leaseMs, maxConcurrent) {
       return db.transaction(async (tx) => {

@@ -68,6 +68,7 @@ export function createMemoryStore(): RunStore & {
         chatId: input.chatId,
         userId: input.userId,
         assistantMessageId: input.assistantMessageId,
+        retryOf: null,
         status: 'queued',
         stage: 'ontology',
         config: input.config,
@@ -95,6 +96,11 @@ export function createMemoryStore(): RunStore & {
     },
     async getLatestByChat(chatId) {
       return [...runs.values()].filter((r) => r.chatId === chatId).sort((a, b) => byQueuedAt(b, a))[0] ?? null
+    },
+    async queuePosition(runId) {
+      const run = runs.get(runId)
+      if (!run || run.status !== 'queued') return null
+      return 1 + [...runs.values()].filter((r) => ACTIVE.includes(r.status) && r.queuedAt.getTime() < run.queuedAt.getTime()).length
     },
     async claimNext(owner, leaseMs, maxConcurrent) {
       const now = Date.now()

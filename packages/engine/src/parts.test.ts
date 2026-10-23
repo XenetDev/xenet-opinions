@@ -7,6 +7,7 @@ import {
   interviewPartId,
   GraphDataSchema,
   OntologyDataSchema,
+  QueueDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
   SimFeedDataSchema,
@@ -83,5 +84,11 @@ describe('parts', () => {
     expect(InterviewDataSchema.parse(d)).toEqual(d)
     expect(InterviewDataSchema.safeParse({ ...d, status: 'nope' }).success).toBe(false)
     expect(interviewPartId('3')).toBe('interview:3')
+  })
+
+  it('parses queue data and rejects negative positions', () => {
+    expect(QueueDataSchema.parse({ position: 0 })).toEqual({ position: 0 })
+    expect(QueueDataSchema.safeParse({ position: -1 }).success).toBe(false)
+    expect(QueueDataSchema.safeParse({ position: 1.5 }).success).toBe(false)
   })
 })

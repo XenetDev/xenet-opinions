@@ -1,10 +1,11 @@
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
-import { tailRunAsUIMessageStream } from '@xo/engine'
+import { QUOTA_WINDOW_MS, checkRunPolicy, tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
+import { getLimits } from '@/server/limits'
 import { messageText, parseMessageBody } from '@/server/message-body'
-import { RunActiveError, countOwnedUploads, runStore, startRun } from '@/server/runs'
+import { RunActiveError, countOwnedUploads, runStore, runsStartedSince, startRun } from '@/server/runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -42,6 +43,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  const limits = getLimits()
+  const now = new Date()
+  const window = limits.demoMode
+    ? await runsStartedSince(user.id, new Date(now.getTime() - QUOTA_WINDOW_MS))
+    : { count: 0, oldestQueuedAt: null }
+  const policy = checkRunPolicy({
+    demoMode: limits.demoMode,
+    paused: limits.paused,
+    runsInWindow: window.count,
+    maxRunsPerDay: limits.maxRunsPerDay,
+    requestedRounds: body.runOptions.maxRounds,
+    maxRounds: limits.maxRounds,
+    windowStartedAt: window.oldestQueuedAt ?? now,
+  })
+  if (!policy.ok) {
+    if (policy.code === 'demo_paused') return Response.json({ error: 'demo_paused' }, { status: 409 })
+    if (policy.code === 'quota_exceeded') return Response.json({ error: 'quota_exceeded', resetAt: policy.resetAt?.toISOString() }, { status: 429 })
+    return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
+  }
+
   const uploadIds = [...new Set(body.uploadIds)]
   if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
     return Response.json({ error: 'invalid_body' }, { status: 400 })
@@ -69,6 +90,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       messageId: started.assistantMessageId,
       maxDurationMs: 280_000,
       signal: request.signal,
+      queuePosition: () => runStore.queuePosition(started.run.id),
     }),
     headers: UI_MESSAGE_STREAM_HEADERS,
   })

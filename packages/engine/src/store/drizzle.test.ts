@@ -327,3 +327,23 @@ run('closeEnv closes an open environment once, even under concurrent callers', (
     expect(await store.closeEnv(crypto.randomUUID())).toBe(false)
   }),
 )
+
+run('reports queue positions for queued runs only', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const mk = async (queuedAt: Date) => {
+      const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a', config })
+      await db.update(schema.runs).set({ queuedAt }).where(eq(schema.runs.id, created.id))
+      return created.id
+    }
+    const [r0, r1, r2] = [await mk(new Date('2000-01-01T00:00:00Z')), await mk(new Date('2000-01-01T00:00:01Z')), await mk(new Date('2000-01-01T00:00:02Z'))] as [string, string, string]
+    await db.update(schema.runs).set({ status: 'running', leaseOwner: 'w', leaseUntil: new Date(Date.now() + 60_000) }).where(eq(schema.runs.id, r0))
+    expect(await store.queuePosition(r0)).toBeNull()
+    expect(await store.queuePosition(r1)).toBe(2)
+    expect(await store.queuePosition(r2)).toBe(3)
+    expect(await store.queuePosition('missing')).toBeNull()
+    await store.update(r0, { status: 'done' })
+    expect((await store.claimNext('w', 60_000, 5))?.id).toBe(r1)
+    expect(await store.queuePosition(r1)).toBeNull()
+    expect(await store.queuePosition(r2)).toBe(2)
+  }),
+)

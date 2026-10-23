@@ -5,16 +5,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export const ROUND_OPTIONS = [1, 2, 3, 5, 10, 20, 40]
 export const DEFAULT_ROUNDS = 3
 
+export const defaultRounds = (maxRounds: number) => Math.min(DEFAULT_ROUNDS, maxRounds)
+
 export type RunOptionsValue = { maxRounds: number }
 
 export function RunOptions({
   value,
   onChange,
   disabled,
+  maxRounds = 40,
 }: {
   value: RunOptionsValue
   onChange: (value: RunOptionsValue) => void
   disabled?: boolean
+  maxRounds?: number
 }) {
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -28,7 +32,7 @@ export function RunOptions({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {ROUND_OPTIONS.map((rounds) => (
+          {ROUND_OPTIONS.filter((rounds) => rounds <= maxRounds).map((rounds) => (
             <SelectItem key={rounds} value={String(rounds)}>
               {rounds}
             </SelectItem>

@@ -22,6 +22,19 @@ describe('parseEnv', () => {
     expect(parseEnv({ ...valid, S3_FORCE_PATH_STYLE: '' }).S3_FORCE_PATH_STYLE).toBeUndefined()
   })
   it('defaults WORKER_POLL_MS to 2000', () => expect(parseEnv(valid).WORKER_POLL_MS).toBe(2000))
+  it('defaults the demo limits', () => {
+    const env = parseEnv(valid)
+    expect([env.DEMO_MODE, env.DEMO_PAUSED, env.MAX_RUNS_PER_DAY, env.DEMO_MAX_ROUNDS]).toEqual(['0', '0', 2, 3])
+  })
+  it('defaults HEALTH_CHECK_MIROFISH to 1 and rejects other values', () => {
+    expect(parseEnv(valid).HEALTH_CHECK_MIROFISH).toBe('1')
+    expect(parseEnv({ ...valid, HEALTH_CHECK_MIROFISH: '0' }).HEALTH_CHECK_MIROFISH).toBe('0')
+    expect(() => parseEnv({ ...valid, HEALTH_CHECK_MIROFISH: 'yes' })).toThrow()
+  })
+  it('rejects DEMO_MAX_ROUNDS outside 1..40', () => {
+    expect(() => parseEnv({ ...valid, DEMO_MAX_ROUNDS: '0' })).toThrow()
+    expect(() => parseEnv({ ...valid, DEMO_MAX_ROUNDS: '41' })).toThrow()
+  })
   it('requires S3_BUCKET when STORAGE_DRIVER is s3', () => expect(() => parseEnv({ ...valid, STORAGE_DRIVER: 's3' })).toThrow())
   it('accepts s3 with all required S3 vars', () =>
     expect(

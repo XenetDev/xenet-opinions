@@ -1,6 +1,7 @@
 export * from './events'
 export * from './parts'
 export * from './follow-up'
+export * from './policy'
 export { eventToChunks } from './projector/to-chunks'
 export { FenceError } from './store/types'
 export type { Fence, RunStore } from './store/types'

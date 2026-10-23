@@ -22,6 +22,7 @@ export type RunStore = {
   get(id: string): Promise<Run | null>
   getActiveByChat(chatId: string): Promise<Run | null>
   getLatestByChat(chatId: string): Promise<Run | null>
+  queuePosition(runId: string): Promise<number | null>
   claimNext(owner: string, leaseMs: number, maxConcurrent: number): Promise<Run | null>
   renewLease(id: string, owner: string, leaseMs: number): Promise<boolean>
   releaseLease(id: string, owner: string): Promise<boolean>

@@ -84,8 +84,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const renderChat = (latestRun: LatestRun = null) =>
-  render(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={latestRun} />)
+const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40 }
+
+const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
+  render(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={latestRun} limits={{ ...limits, ...over }} />)
 
 describe('Chat', () => {
   it('cancels the run when stopping a fresh stream before the poll sees it, without stopping the tail', async () => {
@@ -131,7 +133,7 @@ describe('Chat', () => {
     runState.current = { status: 'running', stage: 'sim_run', runId: 'r1', assistantMessageId: 'm1' }
     const view = renderChat()
     await waitFor(() => expect(chat.resumeStream).toHaveBeenCalledTimes(1))
-    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} />)
+    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
     expect(chat.resumeStream).toHaveBeenCalledTimes(1)
   })
 
@@ -141,7 +143,7 @@ describe('Chat', () => {
     const view = renderChat()
     await waitFor(() => expect(chat.resumeStream).toHaveBeenCalledTimes(1))
     runState.current = { ...runState.current }
-    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} />)
+    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
     await waitFor(() => expect(chat.resumeStream).toHaveBeenCalledTimes(2))
   })
 
@@ -180,10 +182,10 @@ describe('Chat', () => {
     const activeRun = { id: 'r1', assistantMessageId: 'm1', stage: 'sim_run' as const }
     const latestRun = { id: 'r1', status: 'running', assistantMessageId: 'm1', envState: 'none' as const, envKeepaliveUntil: null }
     runState.current = { status: 'running', stage: 'sim_run', runId: 'r1', assistantMessageId: 'm1' }
-    const view = render(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} />)
+    const view = render(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} limits={limits} />)
     expect(composer.props).toMatchObject({ mode: 'run', envOpen: false, selectionEnabled: false })
     runState.current = { status: 'done', runId: 'r1', assistantMessageId: 'm1', envState: 'open', envKeepaliveUntil: inMinutes(10) }
-    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} />)
+    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} limits={limits} />)
     expect(screen.getByRole('status').textContent).toBe('Agents available for 10 min')
     expect(composer.props).toMatchObject({ mode: 'followUp', envOpen: true, selectionEnabled: true })
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -224,5 +226,34 @@ describe('Chat', () => {
     renderChat(doneRun('none'))
     await act(async () => chat.options!.onError(new Error(JSON.stringify({ error: code }))))
     expect(screen.getByRole('status').textContent).toBe(text)
+  })
+
+  it.each([
+    ['demo_paused', 'The demo is paused right now. Try again later.'],
+    ['quota_exceeded', "You've used today's two runs. Come back tomorrow."],
+    ['rounds_exceeded', 'The demo allows up to 3 rounds.'],
+  ])('shows the %s notice when sending fails', async (code, sentence) => {
+    renderChat(null, { maxRounds: 3 })
+    act(() => chat.options!.onError(new Error(JSON.stringify({ error: code }))))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(sentence))
+  })
+
+  it('builds the quota and rounds notices from the limits', async () => {
+    renderChat(null, { maxRunsPerDay: 5, maxRounds: 10 })
+    act(() => chat.options!.onError(new Error('quota_exceeded')))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe("You've used today's 5 runs. Come back tomorrow."))
+    act(() => chat.options!.onError(new Error('rounds_exceeded')))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('The demo allows up to 10 rounds.'))
+  })
+
+  it('shows the paused banner and disables the composer when paused', () => {
+    renderChat(null, { paused: true })
+    expect(screen.getByRole('status').textContent).toBe('The demo is paused')
+    expect(composer.props?.disabled).toBe(true)
+  })
+
+  it('keeps follow-ups enabled while paused', () => {
+    renderChat(doneRun('none'), { paused: true })
+    expect(composer.props?.disabled).toBe(false)
   })
 })

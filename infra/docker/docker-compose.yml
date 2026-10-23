@@ -1,0 +1,177 @@
+name: xenet-opinions
+
+x-worker-build: &worker-build
+  context: ../..
+  dockerfile: infra/docker/Dockerfile.worker
+
+x-storage-env: &storage-env
+  STORAGE_DRIVER: s3
+  S3_BUCKET: xo-uploads
+  S3_REGION: us-east-1
+  S3_ENDPOINT: http://minio:9000
+  S3_FORCE_PATH_STYLE: "true"
+  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.selfhost}
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: xo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}
+      POSTGRES_DB: xo
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xo -d xo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  minio:
+    # minio/minio is no longer published on Docker Hub; pgsty/minio is the community fork with the same CLI.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.selfhost}
+    volumes:
+      - minio-data:/data
+    networks: [internal]
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-10-18T00-00-00Z
+    restart: "no"
+    depends_on: [minio]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.selfhost}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        i=0
+        until mc alias set xo http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null; do
+          i=$$((i + 1)); [ "$$i" -ge 60 ] && { echo "minio-init: MinIO not ready after 120 s" >&2; exit 1; }; sleep 2
+        done
+        mc mb --ignore-existing xo/xo-uploads
+    networks: [internal]
+
+  mirofish:
+    profiles: [real]
+    build:
+      context: ../mirofish
+      dockerfile: Dockerfile
+    image: xo-mirofish
+    restart: unless-stopped
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      ZEP_API_KEY: ${ZEP_API_KEY}
+    volumes:
+      - mirofish-uploads:/app/backend/uploads
+    networks: [backend]
+
+  mirofish-mock:
+    profiles: [mock]
+    build: *worker-build
+    image: xo-worker
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@xo/mirofish", "mock"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: "5001"
+      MOCK_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      MOCK_SPEED: ${MOCK_SPEED:-5}
+    networks: [backend]
+
+  # The only bridge between the app network and MiroFish.
+  mirofish-proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      MIROFISH_UPSTREAM: ${MIROFISH_UPSTREAM}
+    volumes:
+      - ../mirofish/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [internal, backend]
+
+  migrate:
+    build: *worker-build
+    image: xo-worker
+    restart: "no"
+    command: ["pnpm", "--filter", "@xo/db", "db:migrate:prod"]
+    environment:
+      DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  worker:
+    build: *worker-build
+    image: xo-worker
+    restart: unless-stopped
+    environment:
+      <<: *storage-env
+      DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
+      MIROFISH_URL: http://mirofish-proxy:8080
+      MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      ENV_KEEPALIVE_MS: ${ENV_KEEPALIVE_MS:-1200000}
+      ENV_SWEEP_INTERVAL_MS: ${ENV_SWEEP_INTERVAL_MS:-60000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    networks: [internal]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    image: xo-web
+    restart: unless-stopped
+    ports:
+      - "${XO_WEB_PORT:-3000}:3000"
+    environment:
+      <<: *storage-env
+      DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env.selfhost}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      MIROFISH_URL: http://mirofish-proxy:8080
+      MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      DEMO_MODE: ${DEMO_MODE:-0}
+      DEMO_PAUSED: ${DEMO_PAUSED:-0}
+      MAX_RUNS_PER_DAY: ${MAX_RUNS_PER_DAY:-2}
+      DEMO_MAX_ROUNDS: ${DEMO_MAX_ROUNDS:-3}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    networks: [edge, internal]
+
+volumes:
+  postgres-data:
+  minio-data:
+  mirofish-uploads:
+
+# Not `internal: true`: MiroFish needs outbound internet for the LLM and Zep.
+networks:
+  edge:
+  internal:
+  backend:

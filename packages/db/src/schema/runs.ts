@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { bigserial, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { user } from './auth'
 import { chats } from './chats'
@@ -62,6 +63,7 @@ export const runs = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     assistantMessageId: text('assistant_message_id').notNull(),
+    retryOf: text('retry_of').references((): AnyPgColumn => runs.id, { onDelete: 'set null' }),
     status: text('status').notNull().default('queued'),
     stage: text('stage').$type<Stage>().notNull().default('ontology'),
     config: jsonb('config').$type<RunConfig>().notNull(),

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { loadChatPage } from '@/server/chat-page'
+import { getLimits } from '@/server/limits'
 import { Chat } from '@/modules/chat/chat'
 
 export default async function ChatPage({
@@ -29,6 +30,7 @@ export default async function ChatPage({
       activeRun={activeRun}
       latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       initialText={typeof q === 'string' ? q : undefined}
+      limits={getLimits()}
     />
   )
 }

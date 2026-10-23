@@ -168,6 +168,9 @@ importers:
       '@xo/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -178,9 +181,6 @@ importers:
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(kysely@0.29.7)(postgres@3.4.9)
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -198,6 +198,9 @@ importers:
       postgres:
         specifier: 3.4.9
         version: 3.4.9
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: 24.19.2
@@ -251,6 +254,9 @@ importers:
 
   packages/mirofish:
     dependencies:
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -261,9 +267,6 @@ importers:
       '@xo/config':
         specifier: workspace:*
         version: link:../config
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
       typescript:
         specifier: 7.0.2
         version: 7.0.2

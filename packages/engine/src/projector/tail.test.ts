@@ -141,4 +141,47 @@ describe('tailRunAsUIMessageStream', () => {
     for await (const message of readUIMessageStream<OpinionsUIMessage>({ stream, message: held })) parts = message.parts
     expect(parts).toEqual(await materialiseRun(store, runId))
   })
+
+  it('writes data-queue only when the position changes, then position 0 before the first event', async () => {
+    const { store, runId } = await setup()
+    const positions = [2, 2, 1]
+    let calls = 0
+    const queuePosition = vi.fn(async () => {
+      calls++
+      return positions[Math.min(calls - 1, positions.length - 1)]!
+    })
+    const reader = tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, queuePosition }).getReader()
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    expect((await reader.read()).value).toEqual({ type: 'data-queue', id: 'queue', data: { position: 2 } })
+    expect((await reader.read()).value).toEqual({ type: 'data-queue', id: 'queue', data: { position: 1 } })
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'running' } })
+    expect((await reader.read()).value).toEqual({ type: 'data-queue', id: 'queue', data: { position: 0 } })
+    expect((await reader.read()).value).toEqual({ type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'running' } })
+    await reader.cancel()
+  })
+
+  it('never writes data-queue without the option', async () => {
+    const { store, runId } = await setup()
+    await store.appendEvent(runId, { kind: 'done', partId: null, payload: {} })
+    const chunks = await collect(tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5 }))
+    expect(chunks.some((c) => c.type === 'data-queue')).toBe(false)
+  })
+
+  it('writes nothing for a null position and still writes 0 on the first event, only once', async () => {
+    const { store, runId } = await setup()
+    const queuePosition = vi.fn(async () => null)
+    const reader = tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, queuePosition }).getReader()
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(queuePosition).toHaveBeenCalled()
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'running' } })
+    expect((await reader.read()).value).toEqual({ type: 'data-queue', id: 'queue', data: { position: 0 } })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-stage' })
+    const calls = queuePosition.mock.calls.length
+    await store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'done' } })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-stage', data: { status: 'done' } })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(queuePosition.mock.calls.length).toBe(calls)
+    await reader.cancel()
+  })
 })

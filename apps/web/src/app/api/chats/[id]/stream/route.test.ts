@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/runs', () => ({ runStore: { getActiveByChat: vi.fn() } }))
+vi.mock('@/server/runs', () => ({ runStore: { getActiveByChat: vi.fn(), queuePosition: vi.fn() } }))
 vi.mock('@xo/engine', () => ({ tailRunAsUIMessageStream: vi.fn() }))
 
 import { tailRunAsUIMessageStream } from '@xo/engine'
@@ -69,6 +69,9 @@ describe('GET /api/chats/[id]/stream', () => {
       expect.objectContaining({ store: runStore, runId: 'r1', messageId: 'a1', maxDurationMs: 280_000 }),
     )
     expect(vi.mocked(tailRunAsUIMessageStream).mock.calls[0]![0].signal).toBe(request.signal)
+    vi.mocked(runStore.queuePosition).mockResolvedValue(3)
+    expect(await vi.mocked(tailRunAsUIMessageStream).mock.calls[0]![0].queuePosition!()).toBe(3)
+    expect(runStore.queuePosition).toHaveBeenCalledWith('r1')
     const first = (await res.text()).split('\n').find((line) => line.startsWith('data:'))
     expect(JSON.parse(first!.slice(5).trim())).toEqual({ type: 'start', messageId: 'a1' })
   })

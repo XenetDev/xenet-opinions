@@ -63,6 +63,7 @@ describe.skipIf(!process.env.DATABASE_URL)('retryRun (real db)', () => {
     const { run, assistantMessageId } = await retryRun({ chatId, userId })
 
     expect(run.id).not.toBe(oldRunId)
+    expect(run.retryOf).toBe(oldRunId)
     expect(run.status).toBe('queued')
     expect(run.stage).toBe('sim_prepare')
     expect(run.userId).toBe(userId)

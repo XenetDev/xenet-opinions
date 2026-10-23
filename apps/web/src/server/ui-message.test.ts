@@ -33,4 +33,10 @@ describe('toUIMessages', () => {
     const [message] = toUIMessages([row([good, bad])])
     expect(message?.parts).toEqual([good])
   })
+
+  it('whitelists data-queue parts', () => {
+    const part = { type: 'data-queue', data: { position: 2 } }
+    const rows = [{ id: 'a', role: 'assistant', parts: [part, { type: 'data-queue', data: { position: -1 } }] }]
+    expect(toUIMessages(rows as never)[0]!.parts).toEqual([part])
+  })
 })

@@ -33,6 +33,7 @@ export async function retryRun(input: { chatId: string; userId: string }): Promi
           chatId: input.chatId,
           userId: input.userId,
           assistantMessageId,
+          retryOf: old.id,
           status: 'queued',
           stage: failedStage,
           config: old.config,
