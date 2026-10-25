@@ -12,8 +12,7 @@ COPY packages/mirofish/package.json packages/mirofish/package.json
 COPY packages/storage/package.json packages/storage/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
-ARG NEXT_PUBLIC_APP_URL
-RUN test -n "$NEXT_PUBLIC_APP_URL" || { echo "ERROR: build arg NEXT_PUBLIC_APP_URL is required (--build-arg NEXT_PUBLIC_APP_URL=https://...)" >&2; exit 1; }
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-time-placeholder-secret-not-used-at-runtime \
     BETTER_AUTH_URL=http://localhost:3000 \
@@ -23,7 +22,7 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
 RUN mkdir -p apps/web/public
 
 FROM node:24-slim AS runtime
-ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV HOSTNAME=0.0.0.0 PORT=3000 NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 WORKDIR /app
 COPY --from=builder --chown=node:node /repo/apps/web/.next/standalone ./

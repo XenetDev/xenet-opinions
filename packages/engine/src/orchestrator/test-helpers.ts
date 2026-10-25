@@ -53,12 +53,23 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       prepare: vi.fn(async () => ({ simulation_id: 'sim_1', task_id: 'ptask_1' })),
       prepareStatus: vi
         .fn()
-        .mockResolvedValueOnce({ task_id: 'ptask_1', status: 'processing', progress: 50, progress_detail: { current_stage_name: 'Profiles' } })
+        .mockResolvedValueOnce({
+          task_id: 'ptask_1',
+          status: 'processing',
+          progress: 50,
+          progress_detail: { current_stage_name: 'Profiles' },
+        })
         .mockResolvedValue({ task_id: 'ptask_1', status: 'completed', progress: 100 }),
       profilesRealtime: vi
         .fn()
         .mockResolvedValueOnce({ profiles: [{ agent_id: 0, name: 'Maya' }], total_expected: 2 })
-        .mockResolvedValue({ profiles: [{ agent_id: 0, name: 'Maya' }, { agent_id: 1, name: 'Liam' }], total_expected: 2 }),
+        .mockResolvedValue({
+          profiles: [
+            { agent_id: 0, name: 'Maya' },
+            { agent_id: 1, name: 'Liam' },
+          ],
+          total_expected: 2,
+        }),
       start: vi.fn(async () => ({ runner_status: 'starting' })),
       runStatus: vi
         .fn()
@@ -82,7 +93,12 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       get: vi
         .fn()
         .mockResolvedValueOnce({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'generating' })
-        .mockResolvedValue({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'completed', markdown_content: '# Report' }),
+        .mockResolvedValue({
+          report_id: 'rep_1',
+          simulation_id: 'sim_1',
+          status: 'completed',
+          markdown_content: '# Report',
+        }),
       chat: vi.fn(),
       ...o.report,
     },
@@ -118,7 +134,12 @@ export const setupRun = async (o: Overrides = {}, at?: { stage: Run['stage']; id
     sizeBytes: 12,
     createdAt: NOW,
   })
-  await store.create({ chatId: 'c1', userId: 'u1', assistantMessageId: 'm1', config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'] } })
+  await store.create({
+    chatId: 'c1',
+    userId: 'u1',
+    assistantMessageId: 'm1',
+    config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'] },
+  })
   let run = (await store.claimNext('w1', 60_000, 1)) as Run
   if (at) run = await store.update(run.id, { stage: at.stage, ids: at.ids ?? {}, cursors: at.cursors ?? {} })
   const deps = happyDeps(store, o)

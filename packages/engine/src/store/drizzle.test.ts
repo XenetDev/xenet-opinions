@@ -8,11 +8,26 @@ import { FenceError } from './types'
 
 const config = { requirement: 'r', maxRounds: 3, uploadIds: [] }
 
-async function withFixture(fn: (ctx: { db: ReturnType<typeof createDb>; store: ReturnType<typeof createDrizzleStore>; userId: string; mkChat: () => Promise<string> }) => Promise<void>) {
+async function withFixture(
+  fn: (ctx: {
+    db: ReturnType<typeof createDb>
+    store: ReturnType<typeof createDrizzleStore>
+    userId: string
+    mkChat: () => Promise<string>
+  }) => Promise<void>,
+) {
   const db = createDb(process.env.DATABASE_URL!)
   const store = createDrizzleStore(db)
   const userId = `ur_${crypto.randomUUID()}`
-  await db.insert(schema.user).values({ id: userId, name: 'anon', email: `${userId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+  await db.insert(schema.user).values({
+    id: userId,
+    name: 'anon',
+    email: `${userId}@anon.local`,
+    emailVerified: false,
+    isAnonymous: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
   const mkChat = async () => {
     const id = `c_${crypto.randomUUID()}`
     await db.insert(schema.chats).values({ id, userId })
@@ -49,7 +64,11 @@ run('update merges ids and cursors shallowly', () =>
   withFixture(async ({ store, userId, mkChat }) => {
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
     await store.update(created.id, { ids: { projectId: 'p' } })
-    const updated = await store.update(created.id, { ids: { graphId: 'g' }, cursors: { agentLogLine: 2 }, stage: 'graph_build' })
+    const updated = await store.update(created.id, {
+      ids: { graphId: 'g' },
+      cursors: { agentLogLine: 2 },
+      stage: 'graph_build',
+    })
     expect(updated.ids).toEqual({ projectId: 'p', graphId: 'g' })
     expect(updated.cursors).toEqual({ agentLogLine: 2 })
     expect(updated.stage).toBe('graph_build')
@@ -98,7 +117,10 @@ run('respects maxConcurrent and reclaims expired leases', () =>
     const second = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a2', config })
     expect(await store.claimNext('b', 60000, 1)).toBeNull()
     expect((await store.get(second.id))?.status).toBe('queued')
-    await db.update(schema.runs).set({ leaseUntil: new Date(Date.now() - 5000) }).where(eq(schema.runs.id, first.id))
+    await db
+      .update(schema.runs)
+      .set({ leaseUntil: new Date(Date.now() - 5000) })
+      .where(eq(schema.runs.id, first.id))
     const reclaimed = await store.claimNext('b', 60000, 1)
     expect(reclaimed?.id).toBe(first.id)
     expect(reclaimed?.attempt).toBe(2)
@@ -110,7 +132,10 @@ run('renewLease requires owner and running status', () =>
   withFixture(async ({ db, store, userId, mkChat }) => {
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
     expect(await store.renewLease(created.id, 'a', 1000)).toBe(false)
-    await db.update(schema.runs).set({ status: 'running', leaseOwner: 'a', leaseUntil: new Date(Date.now() + 1000) }).where(eq(schema.runs.id, created.id))
+    await db
+      .update(schema.runs)
+      .set({ status: 'running', leaseOwner: 'a', leaseUntil: new Date(Date.now() + 1000) })
+      .where(eq(schema.runs.id, created.id))
     expect(await store.renewLease(created.id, 'b', 60000)).toBe(false)
     expect(await store.renewLease(created.id, 'a', 60000)).toBe(true)
     expect((await store.get(created.id))!.leaseUntil!.getTime()).toBeGreaterThan(Date.now() + 30000)
@@ -140,8 +165,12 @@ run('appends events with sequential seq and lists after a cursor', () =>
     expect(appended.map((e) => e.seq).sort()).toEqual([1, 2, 3])
     expect((await store.listEvents(created.id, 0)).map((e) => e.seq)).toEqual([1, 2, 3])
     expect((await store.listEvents(created.id, 2)).map((e) => e.seq)).toEqual([3])
-    await expect(store.appendEvent(created.id, { kind: 'report_text', partId: 'p', payload: { nope: 1 } })).rejects.toBeInstanceOf(ZodError)
-    await expect(store.appendEvent('missing', { kind: 'done', partId: null, payload: {} })).rejects.toThrow('run_not_found')
+    await expect(
+      store.appendEvent(created.id, { kind: 'report_text', partId: 'p', payload: { nope: 1 } }),
+    ).rejects.toBeInstanceOf(ZodError)
+    await expect(store.appendEvent('missing', { kind: 'done', partId: null, payload: {} })).rejects.toThrow(
+      'run_not_found',
+    )
   }),
 )
 
@@ -151,11 +180,20 @@ run('transition appends events and applies the patch in one transaction', () =>
     await store.appendEvent(created.id, { kind: 'report_text', partId: 'p', payload: { markdown: 'x' } })
     await store.update(created.id, { cursors: { retries: 2 } })
     const finishedAt = new Date('2026-10-20T12:00:00Z')
-    const done = await store.transition(created.id, { status: 'done', finishedAt, envState: 'open', cursors: { agentLogLine: 4 } }, [
-      { kind: 'stage', partId: 'stage:finished', payload: { stage: 'finished', status: 'done' } },
-      { kind: 'done', partId: null, payload: {} },
-    ])
-    expect(done).toMatchObject({ status: 'done', finishedAt, envState: 'open', cursors: { retries: 2, agentLogLine: 4 } })
+    const done = await store.transition(
+      created.id,
+      { status: 'done', finishedAt, envState: 'open', cursors: { agentLogLine: 4 } },
+      [
+        { kind: 'stage', partId: 'stage:finished', payload: { stage: 'finished', status: 'done' } },
+        { kind: 'done', partId: null, payload: {} },
+      ],
+    )
+    expect(done).toMatchObject({
+      status: 'done',
+      finishedAt,
+      envState: 'open',
+      cursors: { retries: 2, agentLogLine: 4 },
+    })
     expect((await store.get(created.id))?.status).toBe('done')
     expect((await store.listEvents(created.id, 0)).map((e) => [e.seq, e.kind, e.partId])).toEqual([
       [1, 'report_text', 'p'],
@@ -189,17 +227,27 @@ run('sets message parts and lists uploads in id order', () =>
     const [row] = await db.select().from(schema.messages).where(eq(schema.messages.id, messageId))
     expect(row!.parts).toEqual([{ type: 'text', text: 'hi' }])
     const ids = [`up1_${userId}`, `up2_${userId}`]
-    for (const id of ids) await db.insert(schema.uploads).values({ id, userId, chatId, storageKey: 'k', filename: 'f', mediaType: 't', sizeBytes: 1 })
+    for (const id of ids)
+      await db
+        .insert(schema.uploads)
+        .values({ id, userId, chatId, storageKey: 'k', filename: 'f', mediaType: 't', sizeBytes: 1 })
     expect((await store.listUploads([ids[1]!, ids[0]!, 'nope'])).map((u) => u.id)).toEqual([ids[1], ids[0]])
     expect(await store.listUploads([])).toEqual([])
   }),
 )
 
-const stageDone = { kind: 'stage' as const, partId: 'stage:finished', payload: { stage: 'finished' as const, status: 'done' as const } }
+const stageDone = {
+  kind: 'stage' as const,
+  partId: 'stage:finished',
+  payload: { stage: 'finished' as const, status: 'done' as const },
+}
 const doneEvent = { kind: 'done' as const, partId: null, payload: {} }
 
 const claimAs = async (db: ReturnType<typeof createDb>, id: string, owner: string) => {
-  await db.update(schema.runs).set({ status: 'running', leaseOwner: owner, leaseUntil: new Date(Date.now() + 60000) }).where(eq(schema.runs.id, id))
+  await db
+    .update(schema.runs)
+    .set({ status: 'running', leaseOwner: owner, leaseUntil: new Date(Date.now() + 60000) })
+    .where(eq(schema.runs.id, id))
 }
 
 run('fenced update by the wrong owner throws and changes nothing', () =>
@@ -207,7 +255,9 @@ run('fenced update by the wrong owner throws and changes nothing', () =>
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
     await claimAs(db, created.id, 'a')
     const before = await store.get(created.id)
-    const err = await store.update(created.id, { stage: 'graph_build', ids: { projectId: 'p' } }, { owner: 'b' }).catch((e) => e)
+    const err = await store
+      .update(created.id, { stage: 'graph_build', ids: { projectId: 'p' } }, { owner: 'b' })
+      .catch((e) => e)
     expect(err).toBeInstanceOf(FenceError)
     expect(err).toMatchObject({ name: 'FenceError', code: 'run_fenced' })
     expect(await store.get(created.id)).toEqual(before)
@@ -230,7 +280,9 @@ run('fenced transition after cancelRun throws and leaves the run cancelled', () 
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
     await claimAs(db, created.id, 'a')
     await cancelRun(store, created.id, new Date())
-    await expect(store.transition(created.id, { status: 'done' }, [stageDone, doneEvent], { owner: 'a' })).rejects.toBeInstanceOf(FenceError)
+    await expect(
+      store.transition(created.id, { status: 'done' }, [stageDone, doneEvent], { owner: 'a' }),
+    ).rejects.toBeInstanceOf(FenceError)
     expect((await store.get(created.id))?.status).toBe('cancelled')
     expect((await store.listEvents(created.id, 0)).at(-1)?.kind).toBe('cancelled')
   }),
@@ -279,7 +331,9 @@ run('transition with expectStatus rejects a mismatched run and writes nothing', 
     const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
     await store.update(created.id, { status: 'done' })
     await expect(
-      store.transition(created.id, { status: 'cancelled' }, [doneEvent], undefined, { expectStatus: ['queued', 'running'] }),
+      store.transition(created.id, { status: 'cancelled' }, [doneEvent], undefined, {
+        expectStatus: ['queued', 'running'],
+      }),
     ).rejects.toThrow('run_not_active')
     expect((await store.get(created.id))?.status).toBe('done')
     expect(await store.listEvents(created.id, 0)).toEqual([])
@@ -300,7 +354,12 @@ run('lists open environments past their deadline, oldest first, limited', () =>
     const base = Date.now() + 10 * 365 * 24 * 3_600_000
     const t = (m: number) => new Date(base + m * 60_000)
     const mk = async (patch: Parameters<typeof store.update>[1]) => {
-      const r = await store.create({ chatId: await mkChat(), userId, assistantMessageId: `a_${crypto.randomUUID()}`, config })
+      const r = await store.create({
+        chatId: await mkChat(),
+        userId,
+        assistantMessageId: `a_${crypto.randomUUID()}`,
+        config,
+      })
       return store.update(r.id, patch)
     }
     const late = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(5) })
@@ -308,7 +367,8 @@ run('lists open environments past their deadline, oldest first, limited', () =>
     const future = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(30) })
     const closed = await mk({ status: 'done', envState: 'closed', envKeepaliveUntil: t(0) })
     const noDeadline = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: null })
-    const ids = (rows: { id: string }[]) => rows.map((r) => r.id).filter((id) => [late.id, early.id, future.id, closed.id, noDeadline.id].includes(id))
+    const ids = (rows: { id: string }[]) =>
+      rows.map((r) => r.id).filter((id) => [late.id, early.id, future.id, closed.id, noDeadline.id].includes(id))
     expect(ids(await store.listEnvsToSweep(t(10), 1000))).toEqual([early.id, late.id])
     expect((await store.listEnvsToSweep(t(0), 1000)).map((r) => r.id)).not.toContain(early.id)
   }),
@@ -316,7 +376,8 @@ run('lists open environments past their deadline, oldest first, limited', () =>
 
 run('closeEnv closes an open environment once, even under concurrent callers', () =>
   withFixture(async ({ store, userId, mkChat }) => {
-    const mk = async () => store.create({ chatId: await mkChat(), userId, assistantMessageId: `a_${crypto.randomUUID()}`, config })
+    const mk = async () =>
+      store.create({ chatId: await mkChat(), userId, assistantMessageId: `a_${crypto.randomUUID()}`, config })
     const open = await store.update((await mk()).id, { status: 'done', envState: 'open' })
     const none = await mk()
     expect((await Promise.all([store.closeEnv(open.id), store.closeEnv(open.id)])).filter(Boolean)).toHaveLength(1)
@@ -335,8 +396,15 @@ run('reports queue positions for queued runs only', () =>
       await db.update(schema.runs).set({ queuedAt }).where(eq(schema.runs.id, created.id))
       return created.id
     }
-    const [r0, r1, r2] = [await mk(new Date('2000-01-01T00:00:00Z')), await mk(new Date('2000-01-01T00:00:01Z')), await mk(new Date('2000-01-01T00:00:02Z'))] as [string, string, string]
-    await db.update(schema.runs).set({ status: 'running', leaseOwner: 'w', leaseUntil: new Date(Date.now() + 60_000) }).where(eq(schema.runs.id, r0))
+    const [r0, r1, r2] = [
+      await mk(new Date('2000-01-01T00:00:00Z')),
+      await mk(new Date('2000-01-01T00:00:01Z')),
+      await mk(new Date('2000-01-01T00:00:02Z')),
+    ] as [string, string, string]
+    await db
+      .update(schema.runs)
+      .set({ status: 'running', leaseOwner: 'w', leaseUntil: new Date(Date.now() + 60_000) })
+      .where(eq(schema.runs.id, r0))
     expect(await store.queuePosition(r0)).toBeNull()
     expect(await store.queuePosition(r1)).toBe(2)
     expect(await store.queuePosition(r2)).toBe(3)

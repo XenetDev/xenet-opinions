@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
-import { schema, type Chat, type Message, type Run } from '@xo/db'
+import { type Chat, type Message, type Run, schema } from '@xo/db'
 import { generateId } from 'ai'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
-import { RunNotActiveError, RunNotFoundError, cancelActiveRun } from './runs'
+import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from './runs'
 
 const { chats, messages, uploads } = schema
 
@@ -55,7 +55,9 @@ export async function listChats(userId: string): Promise<ChatSummary[]> {
       id: chats.id,
       title: chats.title,
       updatedAt: chats.updatedAt,
-      runStatus: sql<ChatSummary['runStatus']>`coalesce((select r.status from runs r where r.chat_id = chats.id order by r.queued_at desc limit 1), 'none')`,
+      runStatus: sql<
+        ChatSummary['runStatus']
+      >`coalesce((select r.status from runs r where r.chat_id = chats.id order by r.queued_at desc limit 1), 'none')`,
     })
     .from(chats)
     .where(eq(chats.userId, userId))

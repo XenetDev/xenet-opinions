@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ENV_INTERVIEW_EXTEND_MS, ENV_KEEPALIVE_CAP_MS, ENV_KEEPALIVE_MS, extendKeepalive, keepaliveAfterFinish } from './keepalive'
+import {
+  ENV_INTERVIEW_EXTEND_MS,
+  ENV_KEEPALIVE_CAP_MS,
+  ENV_KEEPALIVE_MS,
+  extendKeepalive,
+  keepaliveAfterFinish,
+} from './keepalive'
 
 const MIN = 60_000
 const t0 = new Date('2026-01-01T00:00:00Z')
@@ -35,7 +41,9 @@ describe('keepalive', () => {
 
   it('never shortens a current deadline that is already beyond the cap', () => {
     expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(120) }, at(10))).toEqual(at(120))
-    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: keepaliveAfterFinish(t0, 120 * MIN) }, at(1))).toEqual(at(120))
+    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: keepaliveAfterFinish(t0, 120 * MIN) }, at(1))).toEqual(
+      at(120),
+    )
   })
 
   it('keeps a current deadline at the cap unchanged', () => {

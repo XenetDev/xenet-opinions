@@ -4,7 +4,11 @@ import type { ErrorData, OpinionsUIMessage } from '../parts'
 
 type DataChunk = Extract<InferUIMessageChunk<OpinionsUIMessage>, { type: `data-${string}` }>
 
-export const eventToChunks = (event: { kind: EventKind; partId: string | null; payload: unknown }): UIMessageChunk[] => {
+export const eventToChunks = (event: {
+  kind: EventKind
+  partId: string | null
+  payload: unknown
+}): UIMessageChunk[] => {
   switch (event.kind) {
     case 'report_text':
       return [

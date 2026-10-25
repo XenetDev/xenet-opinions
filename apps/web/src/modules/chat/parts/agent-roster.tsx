@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { InfoIcon } from 'lucide-react'
 import type { AgentsData } from '@xo/engine/parts'
-import { cn } from '@/lib/utils'
+import { InfoIcon } from 'lucide-react'
+import { useState } from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useInterviewSelection } from '../interview-selection'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { cn } from '@/lib/utils'
+import { useInterviewSelection } from '../interview-selection'
+import { useAnnounce } from '../notice-region'
 
 type Profile = AgentsData['profiles'][number]
 
@@ -28,6 +29,8 @@ export function AgentRoster({ data }: { data: AgentsData }) {
   const [fullHint, setFullHint] = useState(false)
   const selection = useInterviewSelection()
   const selectable = selection?.enabled === true
+  const hint = selectable && fullHint ? `Up to ${selection.max} personas per interview` : null
+  const routed = useAnnounce(hint)
   const heading = data.expected === undefined ? `${data.count} personas` : `${data.count} of ${data.expected} personas`
 
   return (
@@ -48,6 +51,7 @@ export function AgentRoster({ data }: { data: AgentsData }) {
               }}
               className={cn(
                 'flex w-full items-center gap-2 rounded-md border p-2 text-left hover:bg-muted',
+                selectable && 'pr-8',
                 pressed && 'border-primary bg-muted',
               )}
             >
@@ -78,9 +82,9 @@ export function AgentRoster({ data }: { data: AgentsData }) {
           )
         })}
       </div>
-      {selectable && fullHint && (
-        <p role="status" className="text-xs text-muted-foreground">
-          Up to {selection.max} personas per interview
+      {hint && (
+        <p role={routed ? undefined : 'status'} className="text-xs text-muted-foreground">
+          {hint}
         </p>
       )}
       <Sheet open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>

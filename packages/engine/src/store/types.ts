@@ -2,7 +2,20 @@ import type { Run, RunConfig, RunEvent, Upload } from '@xo/db'
 import type { RunEventInput } from '../events'
 
 export type RunPatch = Partial<
-  Pick<Run, 'status' | 'stage' | 'ids' | 'cursors' | 'error' | 'attempt' | 'envState' | 'envKeepaliveUntil' | 'startedAt' | 'finishedAt' | 'leaseUntil'>
+  Pick<
+    Run,
+    | 'status'
+    | 'stage'
+    | 'ids'
+    | 'cursors'
+    | 'error'
+    | 'attempt'
+    | 'envState'
+    | 'envKeepaliveUntil'
+    | 'startedAt'
+    | 'finishedAt'
+    | 'leaseUntil'
+  >
 >
 
 export type Fence = { owner: string }

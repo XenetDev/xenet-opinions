@@ -2,16 +2,111 @@
   "success": true,
   "data": {
     "logs": [
-      { "timestamp": "2026-10-19T10:30:01.000", "elapsed_seconds": 0.0, "report_id": "report_a47c20e9d315", "action": "report_start", "stage": "pending", "details": { "simulation_id": "sim_5b2e9f01c3a8", "simulation_requirement": "How will customers react to a 20% price increase?" } },
-      { "timestamp": "2026-10-19T10:30:02.000", "elapsed_seconds": 1.2, "report_id": "report_a47c20e9d315", "action": "planning_start", "stage": "planning", "details": { "message": "Planning report outline" } },
-      { "timestamp": "2026-10-19T10:30:09.000", "elapsed_seconds": 8.4, "report_id": "report_a47c20e9d315", "action": "planning_complete", "stage": "planning", "details": { "outline": { "title": "Reaction to the 20% price increase", "sections": [{ "title": "Overall sentiment" }, { "title": "Churn risk by segment" }] } } },
-      { "timestamp": "2026-10-19T10:30:10.000", "elapsed_seconds": 9.0, "report_id": "report_a47c20e9d315", "action": "section_start", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "message": "Generating section: Overall sentiment" } },
-      { "timestamp": "2026-10-19T10:30:12.000", "elapsed_seconds": 11.1, "report_id": "report_a47c20e9d315", "action": "tool_call", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "tool_name": "quick_search", "parameters": { "query": "customer reaction to pricing" } } },
-      { "timestamp": "2026-10-19T10:30:15.000", "elapsed_seconds": 14.3, "report_id": "report_a47c20e9d315", "action": "tool_result", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "tool_name": "quick_search", "result": "Found 6 relevant facts", "result_length": 22 } },
-      { "timestamp": "2026-10-19T10:30:20.000", "elapsed_seconds": 19.0, "report_id": "report_a47c20e9d315", "action": "llm_response", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "iteration": 2, "has_tool_calls": false, "has_final_answer": true, "response": "Most simulated customers voiced mild frustration but stayed." } },
-      { "timestamp": "2026-10-19T10:30:21.000", "elapsed_seconds": 20.0, "report_id": "report_a47c20e9d315", "action": "section_content", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "content": "Most simulated customers voiced mild frustration but stayed." } },
-      { "timestamp": "2026-10-19T10:30:22.000", "elapsed_seconds": 21.0, "report_id": "report_a47c20e9d315", "action": "section_complete", "stage": "generating", "section_title": "Overall sentiment", "section_index": 1, "details": { "content": "Most simulated customers voiced mild frustration but stayed." } },
-      { "timestamp": "2026-10-19T10:41:12.000", "elapsed_seconds": 671.0, "report_id": "report_a47c20e9d315", "action": "report_complete", "stage": "completed", "details": { "total_sections": 2, "total_time_seconds": 671.0 } }
+      {
+        "timestamp": "2026-10-19T10:30:01.000",
+        "elapsed_seconds": 0.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "report_start",
+        "stage": "pending",
+        "details": {
+          "simulation_id": "sim_5b2e9f01c3a8",
+          "simulation_requirement": "How will customers react to a 20% price increase?"
+        }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:02.000",
+        "elapsed_seconds": 1.2,
+        "report_id": "report_a47c20e9d315",
+        "action": "planning_start",
+        "stage": "planning",
+        "details": { "message": "Planning report outline" }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:09.000",
+        "elapsed_seconds": 8.4,
+        "report_id": "report_a47c20e9d315",
+        "action": "planning_complete",
+        "stage": "planning",
+        "details": {
+          "outline": {
+            "title": "Reaction to the 20% price increase",
+            "sections": [{ "title": "Overall sentiment" }, { "title": "Churn risk by segment" }]
+          }
+        }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:10.000",
+        "elapsed_seconds": 9.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "section_start",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": { "message": "Generating section: Overall sentiment" }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:12.000",
+        "elapsed_seconds": 11.1,
+        "report_id": "report_a47c20e9d315",
+        "action": "tool_call",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": { "tool_name": "quick_search", "parameters": { "query": "customer reaction to pricing" } }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:15.000",
+        "elapsed_seconds": 14.3,
+        "report_id": "report_a47c20e9d315",
+        "action": "tool_result",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": { "tool_name": "quick_search", "result": "Found 6 relevant facts", "result_length": 22 }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:20.000",
+        "elapsed_seconds": 19.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "llm_response",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": {
+          "iteration": 2,
+          "has_tool_calls": false,
+          "has_final_answer": true,
+          "response": "Most simulated customers voiced mild frustration but stayed."
+        }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:21.000",
+        "elapsed_seconds": 20.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "section_content",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": { "content": "Most simulated customers voiced mild frustration but stayed." }
+      },
+      {
+        "timestamp": "2026-10-19T10:30:22.000",
+        "elapsed_seconds": 21.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "section_complete",
+        "stage": "generating",
+        "section_title": "Overall sentiment",
+        "section_index": 1,
+        "details": { "content": "Most simulated customers voiced mild frustration but stayed." }
+      },
+      {
+        "timestamp": "2026-10-19T10:41:12.000",
+        "elapsed_seconds": 671.0,
+        "report_id": "report_a47c20e9d315",
+        "action": "report_complete",
+        "stage": "completed",
+        "details": { "total_sections": 2, "total_time_seconds": 671.0 }
+      }
     ],
     "total_lines": 10,
     "from_line": 0,

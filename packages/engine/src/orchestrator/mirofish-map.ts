@@ -1,4 +1,11 @@
-import type { AgentLogLine, GraphData as MfGraphData, OntologyResult, Platform, ProfilesRealtime, RunStatus } from '@xo/mirofish'
+import type {
+  AgentLogLine,
+  GraphData as MfGraphData,
+  OntologyResult,
+  Platform,
+  ProfilesRealtime,
+  RunStatus,
+} from '@xo/mirofish'
 import type { AgentsData, GraphData, OntologyData, ReportEventData, ReportOutlineData, SimFeedData } from '../parts'
 
 type Rec = Record<string, unknown>
@@ -34,7 +41,10 @@ export const graphDataToPart = (graphId: string, data: MfGraphData): GraphData =
     const n = rec(raw)
     const id = str(n.uuid, n.id)
     if (!id) return []
-    const type = str(list(n.labels).find((l) => l !== 'Entity'), n.type)
+    const type = str(
+      list(n.labels).find((l) => l !== 'Entity'),
+      n.type,
+    )
     return [{ id, label: str(n.name, n.label) ?? id, ...(type ? { type } : {}) }]
   })
   const sampled = nodes.slice(0, MAX_NODES)
@@ -83,7 +93,11 @@ export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>
     }
   })
 
-export const runStatusToFeed = (prev: SimFeedData | undefined, status: RunStatus, newPosts: FeedPost[]): SimFeedData => {
+export const runStatusToFeed = (
+  prev: SimFeedData | undefined,
+  status: RunStatus,
+  newPosts: FeedPost[],
+): SimFeedData => {
   const s = status as RunStatus & Rec
   const added = (platform: Platform) => newPosts.filter((p) => p.platform === platform).length
   return {
@@ -133,7 +147,11 @@ const nextOutline = (line: AgentLogLine, outline: ReportOutlineData | undefined)
   switch (line.action) {
     case 'planning_complete': {
       const o = rec(d.outline)
-      const sections = list(o.sections).map((s, i) => ({ index: i + 1, title: str(rec(s).title, s) ?? `Section ${i + 1}`, status: 'pending' as const }))
+      const sections = list(o.sections).map((s, i) => ({
+        index: i + 1,
+        title: str(rec(s).title, s) ?? `Section ${i + 1}`,
+        status: 'pending' as const,
+      }))
       const title = str(o.title)
       return { ...(title ? { title } : {}), sections }
     }
@@ -141,7 +159,10 @@ const nextOutline = (line: AgentLogLine, outline: ReportOutlineData | undefined)
     case 'section_complete': {
       if (line.section_index === undefined) return outline
       const status = line.action === 'section_start' ? 'writing' : 'done'
-      return { ...outline, sections: upsertSection(outline?.sections ?? [], line.section_index, line.section_title, status) }
+      return {
+        ...outline,
+        sections: upsertSection(outline?.sections ?? [], line.section_index, line.section_title, status),
+      }
     }
     case 'report_complete':
       return outline && { ...outline, sections: outline.sections.map((s) => ({ ...s, status: 'done' as const })) }

@@ -1,4 +1,4 @@
-import { schema, type Db, type Run } from '@xo/db'
+import { type Db, type Run, schema } from '@xo/db'
 import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
@@ -28,7 +28,8 @@ const applyPatch = async (tx: Tx, current: Run, patch: RunPatch, fence?: Fence) 
   return row
 }
 
-const validate = (events: RunEventInput[]) => events.map((e) => ({ ...e, payload: payloadSchemaFor(e.kind).parse(e.payload) }))
+const validate = (events: RunEventInput[]) =>
+  events.map((e) => ({ ...e, payload: payloadSchemaFor(e.kind).parse(e.payload) }))
 
 const insertEvents = async (tx: Tx, runId: string, events: RunEventInput[]) => {
   const [max] = await tx
@@ -75,8 +76,11 @@ export function createDrizzleStore(db: Db): RunStore {
       return row ?? null
     },
     async queuePosition(runId) {
-      const [run] = await db.select({ status: runs.status, queuedAt: runs.queuedAt }).from(runs).where(eq(runs.id, runId))
-      if (!run || run.status !== 'queued') return null
+      const [run] = await db
+        .select({ status: runs.status, queuedAt: runs.queuedAt })
+        .from(runs)
+        .where(eq(runs.id, runId))
+      if (run?.status !== 'queued') return null
       const [ahead] = await db
         .select({ n: sql<number>`count(*)::int` })
         .from(runs)

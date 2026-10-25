@@ -1,6 +1,7 @@
 {
   "name": "xenet-opinions",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@10.30.0",
   "engines": {
     "node": ">=24"
@@ -10,10 +11,15 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "lint": "turbo run lint",
-    "mock": "pnpm --filter @xo/mirofish mock"
+    "lint": "biome ci .",
+    "mock": "pnpm --filter @xo/mirofish mock",
+    "format": "biome format --write .",
+    "lint:fix": "biome check --write .",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.2",
     "turbo": "2.11.9",
     "typescript": "7.0.2",
     "vitest": "5.0.5"

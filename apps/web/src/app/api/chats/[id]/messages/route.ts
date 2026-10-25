@@ -1,11 +1,11 @@
+import { checkRunPolicy, QUOTA_WINDOW_MS, tailRunAsUIMessageStream } from '@xo/engine'
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
-import { QUOTA_WINDOW_MS, checkRunPolicy, tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { getLimits } from '@/server/limits'
 import { messageText, parseMessageBody } from '@/server/message-body'
-import { RunActiveError, countOwnedUploads, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -38,7 +38,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         agentIds: body.agentIds,
       })
     } catch (e) {
-      if (e instanceof FollowUpError) return Response.json({ error: e.code }, { status: e.code === 'invalid_body' ? 400 : 409 })
+      if (e instanceof FollowUpError)
+        return Response.json({ error: e.code }, { status: e.code === 'invalid_body' ? 400 : 409 })
       throw e
     }
   }
@@ -59,7 +60,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   })
   if (!policy.ok) {
     if (policy.code === 'demo_paused') return Response.json({ error: 'demo_paused' }, { status: 409 })
-    if (policy.code === 'quota_exceeded') return Response.json({ error: 'quota_exceeded', resetAt: policy.resetAt?.toISOString() }, { status: 429 })
+    if (policy.code === 'quota_exceeded')
+      return Response.json({ error: 'quota_exceeded', resetAt: policy.resetAt?.toISOString() }, { status: 429 })
     return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
   }
 
@@ -68,7 +70,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
 
-  let started
+  let started: Awaited<ReturnType<typeof startRun>>
   try {
     started = await startRun({
       chatId,

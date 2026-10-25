@@ -50,13 +50,24 @@ describe('fixtures', () => {
   it('covers every agent-log action in the fixture', () => {
     const env = Envelope.parse(readFixture('report.agent-log.json'))
     const actions = AgentLogPage.parse(env.data).logs.map((l) => l.action)
-    for (const a of ['report_start', 'planning_complete', 'section_start', 'tool_call', 'tool_result', 'llm_response', 'section_complete', 'report_complete']) {
+    for (const a of [
+      'report_start',
+      'planning_complete',
+      'section_start',
+      'tool_call',
+      'tool_result',
+      'llm_response',
+      'section_complete',
+      'report_complete',
+    ]) {
       expect(actions).toContain(a)
     }
   })
 
   it('accepts unknown agent-log actions', () => {
-    expect(AgentLogPage.parse({ logs: [{ action: 'brand_new' }], total_lines: 1, from_line: 0, has_more: false })).toBeTruthy()
+    expect(
+      AgentLogPage.parse({ logs: [{ action: 'brand_new' }], total_lines: 1, from_line: 0, has_more: false }),
+    ).toBeTruthy()
   })
 })
 

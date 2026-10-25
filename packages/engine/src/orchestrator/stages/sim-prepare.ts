@@ -32,7 +32,11 @@ export const simPrepare: StageHandler = {
       await running(deps, entered, 'sim_prepare', { progress: 100, message: 'Agents already prepared' })
       return finish(entered, deps, await fetchAgents(deps, simulationId))
     }
-    const entered = await deps.store.update(run.id, { ids: { prepareTaskId: need(started.task_id, 'prepare task id') } }, deps.fence)
+    const entered = await deps.store.update(
+      run.id,
+      { ids: { prepareTaskId: need(started.task_id, 'prepare task id') } },
+      deps.fence,
+    )
     await running(deps, entered, 'sim_prepare', { progress: 0, message: 'Generating agent profiles' })
     return entered
   },

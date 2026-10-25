@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
-import { defineConfig, mergeConfig } from 'vitest/config'
 import base from '@xo/config/vitest.base'
+import { defineConfig, mergeConfig } from 'vitest/config'
 
 export default mergeConfig(
   base,
@@ -8,6 +8,6 @@ export default mergeConfig(
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
-    test: { include: ['src/**/*.test.tsx'] },
+    test: { include: ['src/**/*.test.tsx'], setupFiles: ['./src/test/axe.ts'] },
   }),
 )

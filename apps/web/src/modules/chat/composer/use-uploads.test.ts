@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+
 import { act, renderHook } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { useUploads } from './use-uploads'
 
 const file = (name: string) => new File(['x'], name, { type: 'text/plain' })
@@ -39,7 +40,9 @@ describe('useUploads', () => {
   })
 
   it('marks files error and rejects with the server reason on failure', async () => {
-    const fetchStub = vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 }))
+    const fetchStub = vi.fn(async () =>
+      Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 }),
+    )
     const { result } = renderHook(() => useUploads('chat-1', { fetch: fetchStub as unknown as typeof fetch }))
     act(() => result.current.add([file('a.txt')]))
     let error: unknown
@@ -55,7 +58,14 @@ describe('useUploads', () => {
   it('rejects a sixth file locally and does not send it', async () => {
     const fetchStub = vi.fn(async () =>
       Response.json(
-        { uploads: Array.from({ length: 5 }, (_, i) => ({ id: `u${i}`, filename: 'f', mediaType: 'text/plain', sizeBytes: 1 })) },
+        {
+          uploads: Array.from({ length: 5 }, (_, i) => ({
+            id: `u${i}`,
+            filename: 'f',
+            mediaType: 'text/plain',
+            sizeBytes: 1,
+          })),
+        },
         { status: 201 },
       ),
     )

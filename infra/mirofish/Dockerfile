@@ -18,6 +18,18 @@ WORKDIR /app/backend
 
 RUN UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 uv sync --frozen --no-dev
 
+RUN test -f /app/LICENSE \
+  && useradd -u 10001 -m mirofish \
+  && mkdir -p /app/backend/uploads /app/backend/logs \
+  && chown -R mirofish:mirofish /app/backend/uploads /app/backend/logs
+
+LABEL org.opencontainers.image.source="https://github.com/666ghj/MiroFish" \
+  org.opencontainers.image.revision="${MIROFISH_REF}" \
+  org.opencontainers.image.licenses="AGPL-3.0" \
+  org.opencontainers.image.description="Upstream MiroFish backend, unmodified, packaged for Xenet Opinions"
+
+USER mirofish
+
 ENV FLASK_HOST=0.0.0.0 FLASK_PORT=5001 PYTHONUNBUFFERED=1 UV_NO_SYNC=1
 EXPOSE 5001
 

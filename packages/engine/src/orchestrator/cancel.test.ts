@@ -11,15 +11,23 @@ describe('cancelRun', () => {
     expect(cancelled).toMatchObject({ status: 'cancelled', finishedAt: NOW, error: null })
     expect(cancelled.leaseUntil!.getTime()).toBeLessThanOrEqual(NOW.getTime())
     const events = await store.listEvents(run.id, 0)
-    expect(events.map((e) => (e.kind === 'stage' ? `stage:${(e.payload as StageData).stage}:${(e.payload as StageData).status}` : e.kind)).slice(-2)).toEqual([
-      'stage:sim_run:cancelled',
-      'cancelled',
-    ])
+    expect(
+      events
+        .map((e) =>
+          e.kind === 'stage' ? `stage:${(e.payload as StageData).stage}:${(e.payload as StageData).status}` : e.kind,
+        )
+        .slice(-2),
+    ).toEqual(['stage:sim_run:cancelled', 'cancelled'])
   })
 
   it('cancels a queued run', async () => {
     const { store } = await setupRun()
-    const queued = await store.create({ chatId: 'c2', userId: 'u1', assistantMessageId: 'm2', config: { requirement: 'r', maxRounds: 2, uploadIds: [] } })
+    const queued = await store.create({
+      chatId: 'c2',
+      userId: 'u1',
+      assistantMessageId: 'm2',
+      config: { requirement: 'r', maxRounds: 2, uploadIds: [] },
+    })
     const cancelled = await cancelRun(store, queued.id, NOW)
     expect(cancelled).toMatchObject({ status: 'cancelled', finishedAt: NOW })
     expect((await store.listEvents(queued.id, 0)).map((e) => e.kind)).toEqual(['stage', 'cancelled'])

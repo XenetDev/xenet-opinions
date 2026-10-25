@@ -1,6 +1,6 @@
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
-import { RunNotActiveError, RunNotFoundError, cancelActiveRun } from '@/server/runs'
+import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from '@/server/runs'
 
 export const runtime = 'nodejs'
 

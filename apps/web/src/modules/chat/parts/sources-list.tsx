@@ -1,5 +1,5 @@
-import { FileTextIcon } from 'lucide-react'
 import type { SourcesData } from '@xo/engine/parts'
+import { FileTextIcon } from 'lucide-react'
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/sources'
 
 function formatSize(bytes: number): string {

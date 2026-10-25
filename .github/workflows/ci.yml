@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -31,13 +35,16 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check:licenses
+      - run: pnpm test:scripts
       - run: pnpm --filter @xo/db db:migrate
       - run: pnpm typecheck
       - run: pnpm test
@@ -46,6 +53,36 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: docker build -f infra/docker/Dockerfile.web --build-arg NEXT_PUBLIC_APP_URL=http://localhost:3000 -t xo-web .
-      - run: docker build -f infra/docker/Dockerfile.worker -t xo-worker .
+      - uses: actions/checkout@v7
+      - run: bash infra/docker/compose.test.sh
+      - run: bash infra/mirofish/caddyfile.test.sh
+      - uses: docker/setup-buildx-action@v4
+      # ci-* scopes keep amd64-only CI exports from evicting release.yml's multi-arch cache
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/Dockerfile.web
+          platforms: linux/amd64
+          push: false
+          load: false
+          build-args: NEXT_PUBLIC_APP_URL=http://localhost:3000
+          cache-from: type=gha,scope=ci-web
+          cache-to: type=gha,mode=max,scope=ci-web
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/Dockerfile.worker
+          platforms: linux/amd64
+          push: false
+          load: false
+          cache-from: type=gha,scope=ci-worker
+          cache-to: type=gha,mode=max,scope=ci-worker
+      - uses: docker/build-push-action@v7
+        with:
+          context: infra/mirofish
+          file: infra/mirofish/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: false
+          cache-from: type=gha,scope=ci-mirofish
+          cache-to: type=gha,mode=max,scope=ci-mirofish

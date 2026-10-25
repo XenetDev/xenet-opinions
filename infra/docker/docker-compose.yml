@@ -1,9 +1,5 @@
 name: xenet-opinions
 
-x-worker-build: &worker-build
-  context: ../..
-  dockerfile: infra/docker/Dockerfile.worker
-
 x-storage-env: &storage-env
   STORAGE_DRIVER: s3
   S3_BUCKET: xo-uploads
@@ -32,7 +28,7 @@ services:
 
   minio:
     # minio/minio is no longer published on Docker Hub; pgsty/minio is the community fork with the same CLI.
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -43,7 +39,7 @@ services:
     networks: [internal]
 
   minio-init:
-    image: pgsty/mc:RELEASE.2026-10-18T00-00-00Z
+    image: pgsty/mc@sha256:6ecdaec70bc5e8cf9d0e9a70c190f3beb1c83f11617ff4333f1fcd71ab1daf18
     restart: "no"
     depends_on: [minio]
     environment:
@@ -60,49 +56,20 @@ services:
         mc mb --ignore-existing xo/xo-uploads
     networks: [internal]
 
-  mirofish:
-    profiles: [real]
-    build:
-      context: ../mirofish
-      dockerfile: Dockerfile
-    image: xo-mirofish
-    restart: unless-stopped
-    environment:
-      LLM_API_KEY: ${LLM_API_KEY}
-      LLM_BASE_URL: ${LLM_BASE_URL}
-      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
-      ZEP_API_KEY: ${ZEP_API_KEY}
-    volumes:
-      - mirofish-uploads:/app/backend/uploads
-    networks: [backend]
-
-  mirofish-mock:
-    profiles: [mock]
-    build: *worker-build
-    image: xo-worker
-    restart: unless-stopped
-    command: ["pnpm", "--filter", "@xo/mirofish", "mock"]
-    environment:
-      HOST: 0.0.0.0
-      PORT: "5001"
-      MOCK_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
-      MOCK_SPEED: ${MOCK_SPEED:-5}
-    networks: [backend]
-
   # The only bridge between the app network and MiroFish.
   mirofish-proxy:
     image: caddy:2
     restart: unless-stopped
     environment:
       MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
-      MIROFISH_UPSTREAM: ${MIROFISH_UPSTREAM}
     volumes:
       - ../mirofish/Caddyfile:/etc/caddy/Caddyfile:ro
     networks: [internal, backend]
 
   migrate:
-    build: *worker-build
-    image: xo-worker
+    # Built by `worker`; a second `build:` for the same tag races it and fails.
+    image: ghcr.io/jdships/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
+    pull_policy: missing
     restart: "no"
     command: ["pnpm", "--filter", "@xo/db", "db:migrate:prod"]
     environment:
@@ -113,8 +80,11 @@ services:
     networks: [internal]
 
   worker:
-    build: *worker-build
-    image: xo-worker
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+    image: ghcr.io/jdships/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
+    pull_policy: missing
     restart: unless-stopped
     environment:
       <<: *storage-env
@@ -135,8 +105,9 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.web
       args:
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-    image: xo-web
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${XO_WEB_PORT:-3000}}
+    image: ghcr.io/jdships/xenet-opinions-web:${XO_IMAGE_TAG:-edge}
+    pull_policy: missing
     restart: unless-stopped
     ports:
       - "${XO_WEB_PORT:-3000}:3000"
@@ -144,8 +115,8 @@ services:
       <<: *storage-env
       DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env.selfhost}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${XO_WEB_PORT:-3000}}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${XO_WEB_PORT:-3000}}
       MIROFISH_URL: http://mirofish-proxy:8080
       MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
       DEMO_MODE: ${DEMO_MODE:-0}
@@ -168,7 +139,6 @@ services:
 volumes:
   postgres-data:
   minio-data:
-  mirofish-uploads:
 
 # Not `internal: true`: MiroFish needs outbound internet for the LLM and Zep.
 networks:

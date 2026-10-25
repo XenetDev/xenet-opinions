@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { axe } from '@/test/axe'
 import { PipelineTimeline } from './pipeline-timeline'
 
 afterEach(cleanup)
@@ -63,7 +65,9 @@ describe('PipelineTimeline', () => {
   })
   it('offers a retry on the failed row when onRetry is given', () => {
     const onRetry = vi.fn()
-    render(<PipelineTimeline stages={[{ stage: 'sim_prepare', status: 'failed', message: 'Boom' }]} onRetry={onRetry} />)
+    render(
+      <PipelineTimeline stages={[{ stage: 'sim_prepare', status: 'failed', message: 'Boom' }]} onRetry={onRetry} />,
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Retry from here' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
@@ -71,5 +75,18 @@ describe('PipelineTimeline', () => {
   it('offers no retry without onRetry', () => {
     render(<PipelineTimeline stages={[{ stage: 'sim_prepare', status: 'failed', message: 'Boom' }]} />)
     expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()
+  })
+  it('has no axe violations', async () => {
+    const { container } = render(
+      <PipelineTimeline
+        stages={[
+          { stage: 'ontology', status: 'done', progress: 100 },
+          { stage: 'graph_build', status: 'running', message: 'Building' },
+          { stage: 'sim_prepare', status: 'failed', message: 'Boom' },
+        ]}
+        onRetry={vi.fn()}
+      />,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

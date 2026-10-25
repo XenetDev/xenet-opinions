@@ -1,6 +1,6 @@
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { MiroFishError, createMiroFishClient } from '../src/index'
+import { createMiroFishClient, MiroFishError } from '../src/index'
 import { startMockMiroFish } from './server'
 
 type Mock = Awaited<ReturnType<typeof startMockMiroFish>>
@@ -124,7 +124,9 @@ describe('mock MiroFish options', () => {
   it('requires token when token is set', async () => {
     const mock = await startMockMiroFish({ port: 0, speed: 100, token: 'secret' })
     try {
-      const bad = await createMiroFishClient({ baseUrl: mock.url }).graph.getData('g').catch((e: unknown) => e)
+      const bad = await createMiroFishClient({ baseUrl: mock.url })
+        .graph.getData('g')
+        .catch((e: unknown) => e)
       expect((bad as MiroFishError).status).toBe(401)
       const ok = await createMiroFishClient({ baseUrl: mock.url, token: 'secret' }).graph.getData('g')
       expect(ok.nodes).toHaveLength(80)
@@ -150,14 +152,24 @@ describe('mock MiroFish options', () => {
   it('keeps a failed task failed after the toggle clears and succeeds a new task', async () => {
     const mock = await startMockMiroFish({ port: 0, speed: 100 })
     const toggle = (stage: string | null) =>
-      fetch(`${mock.url}/__mock/fail-stage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stage }) })
+      fetch(`${mock.url}/__mock/fail-stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ stage }),
+      })
     try {
       const client = createMiroFishClient({ baseUrl: mock.url })
       expect(await (await toggle('sim_prepare')).json()).toEqual({ success: true, data: { failStage: 'sim_prepare' } })
       const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
       const graphTask = await client.graph.build({ projectId: project_id })
-      const graph = await poll(() => client.graph.getTask(graphTask.task_id!), (t) => t.status === 'completed')
-      const sim = await client.simulation.create({ projectId: project_id, graphId: (graph.result as { graph_id: string }).graph_id })
+      const graph = await poll(
+        () => client.graph.getTask(graphTask.task_id!),
+        (t) => t.status === 'completed',
+      )
+      const sim = await client.simulation.create({
+        projectId: project_id,
+        graphId: (graph.result as { graph_id: string }).graph_id,
+      })
       const first = await client.simulation.prepare({ simulationId: sim.simulation_id })
       expect((await client.simulation.prepareStatus({ taskId: first.task_id! })).status).toBe('failed')
 
@@ -166,7 +178,10 @@ describe('mock MiroFish options', () => {
       expect((await client.simulation.prepareStatus({ taskId: first.task_id! })).status).toBe('failed')
 
       const second = await client.simulation.prepare({ simulationId: sim.simulation_id })
-      const done = await poll(() => client.simulation.prepareStatus({ taskId: second.task_id! }), (t) => t.status !== 'processing')
+      const done = await poll(
+        () => client.simulation.prepareStatus({ taskId: second.task_id! }),
+        (t) => t.status !== 'processing',
+      )
       expect(done.status).toBe('completed')
     } finally {
       await mock.close()
@@ -176,7 +191,11 @@ describe('mock MiroFish options', () => {
   it('rejects an unknown fail stage', async () => {
     const mock = await startMockMiroFish({ port: 0, speed: 100 })
     try {
-      const res = await fetch(`${mock.url}/__mock/fail-stage`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"stage":"nope"}' })
+      const res = await fetch(`${mock.url}/__mock/fail-stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{"stage":"nope"}',
+      })
       expect(res.status).toBe(400)
     } finally {
       await mock.close()
@@ -191,10 +210,15 @@ describe('mock MiroFish env lifecycle', () => {
       const client = createMiroFishClient({ baseUrl: mock.url })
       const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
       const sim = await client.simulation.create({ projectId: project_id })
-      const ok = await client.simulation.interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] })
+      const ok = await client.simulation.interviewBatch({
+        simulationId: sim.simulation_id,
+        interviews: [{ agentId: 3, prompt: 'hi' }],
+      })
       expect(ok.results).toHaveLength(1)
       await client.simulation.closeEnv(sim.simulation_id)
-      const err = await client.simulation.interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] }).catch((e: unknown) => e)
+      const err = await client.simulation
+        .interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] })
+        .catch((e: unknown) => e)
       expect(err).toBeInstanceOf(MiroFishError)
       expect((err as MiroFishError).status).toBe(400)
       expect((err as MiroFishError).message).toContain('simulation environment is closed')

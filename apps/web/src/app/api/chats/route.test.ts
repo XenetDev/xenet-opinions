@@ -30,7 +30,12 @@ describe('GET /api/chats', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { chats: Array<{ id: string; updatedAt: string; runStatus: string }> }
     expect(body.chats.map((c) => c.id)).toEqual(['c2', 'c1'])
-    expect(body.chats[0]).toEqual({ id: 'c2', title: 'Newer', updatedAt: updatedAt.toISOString(), runStatus: 'running' })
+    expect(body.chats[0]).toEqual({
+      id: 'c2',
+      title: 'Newer',
+      updatedAt: updatedAt.toISOString(),
+      runStatus: 'running',
+    })
     expect(listChats).toHaveBeenCalledWith('user1')
   })
 })

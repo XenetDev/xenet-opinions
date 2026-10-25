@@ -24,14 +24,17 @@ vi.mock('@/server/follow-up', () => {
   return { FollowUpError, runFollowUp: vi.fn() }
 })
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
-vi.mock('@xo/engine', async (importOriginal) => ({ ...(await importOriginal<typeof import('@xo/engine')>()), tailRunAsUIMessageStream: vi.fn() }))
+vi.mock('@xo/engine', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@xo/engine')>()),
+  tailRunAsUIMessageStream: vi.fn(),
+}))
 
 import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { getLimits } from '@/server/limits'
-import { RunActiveError, countOwnedUploads, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
 import { POST } from './route'
 
 const userMessage = (text: string) => ({ id: 'u1', role: 'user', parts: [{ type: 'text', text }] })
@@ -250,7 +253,10 @@ describe('POST /api/chats/[id]/messages', () => {
       vi.mocked(runsStartedSince).mockResolvedValue({ count: 2, oldestQueuedAt: oldest })
       const res = await call(userMessage('hi'))
       expect(res.status).toBe(429)
-      expect(await res.json()).toEqual({ error: 'quota_exceeded', resetAt: new Date(oldest.getTime() + 86_400_000).toISOString() })
+      expect(await res.json()).toEqual({
+        error: 'quota_exceeded',
+        resetAt: new Date(oldest.getTime() + 86_400_000).toISOString(),
+      })
       expect(startRun).not.toHaveBeenCalled()
     })
 

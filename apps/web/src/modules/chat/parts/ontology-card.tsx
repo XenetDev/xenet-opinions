@@ -1,5 +1,5 @@
-import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import type { OntologyData } from '@xo/engine/parts'
+import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Badge } from '@/components/ui/badge'
 

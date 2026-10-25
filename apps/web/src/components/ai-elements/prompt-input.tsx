@@ -492,6 +492,7 @@ export type PromptInputProps = Omit<
 > & {
   // e.g., "image/*" or leave undefined for any
   accept?: string;
+  disabled?: boolean;
   multiple?: boolean;
   // When true, accepts drops anywhere on document. Default false (opt-in).
   globalDrop?: boolean;
@@ -514,6 +515,7 @@ export type PromptInputProps = Omit<
 export const PromptInput = ({
   className,
   accept,
+  disabled,
   multiple,
   globalDrop,
   syncHiddenInput,
@@ -909,6 +911,7 @@ export const PromptInput = ({
         accept={accept}
         aria-label="Upload files"
         className="hidden"
+        disabled={disabled}
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}

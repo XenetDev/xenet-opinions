@@ -41,7 +41,13 @@ export function RenameDialog({
           <DialogHeader>
             <DialogTitle>Rename conversation</DialogTitle>
           </DialogHeader>
-          <Input aria-label="Title" value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} autoFocus />
+          <Input
+            aria-label="Title"
+            value={title}
+            maxLength={120}
+            onChange={(event) => setTitle(event.target.value)}
+            autoFocus
+          />
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}

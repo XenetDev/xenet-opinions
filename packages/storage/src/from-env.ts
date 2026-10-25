@@ -1,6 +1,6 @@
 import { createLocalStorage } from './local'
 import { createS3Storage } from './s3'
-import { StorageError, type Storage } from './types'
+import { type Storage, StorageError } from './types'
 
 export type StorageEnv = {
   STORAGE_DRIVER?: string
@@ -17,9 +17,17 @@ export function createStorageFromEnv(env: StorageEnv): Storage {
   const driver = env.STORAGE_DRIVER || 'local'
   if (driver === 'local') return createLocalStorage(env.STORAGE_LOCAL_DIR || '.storage')
   if (driver === 's3') {
-    const { S3_BUCKET: bucket, S3_REGION: region, S3_ACCESS_KEY_ID: accessKeyId, S3_SECRET_ACCESS_KEY: secretAccessKey } = env
+    const {
+      S3_BUCKET: bucket,
+      S3_REGION: region,
+      S3_ACCESS_KEY_ID: accessKeyId,
+      S3_SECRET_ACCESS_KEY: secretAccessKey,
+    } = env
     if (!bucket || !region || !accessKeyId || !secretAccessKey) {
-      throw new StorageError('config', 's3 storage requires S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY')
+      throw new StorageError(
+        'config',
+        's3 storage requires S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY',
+      )
     }
     return createS3Storage({
       bucket,

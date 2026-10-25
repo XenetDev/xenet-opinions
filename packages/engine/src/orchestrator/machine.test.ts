@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { StageData } from '../parts'
 import { FenceError } from '../store/types'
 import { tick } from './machine'
-import { LOGS, NOW, drive, setupRun as setup } from './test-helpers'
+import { drive, LOGS, NOW, setupRun as setup } from './test-helpers'
 
 const label = (e: { kind: string; payload: unknown }) => {
   if (e.kind === 'stage') {
@@ -79,7 +79,9 @@ describe('tick', () => {
       'done',
     ])
     const payloadOf = (kind: string) => events.filter((e) => e.kind === kind).map((e) => e.payload)
-    expect(payloadOf('sources')).toEqual([{ files: [{ id: 'up_1', filename: 'brief.md', mediaType: 'text/markdown', sizeBytes: 12 }] }])
+    expect(payloadOf('sources')).toEqual([
+      { files: [{ id: 'up_1', filename: 'brief.md', mediaType: 'text/markdown', sizeBytes: 12 }] },
+    ])
     expect(payloadOf('report_text')).toEqual([{ markdown: '# Report' }])
     expect(payloadOf('sim_feed').at(-1)).toMatchObject({ round: 2, totalRounds: 2, twitterActs: 2, redditActs: 2 })
     expect(events.find((e) => e.kind === 'stage' && (e.payload as StageData).message === 'Round 1/2')).toBeDefined()
@@ -90,7 +92,8 @@ describe('tick', () => {
       requirement: 'React?',
     })
     expect(mf.simulation.start).toHaveBeenCalledWith({ simulationId: 'sim_1', maxRounds: 2 })
-    for (const c of vi.mocked(mf.simulation.posts).mock.calls) expect(c[1]).toMatchObject({ platform: expect.any(String), limit: 50 })
+    for (const c of vi.mocked(mf.simulation.posts).mock.calls)
+      expect(c[1]).toMatchObject({ platform: expect.any(String), limit: 50 })
     expect(vi.mocked(mf.simulation.posts).mock.calls.map((c) => [c[1].platform, c[1].offset])).toEqual([
       ['twitter', 0],
       ['reddit', 0],
@@ -98,7 +101,14 @@ describe('tick', () => {
       ['reddit', 1],
     ])
     expect(vi.mocked(mf.report.agentLog).mock.calls.map((c) => c[1])).toEqual([0, 3, 6])
-    for (const fn of [mf.graph.generateOntology, mf.graph.build, mf.simulation.create, mf.simulation.prepare, mf.simulation.start, mf.report.generate]) {
+    for (const fn of [
+      mf.graph.generateOntology,
+      mf.graph.build,
+      mf.simulation.create,
+      mf.simulation.prepare,
+      mf.simulation.start,
+      mf.report.generate,
+    ]) {
       expect(fn).toHaveBeenCalledTimes(1)
     }
   })
@@ -124,7 +134,12 @@ describe('tick', () => {
             .mockResolvedValueOnce({ logs: LOGS.slice(0, 5), total_lines: 5, from_line: 0, has_more: false })
             .mockResolvedValueOnce({ logs: LOGS.slice(5), total_lines: 6, from_line: 5, has_more: false })
             .mockResolvedValue({ logs: [], total_lines: 6, from_line: 6, has_more: false }),
-          get: vi.fn(async () => ({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'completed' as const, markdown_content: 'md' })),
+          get: vi.fn(async () => ({
+            report_id: 'rep_1',
+            simulation_id: 'sim_1',
+            status: 'completed' as const,
+            markdown_content: 'md',
+          })),
         },
       },
       { stage: 'report', ids: { ...ids, reportId: 'rep_1' } },
@@ -161,7 +176,10 @@ describe('tick', () => {
 
   it('a transient start failure is not retried by enter; the next tick polls status', async () => {
     const err = new MiroFishError({ code: 'timeout', message: 'timed out', path: '/api/simulation/start' })
-    const { deps, run } = await setup({ simulation: { start: vi.fn(async () => Promise.reject(err)) } }, { stage: 'sim_run', ids })
+    const { deps, run } = await setup(
+      { simulation: { start: vi.fn(async () => Promise.reject(err)) } },
+      { stage: 'sim_run', ids },
+    )
     const after = await tick(run, deps)
     expect(after.status).toBe('running')
     expect(after.cursors.simStarted).toBe(true)
@@ -173,7 +191,10 @@ describe('tick', () => {
 
   it('a non-retriable start failure fails the run', async () => {
     const err = new MiroFishError({ code: 'api', message: 'no such simulation', path: '/api/simulation/start' })
-    const { deps, run } = await setup({ simulation: { start: vi.fn(async () => Promise.reject(err)) } }, { stage: 'sim_run', ids })
+    const { deps, run } = await setup(
+      { simulation: { start: vi.fn(async () => Promise.reject(err)) } },
+      { stage: 'sim_run', ids },
+    )
     const after = await tick(run, deps)
     expect(after.status).toBe('failed')
     expect(after.error).toEqual({ stage: 'sim_run', code: 'api', message: 'no such simulation' })
@@ -186,7 +207,11 @@ describe('tick', () => {
       {
         simulation: {
           start: vi.fn().mockRejectedValueOnce(err).mockResolvedValue({ runner_status: 'starting' }),
-          runStatus: vi.fn().mockResolvedValueOnce(idle).mockResolvedValueOnce(idle).mockResolvedValue({ runner_status: 'running', current_round: 0 }),
+          runStatus: vi
+            .fn()
+            .mockResolvedValueOnce(idle)
+            .mockResolvedValueOnce(idle)
+            .mockResolvedValue({ runner_status: 'running', current_round: 0 }),
         },
       },
       { stage: 'sim_run', ids },
@@ -216,7 +241,11 @@ describe('tick', () => {
     expect(entered.cursors).toMatchObject({ simStarted: true, startAcked: true })
     const next = await drive(entered, deps)
     expect(next.status).toBe('failed')
-    expect(next.error).toEqual({ stage: 'sim_run', code: 'api', message: 'simulation backend reported idle after start' })
+    expect(next.error).toEqual({
+      stage: 'sim_run',
+      code: 'api',
+      message: 'simulation backend reported idle after start',
+    })
     expect(deps.mirofish.simulation.start).toHaveBeenCalledTimes(1)
     expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
     expect((store.events.get(run.id) ?? []).map(label).slice(-2)).toEqual(['stage:sim_run:failed', 'error'])
@@ -245,7 +274,12 @@ describe('tick', () => {
   it('a runner that stays idle without an acknowledged start fails the run after three restarts', async () => {
     const err = new MiroFishError({ code: 'network', message: 'ECONNRESET', path: '/api/simulation/start' })
     const { store, deps, run } = await setup(
-      { simulation: { start: vi.fn(async () => Promise.reject(err)), runStatus: vi.fn(async () => ({ runner_status: 'idle' as const })) } },
+      {
+        simulation: {
+          start: vi.fn(async () => Promise.reject(err)),
+          runStatus: vi.fn(async () => ({ runner_status: 'idle' as const })),
+        },
+      },
       { stage: 'sim_run', ids, cursors: { simStarted: true } },
     )
     const next = await drive(run, deps)
@@ -258,7 +292,13 @@ describe('tick', () => {
 
   it('fetches the posts backlog on completion and keeps the newest 50', async () => {
     const page = (platform: 'twitter' | 'reddit', offset: number, n: number) =>
-      Array.from({ length: n }, (_, i) => ({ post_id: `${platform}_${offset + i}`, agent_name: 'a', content: 'c', round: Math.floor((offset + i) / 10) + 1, platform }))
+      Array.from({ length: n }, (_, i) => ({
+        post_id: `${platform}_${offset + i}`,
+        agent_name: 'a',
+        content: 'c',
+        round: Math.floor((offset + i) / 10) + 1,
+        platform,
+      }))
     const { store, deps, run } = await setup(
       {
         simulation: {
@@ -275,7 +315,9 @@ describe('tick', () => {
     expect(next.cursors.postsOffsetTwitter).toBe(60)
     expect(next.cursors.postsOffsetReddit).toBe(60)
     expect(deps.mirofish.simulation.posts).toHaveBeenCalledTimes(4)
-    const feed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'sim_feed')?.payload as { posts: Array<{ round: number }> }
+    const feed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'sim_feed')?.payload as {
+      posts: Array<{ round: number }>
+    }
     expect(feed.posts).toHaveLength(50)
     expect(feed.posts.every((p) => p.round >= 2)).toBe(true)
     expect(feed.posts.at(-1)?.round).toBe(6)
@@ -286,8 +328,18 @@ describe('tick', () => {
     const { store, deps, run } = await setup(
       {
         report: {
-          agentLog: vi.fn(async (_id: string, from: number) => ({ logs: [line], total_lines: from + 1, from_line: from, has_more: true })),
-          get: vi.fn(async () => ({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'completed' as const, markdown_content: 'md' })),
+          agentLog: vi.fn(async (_id: string, from: number) => ({
+            logs: [line],
+            total_lines: from + 1,
+            from_line: from,
+            has_more: true,
+          })),
+          get: vi.fn(async () => ({
+            report_id: 'rep_1',
+            simulation_id: 'sim_1',
+            status: 'completed' as const,
+            markdown_content: 'md',
+          })),
         },
       },
       { stage: 'report', ids: { ...ids, reportId: 'rep_1' } },
@@ -314,7 +366,9 @@ describe('tick', () => {
       update.mock.invocationCallOrder[update.mock.calls.findIndex((c) => pred(c[1]))] as number
     const firstEvent = (kind: string, stage?: string) =>
       append.mock.invocationCallOrder[
-        append.mock.calls.findIndex((c) => c[1].kind === kind && (!stage || (c[1].payload as StageData).stage === stage))
+        append.mock.calls.findIndex(
+          (c) => c[1].kind === kind && (!stage || (c[1].payload as StageData).stage === stage),
+        )
       ] as number
     expect(firstOrder((p) => !!p.ids?.projectId)).toBeLessThan(firstEvent('ontology'))
     expect(firstOrder((p) => !!p.ids?.graphTaskId)).toBeLessThan(firstEvent('stage', 'graph_build'))
@@ -325,18 +379,45 @@ describe('tick', () => {
   })
 
   it.each([
-    { stage: 'ontology' as const, at: { projectId: 'proj_1' }, entry: ['graph', 'generateOntology'], advancesTo: 'graph_build' },
-    { stage: 'graph_build' as const, at: { projectId: 'proj_1', graphTaskId: 'gtask_1' }, entry: ['graph', 'build'], poll: ['graph', 'getTask'] },
+    {
+      stage: 'ontology' as const,
+      at: { projectId: 'proj_1' },
+      entry: ['graph', 'generateOntology'],
+      advancesTo: 'graph_build',
+    },
+    {
+      stage: 'graph_build' as const,
+      at: { projectId: 'proj_1', graphTaskId: 'gtask_1' },
+      entry: ['graph', 'build'],
+      poll: ['graph', 'getTask'],
+    },
     { stage: 'sim_create' as const, at: ids, entry: ['simulation', 'create'], advancesTo: 'sim_prepare' },
-    { stage: 'sim_prepare' as const, at: { ...ids, prepareTaskId: 'ptask_1' }, entry: ['simulation', 'prepare'], poll: ['simulation', 'prepareStatus'] },
-    { stage: 'sim_run' as const, at: ids, cursors: { simStarted: true }, entry: ['simulation', 'start'], poll: ['simulation', 'runStatus'] },
-    { stage: 'report' as const, at: { ...ids, reportId: 'rep_1' }, entry: ['report', 'generate'], poll: ['report', 'agentLog'] },
+    {
+      stage: 'sim_prepare' as const,
+      at: { ...ids, prepareTaskId: 'ptask_1' },
+      entry: ['simulation', 'prepare'],
+      poll: ['simulation', 'prepareStatus'],
+    },
+    {
+      stage: 'sim_run' as const,
+      at: ids,
+      cursors: { simStarted: true },
+      entry: ['simulation', 'start'],
+      poll: ['simulation', 'runStatus'],
+    },
+    {
+      stage: 'report' as const,
+      at: { ...ids, reportId: 'rep_1' },
+      entry: ['report', 'generate'],
+      poll: ['report', 'agentLog'],
+    },
   ])('resumes $stage with ids present by polling only', async ({ stage, at, cursors, entry, poll, advancesTo }) => {
     const { deps, run } = await setup({}, { stage, ids: at, cursors })
     const next = await tick(run, deps)
     expect(next.status).toBe('running')
     expect(next.stage).toBe(advancesTo ?? stage)
-    const fn = (path: string[]) => (deps.mirofish as unknown as Record<string, Record<string, unknown>>)[path[0] as string]?.[path[1] as string]
+    const fn = (path: string[]) =>
+      (deps.mirofish as unknown as Record<string, Record<string, unknown>>)[path[0] as string]?.[path[1] as string]
     expect(fn(entry)).not.toHaveBeenCalled()
     if (poll) expect(fn(poll)).toHaveBeenCalledTimes(1)
   })
@@ -354,7 +435,16 @@ describe('tick', () => {
 describe('failures', () => {
   it('a failed graph task fails the run with stage(failed) then error', async () => {
     const { store, deps, run } = await setup(
-      { graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'failed' as const, progress: 30, error: 'Injected failure' })) } },
+      {
+        graph: {
+          getTask: vi.fn(async () => ({
+            task_id: 'gtask_1',
+            status: 'failed' as const,
+            progress: 30,
+            error: 'Injected failure',
+          })),
+        },
+      },
       { stage: 'graph_build', ids: { projectId: 'proj_1', graphTaskId: 'gtask_1' } },
     )
     const next = await tick(run, deps)
@@ -369,14 +459,22 @@ describe('failures', () => {
   })
 
   it('retries a timeout on runStatus three times with backoff, then fails', async () => {
-    const err = new MiroFishError({ code: 'timeout', message: 'MiroFish request timed out: /run-status', path: '/run-status' })
+    const err = new MiroFishError({
+      code: 'timeout',
+      message: 'MiroFish request timed out: /run-status',
+      path: '/run-status',
+    })
     const { store, deps, run } = await setup(
       { simulation: { runStatus: vi.fn(async () => Promise.reject(err)) } },
       { stage: 'sim_run', ids, cursors: { simStarted: true } },
     )
     const next = await drive(run, deps)
     expect(next.status).toBe('failed')
-    expect(next.error).toEqual({ stage: 'sim_run', code: 'timeout', message: 'MiroFish request timed out: /run-status' })
+    expect(next.error).toEqual({
+      stage: 'sim_run',
+      code: 'timeout',
+      message: 'MiroFish request timed out: /run-status',
+    })
     expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(4)
     expect(vi.mocked(deps.sleep).mock.calls).toEqual([[2000], [4000], [8000]])
     expect((store.events.get(run.id) ?? []).map(label)).toEqual(['stage:sim_run:failed', 'error'])
@@ -405,9 +503,16 @@ describe('failures', () => {
   it.each([
     { name: 'api', err: new MiroFishError({ code: 'api', message: 'bad project', path: '/b' }), code: 'api' },
     { name: 'schema', err: new MiroFishError({ code: 'schema', message: 'bad shape', path: '/b' }), code: 'schema' },
-    { name: 'http 404', err: new MiroFishError({ code: 'http', status: 404, message: 'not found', path: '/b' }), code: 'http' },
+    {
+      name: 'http 404',
+      err: new MiroFishError({ code: 'http', status: 404, message: 'not found', path: '/b' }),
+      code: 'http',
+    },
   ])('fails immediately on $name', async ({ err, code }) => {
-    const { deps, run } = await setup({ graph: { build: vi.fn(async () => Promise.reject(err)) } }, { stage: 'graph_build', ids: { projectId: 'proj_1' } })
+    const { deps, run } = await setup(
+      { graph: { build: vi.fn(async () => Promise.reject(err)) } },
+      { stage: 'graph_build', ids: { projectId: 'proj_1' } },
+    )
     const next = await tick(run, deps)
     expect(next.status).toBe('failed')
     expect(next.error?.code).toBe(code)
@@ -418,7 +523,11 @@ describe('failures', () => {
   it('retries http 5xx', async () => {
     const err = new MiroFishError({ code: 'http', status: 502, message: 'bad gateway', path: '/b' })
     const { deps, run } = await setup(
-      { graph: { build: vi.fn().mockRejectedValueOnce(err).mockResolvedValue({ project_id: 'proj_1', task_id: 'gtask_1' }) } },
+      {
+        graph: {
+          build: vi.fn().mockRejectedValueOnce(err).mockResolvedValue({ project_id: 'proj_1', task_id: 'gtask_1' }),
+        },
+      },
       { stage: 'graph_build', ids: { projectId: 'proj_1' } },
     )
     const retried = await tick(run, deps)
@@ -430,7 +539,9 @@ describe('failures', () => {
 
   it('maps non-MiroFish errors to internal with a single-line message', async () => {
     const { deps, run } = await setup()
-    vi.mocked(deps.storage.get).mockRejectedValue(new StorageError('not_found', 'upload missing\n    at Object.get (local.ts:1:1)'))
+    vi.mocked(deps.storage.get).mockRejectedValue(
+      new StorageError('not_found', 'upload missing\n    at Object.get (local.ts:1:1)'),
+    )
     const next = await tick(run, deps)
     expect(next.status).toBe('failed')
     expect(next.error).toEqual({ stage: 'ontology', code: 'internal', message: 'upload missing' })
@@ -449,6 +560,11 @@ describe('failures', () => {
     const { store, deps, run } = await setup()
     const next = await tick(run, { ...deps, fence: { owner: 'w1' } })
     expect(next.stage).toBe('graph_build')
-    expect((store.events.get(run.id) ?? []).map(label)).toEqual(['stage:ontology:running', 'sources', 'ontology', 'stage:ontology:done'])
+    expect((store.events.get(run.id) ?? []).map(label)).toEqual([
+      'stage:ontology:running',
+      'sources',
+      'ontology',
+      'stage:ontology:done',
+    ])
   })
 })

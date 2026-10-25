@@ -2,12 +2,23 @@ import type { Message } from '@xo/db'
 import { describe, expect, it } from 'vitest'
 import { buildChatHistory } from './history'
 
-const msg = (id: string, role: string, parts: unknown[]): Message => ({ id, chatId: 'c', role, parts, createdAt: new Date(0) })
+const msg = (id: string, role: string, parts: unknown[]): Message => ({
+  id,
+  chatId: 'c',
+  role,
+  parts,
+  createdAt: new Date(0),
+})
 const text = (t: string) => ({ type: 'text', text: t })
 
 describe('buildChatHistory', () => {
   it('returns rows strictly after the anchor', () => {
-    const rows = [msg('a', 'user', [text('old')]), msg('b', 'assistant', [text('report')]), msg('c', 'user', [text('q1')]), msg('d', 'assistant', [text('a1')])]
+    const rows = [
+      msg('a', 'user', [text('old')]),
+      msg('b', 'assistant', [text('report')]),
+      msg('c', 'user', [text('q1')]),
+      msg('d', 'assistant', [text('a1')]),
+    ]
     expect(buildChatHistory(rows, { afterMessageId: 'b' })).toEqual([
       { role: 'user', content: 'q1' },
       { role: 'assistant', content: 'a1' },
@@ -15,8 +26,16 @@ describe('buildChatHistory', () => {
   })
 
   it('excludes the given message', () => {
-    const rows = [msg('b', 'assistant', [text('report')]), msg('c', 'user', [text('q1')]), msg('d', 'assistant', [text('a1')]), msg('e', 'user', [text('q2')])]
-    expect(buildChatHistory(rows, { afterMessageId: 'b', excludeMessageId: 'e' }).map((m) => m.content)).toEqual(['q1', 'a1'])
+    const rows = [
+      msg('b', 'assistant', [text('report')]),
+      msg('c', 'user', [text('q1')]),
+      msg('d', 'assistant', [text('a1')]),
+      msg('e', 'user', [text('q2')]),
+    ]
+    expect(buildChatHistory(rows, { afterMessageId: 'b', excludeMessageId: 'e' }).map((m) => m.content)).toEqual([
+      'q1',
+      'a1',
+    ])
   })
 
   it('skips rows without text parts and joins multiple text parts', () => {

@@ -10,10 +10,13 @@ vi.mock('@/server/runs', () => ({
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
-import { RunNotActiveError, RunNotFoundError, cancelActiveRun } from '@/server/runs'
+import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from '@/server/runs'
 import { POST } from './route'
 
-const call = () => POST(new Request('http://localhost/api/chats/c1/run/cancel', { method: 'POST' }), { params: Promise.resolve({ id: 'c1' }) })
+const call = () =>
+  POST(new Request('http://localhost/api/chats/c1/run/cancel', { method: 'POST' }), {
+    params: Promise.resolve({ id: 'c1' }),
+  })
 
 const owned = () => {
   vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })

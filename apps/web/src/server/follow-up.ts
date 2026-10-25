@@ -1,20 +1,26 @@
-import { eq, sql } from 'drizzle-orm'
-import { UI_MESSAGE_STREAM_HEADERS, createUIMessageStream, createUIMessageStreamResponse, generateId, type UIMessageStreamWriter } from 'ai'
-import { schema, type Chat, type Run } from '@xo/db'
+import { type Chat, type Run, schema } from '@xo/db'
 import {
   AgentsDataSchema,
-  MAX_INTERVIEW_AGENTS,
   buildChatHistory,
   extendKeepalive,
+  type InterviewData,
   interviewPartId,
   interviewsToParts,
+  MAX_INTERVIEW_AGENTS,
   mirofishAgentId,
-  pendingInterviewParts,
-  type InterviewData,
   type OpinionsUIMessage,
+  pendingInterviewParts,
   type RequestedInterview,
 } from '@xo/engine'
-import { MiroFishError, type MiroFishClient } from '@xo/mirofish'
+import { type MiroFishClient, MiroFishError } from '@xo/mirofish'
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateId,
+  UI_MESSAGE_STREAM_HEADERS,
+  type UIMessageStreamWriter,
+} from 'ai'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { mirofish as defaultMirofish } from '@/lib/mirofish'
 import { getMessage, listMessages, updateMessageParts } from './chats'
@@ -39,12 +45,17 @@ type Writer = UIMessageStreamWriter<OpinionsUIMessage>
 
 export async function loadRoster(run: Pick<Run, 'assistantMessageId'>): Promise<Array<{ id: string; name: string }>> {
   const message = await getMessage(run.assistantMessageId)
-  const part = message?.parts.findLast((p) => (p as { type?: unknown } | null)?.type === 'data-agents') as { data?: unknown } | undefined
+  const part = message?.parts.findLast((p) => (p as { type?: unknown } | null)?.type === 'data-agents') as
+    | { data?: unknown }
+    | undefined
   const parsed = AgentsDataSchema.safeParse(part?.data)
   return parsed.success ? parsed.data.profiles.map(({ id, name }) => ({ id, name })) : []
 }
 
-export async function createFollowUpTurn(input: { chatId: string; userMessage: UserMessage }): Promise<{ assistantMessageId: string }> {
+export async function createFollowUpTurn(input: {
+  chatId: string
+  userMessage: UserMessage
+}): Promise<{ assistantMessageId: string }> {
   const assistantMessageId = generateId()
   await db.transaction(async (tx) => {
     await tx
@@ -81,7 +92,11 @@ const interviewError = (error: unknown) => {
   return 'Interview failed'
 }
 
-const interviewPart = (data: InterviewData) => ({ type: 'data-interview' as const, id: interviewPartId(data.agentId), data })
+const interviewPart = (data: InterviewData) => ({
+  type: 'data-interview' as const,
+  id: interviewPartId(data.agentId),
+  data,
+})
 
 const respond = (assistantMessageId: string, execute: (writer: Writer) => Promise<void>) =>
   createUIMessageStreamResponse({
@@ -116,7 +131,10 @@ export async function runFollowUp(input: {
       let reply: string
       try {
         const rows = await listMessages(chat.id)
-        const history = buildChatHistory(rows, { afterMessageId: run.assistantMessageId, excludeMessageId: userMessage.id })
+        const history = buildChatHistory(rows, {
+          afterMessageId: run.assistantMessageId,
+          excludeMessageId: userMessage.id,
+        })
         const result = await client.report.chat({
           simulationId,
           message: text,

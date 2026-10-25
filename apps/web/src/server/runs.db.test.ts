@@ -32,9 +32,15 @@ const input = (chatId: string) => ({
 
 describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
   beforeAll(async () => {
-    await db
-      .insert(schema.user)
-      .values({ id: userId, name: 'anon', email: `${userId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    await db.insert(schema.user).values({
+      id: userId,
+      name: 'anon',
+      email: `${userId}@anon.local`,
+      emailVerified: false,
+      isAnonymous: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
   })
 
   it('lists the user message before the assistant placeholder', async () => {
@@ -80,13 +86,25 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
 
   it('counts new runs including cancel-then-resend, excludes retries, scoped to this user and window', async () => {
     const otherId = `ur_${crypto.randomUUID()}`
-    await db
-      .insert(schema.user)
-      .values({ id: otherId, name: 'anon', email: `${otherId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    await db.insert(schema.user).values({
+      id: otherId,
+      name: 'anon',
+      email: `${otherId}@anon.local`,
+      emailVerified: false,
+      isAnonymous: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
     const quotaUser = `ur_${crypto.randomUUID()}`
-    await db
-      .insert(schema.user)
-      .values({ id: quotaUser, name: 'anon', email: `${quotaUser}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    await db.insert(schema.user).values({
+      id: quotaUser,
+      name: 'anon',
+      email: `${quotaUser}@anon.local`,
+      emailVerified: false,
+      isAnonymous: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
     const at = (hours: number) => new Date(Date.now() - hours * 3_600_000)
     const seed = async (owner: string, status: 'done' | 'failed' | 'queued', queuedAt: Date) => {
       const chatId = `c_${crypto.randomUUID()}`
@@ -108,7 +126,9 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
     await seed(quotaUser, 'failed', oldest)
     await seed(quotaUser, 'queued', at(1))
     await seed(otherId, 'done', at(2))
-    const seedChat = async (rows: Array<{ status: 'failed' | 'queued' | 'cancelled'; hours: number; retry?: boolean }>) => {
+    const seedChat = async (
+      rows: Array<{ status: 'failed' | 'queued' | 'cancelled'; hours: number; retry?: boolean }>,
+    ) => {
       const chatId = await mkChat()
       let previous: string | null = null
       for (const { status, hours, retry } of rows) {
@@ -128,9 +148,15 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
         previous = id
       }
     }
-    await seedChat([{ status: 'failed', hours: 3 }, { status: 'queued', hours: 2, retry: true }])
+    await seedChat([
+      { status: 'failed', hours: 3 },
+      { status: 'queued', hours: 2, retry: true },
+    ])
     expect((await runsStartedSince(quotaUser, at(24))).count).toBe(3)
-    await seedChat([{ status: 'cancelled', hours: 4 }, { status: 'queued', hours: 3 }])
+    await seedChat([
+      { status: 'cancelled', hours: 4 },
+      { status: 'queued', hours: 3 },
+    ])
     const result = await runsStartedSince(quotaUser, at(24))
     expect(result.count).toBe(5)
     expect(result.oldestQueuedAt?.getTime()).toBe(oldest.getTime())

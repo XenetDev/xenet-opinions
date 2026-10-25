@@ -35,7 +35,8 @@ export function createMemoryStore(): RunStore & {
     runs.set(run.id, next)
     return next
   }
-  const validate = (input: RunEventInput[]) => input.map((e) => ({ ...e, payload: payloadSchemaFor(e.kind).parse(e.payload) }))
+  const validate = (input: RunEventInput[]) =>
+    input.map((e) => ({ ...e, payload: payloadSchemaFor(e.kind).parse(e.payload) }))
   const appendRows = (runId: string, input: RunEventInput[]) => {
     const list = events.get(runId) ?? []
     const rows = input.map(
@@ -52,7 +53,8 @@ export function createMemoryStore(): RunStore & {
     events.set(runId, [...list, ...rows])
     return rows
   }
-  const byQueuedAt = (a: Run, b: Run) => a.queuedAt.getTime() - b.queuedAt.getTime() || order.get(a.id)! - order.get(b.id)!
+  const byQueuedAt = (a: Run, b: Run) =>
+    a.queuedAt.getTime() - b.queuedAt.getTime() || order.get(a.id)! - order.get(b.id)!
 
   return {
     runs,
@@ -99,15 +101,23 @@ export function createMemoryStore(): RunStore & {
     },
     async queuePosition(runId) {
       const run = runs.get(runId)
-      if (!run || run.status !== 'queued') return null
-      return 1 + [...runs.values()].filter((r) => ACTIVE.includes(r.status) && r.queuedAt.getTime() < run.queuedAt.getTime()).length
+      if (run?.status !== 'queued') return null
+      return (
+        1 +
+        [...runs.values()].filter((r) => ACTIVE.includes(r.status) && r.queuedAt.getTime() < run.queuedAt.getTime())
+          .length
+      )
     },
     async claimNext(owner, leaseMs, maxConcurrent) {
       const now = Date.now()
-      const live = [...runs.values()].filter((r) => r.status === 'running' && r.leaseUntil && r.leaseUntil.getTime() >= now).length
+      const live = [...runs.values()].filter(
+        (r) => r.status === 'running' && r.leaseUntil && r.leaseUntil.getTime() >= now,
+      ).length
       if (live >= maxConcurrent) return null
       const next = [...runs.values()]
-        .filter((r) => r.status === 'queued' || (r.status === 'running' && r.leaseUntil && r.leaseUntil.getTime() < now))
+        .filter(
+          (r) => r.status === 'queued' || (r.status === 'running' && r.leaseUntil && r.leaseUntil.getTime() < now),
+        )
         .sort(byQueuedAt)[0]
       if (!next) return null
       const claimed: Run = {
@@ -123,13 +133,13 @@ export function createMemoryStore(): RunStore & {
     },
     async renewLease(id, owner, leaseMs) {
       const run = runs.get(id)
-      if (!run || run.status !== 'running' || run.leaseOwner !== owner) return false
+      if (run?.status !== 'running' || run.leaseOwner !== owner) return false
       runs.set(id, { ...run, leaseUntil: new Date(Date.now() + leaseMs) })
       return true
     },
     async releaseLease(id, owner) {
       const run = runs.get(id)
-      if (!run || run.status !== 'running' || run.leaseOwner !== owner) return false
+      if (run?.status !== 'running' || run.leaseOwner !== owner) return false
       runs.set(id, { ...run, leaseUntil: new Date(Date.now() - 1) })
       return true
     },
@@ -164,7 +174,7 @@ export function createMemoryStore(): RunStore & {
     },
     async closeEnv(id) {
       const run = runs.get(id)
-      if (!run || run.envState !== 'open') return false
+      if (run?.envState !== 'open') return false
       runs.set(id, { ...run, envState: 'closed' })
       return true
     },

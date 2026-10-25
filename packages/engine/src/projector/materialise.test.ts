@@ -11,12 +11,21 @@ const drivenEvents = async (): Promise<RunEventInput[]> => {
   const { store, deps, run } = await setupRun()
   const done = await drive(run, deps)
   expect(done.status).toBe('done')
-  return (store.events.get(run.id) ?? []).map(({ kind, partId, payload }) => ({ kind: kind as RunEventInput['kind'], partId, payload }))
+  return (store.events.get(run.id) ?? []).map(({ kind, partId, payload }) => ({
+    kind: kind as RunEventInput['kind'],
+    partId,
+    payload,
+  }))
 }
 
 const setup = async (events: RunEventInput[]) => {
   const store = createMemoryStore()
-  const run = await store.create({ chatId: 'c1', userId: 'u1', assistantMessageId: 'm1', config: { requirement: 'R', maxRounds: 2, uploadIds: [] } })
+  const run = await store.create({
+    chatId: 'c1',
+    userId: 'u1',
+    assistantMessageId: 'm1',
+    config: { requirement: 'R', maxRounds: 2, uploadIds: [] },
+  })
   for (const e of events) await store.appendEvent(run.id, e)
   return { store, run }
 }
@@ -30,11 +39,23 @@ describe('materialiseRun', () => {
     const stages = parts.filter((p) => p.type === 'data-stage')
     expect(stages).toHaveLength(7)
     expect(stages.at(-1)).toMatchObject({ id: 'stage:finished', data: { stage: 'finished', status: 'done' } })
-    for (const t of ['data-ontology', 'data-graph', 'data-agents', 'data-sim_feed', 'data-report_outline', 'data-sources']) expect(count(parts, t)).toBe(1)
+    for (const t of [
+      'data-ontology',
+      'data-graph',
+      'data-agents',
+      'data-sim_feed',
+      'data-report_outline',
+      'data-sources',
+    ])
+      expect(count(parts, t)).toBe(1)
     expect(count(parts, 'data-report_event')).toBe(5)
-    expect(parts.filter((p) => p.type === 'text')).toEqual([expect.objectContaining({ type: 'text', text: '# Report' })])
+    expect(parts.filter((p) => p.type === 'text')).toEqual([
+      expect.objectContaining({ type: 'text', text: '# Report' }),
+    ])
     expect(parts.find((p) => p.type === 'data-agents')).toMatchObject({ data: { count: 2 } })
-    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:graph_build')).toMatchObject({ data: { status: 'done' } })
+    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:graph_build')).toMatchObject({
+      data: { status: 'done' },
+    })
     expect(store.parts.get('m1')).toEqual(parts)
   })
 
@@ -68,7 +89,9 @@ describe('materialiseRun', () => {
   })
 
   it('records a cancelled report stage without report text', async () => {
-    const events = (await drivenEvents()).filter((e) => !(e.kind === 'stage' && (e.payload as { stage: string }).stage === 'finished'))
+    const events = (await drivenEvents()).filter(
+      (e) => !(e.kind === 'stage' && (e.payload as { stage: string }).stage === 'finished'),
+    )
     const cut = events.findIndex((e) => e.kind === 'report_text')
     const { store, run } = await setup([
       ...events.slice(0, cut),
@@ -76,7 +99,9 @@ describe('materialiseRun', () => {
       event('cancelled', { stage: 'report', message: 'Cancelled by user' }),
     ])
     const parts = await materialiseRun(store, run.id)
-    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:report')).toMatchObject({ data: { stage: 'report', status: 'cancelled' } })
+    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:report')).toMatchObject({
+      data: { stage: 'report', status: 'cancelled' },
+    })
     expect(count(parts, 'text')).toBe(0)
   })
 })

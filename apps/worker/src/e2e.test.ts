@@ -2,12 +2,12 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDb, schema } from '@xo/db'
-import { type Deps, cancelRun, createDrizzleStore } from '@xo/engine'
+import { cancelRun, createDrizzleStore, type Deps } from '@xo/engine'
 import { createMiroFishClient } from '@xo/mirofish'
 import { startMockMiroFish } from '@xo/mirofish/mock'
 import { createLocalStorage, uploadKey } from '@xo/storage'
 import { asc, eq } from 'drizzle-orm'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, expect, it } from 'vitest'
 import { runWorkerLoop } from './loop'
 
 const TERMINAL = ['done', 'failed', 'cancelled']
@@ -45,7 +45,15 @@ const fixture = async (): Promise<Ctx> => {
     await rm(dir, { recursive: true, force: true })
   })
   const now = new Date()
-  await db.insert(schema.user).values({ id: userId, name: 'anon', email: `${userId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: now, updatedAt: now })
+  await db.insert(schema.user).values({
+    id: userId,
+    name: 'anon',
+    email: `${userId}@anon.local`,
+    emailVerified: false,
+    isAnonymous: true,
+    createdAt: now,
+    updatedAt: now,
+  })
   await db.insert(schema.chats).values({ id: chatId, userId })
   await db.insert(schema.messages).values([
     { id: `u_${userId}`, chatId, role: 'user', parts: [{ type: 'text', text: 'How will customers react?' }] },
@@ -54,8 +62,21 @@ const fixture = async (): Promise<Ctx> => {
   const key = uploadKey(userId, uploadId, 'brief.txt')
   const body = new TextEncoder().encode('Price rises 20% next month for all subscribers.')
   await storage.put(key, body, 'text/plain')
-  await db.insert(schema.uploads).values({ id: uploadId, userId, chatId, storageKey: key, filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: body.length })
-  const run = await store.create({ chatId, userId, assistantMessageId: messageId, config: { requirement: 'How will customers react?', maxRounds: 2, uploadIds: [uploadId] } })
+  await db.insert(schema.uploads).values({
+    id: uploadId,
+    userId,
+    chatId,
+    storageKey: key,
+    filename: 'brief.txt',
+    mediaType: 'text/plain',
+    sizeBytes: body.length,
+  })
+  const run = await store.create({
+    chatId,
+    userId,
+    assistantMessageId: messageId,
+    config: { requirement: 'How will customers react?', maxRounds: 2, uploadIds: [uploadId] },
+  })
   const deps: Deps = {
     store,
     mirofish: createMiroFishClient({ baseUrl: mock.url }),
@@ -91,11 +112,18 @@ e2e('drives a queued run to done and materialises the report', { timeout: 90_000
 
   const run = (await store.get(runId))!
   expect(run.status).toBe('done')
-  const events = await db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, runId)).orderBy(asc(schema.runEvents.seq))
+  const events = await db
+    .select()
+    .from(schema.runEvents)
+    .where(eq(schema.runEvents.runId, runId))
+    .orderBy(asc(schema.runEvents.seq))
   expect(events.map((e) => e.seq)).toEqual(events.map((_, i) => i + 1))
   expect(events.at(-1)?.kind).toBe('done')
   const [message] = await db.select().from(schema.messages).where(eq(schema.messages.id, messageId))
-  const text = (message!.parts as Array<{ type: string; text?: string }>).filter((p) => p.type === 'text').map((p) => p.text).join('\n')
+  const text = (message!.parts as Array<{ type: string; text?: string }>)
+    .filter((p) => p.type === 'text')
+    .map((p) => p.text)
+    .join('\n')
   expect(text).toContain('Public Reaction to the 20% Price Increase')
 })
 

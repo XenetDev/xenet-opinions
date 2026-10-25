@@ -11,7 +11,10 @@ import { ReportWorkbench } from './parts/report-workbench'
 import { SimulationFeed } from './parts/simulation-feed'
 import { SourcesList } from './parts/sources-list'
 
-function lastData<K extends keyof OpinionsDataParts>(parts: OpinionsUIMessage['parts'], key: K): OpinionsDataParts[K] | undefined {
+function lastData<K extends keyof OpinionsDataParts>(
+  parts: OpinionsUIMessage['parts'],
+  key: K,
+): OpinionsDataParts[K] | undefined {
   const match = parts.findLast((part) => part.type === `data-${key}`)
   return match && 'data' in match ? (match.data as OpinionsDataParts[K]) : undefined
 }
@@ -31,7 +34,9 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
   const texts = parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
   const errors = parts.flatMap((part) => (part.type === 'data-error' ? [part.data] : []))
   const interviews = [
-    ...new Map(parts.flatMap((part) => (part.type === 'data-interview' ? [[part.data.agentId, part.data] as const] : []))).values(),
+    ...new Map(
+      parts.flatMap((part) => (part.type === 'data-interview' ? [[part.data.agentId, part.data] as const] : [])),
+    ).values(),
   ]
   const hasText = texts.length > 0
 
@@ -78,6 +83,7 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
         </div>
       )}
       {texts.map((text, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
         <div key={i} data-part="text">
           <MessageResponse>{text}</MessageResponse>
         </div>
@@ -90,6 +96,7 @@ export function MessageParts({ parts, onRetry }: { parts: OpinionsUIMessage['par
         </div>
       )}
       {errors.map((error, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: error parts have no id and keep their order
         <div key={i} data-part="error">
           <Alert variant="destructive">
             <AlertDescription>{error.message}</AlertDescription>

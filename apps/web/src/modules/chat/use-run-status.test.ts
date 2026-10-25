@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createElement, type ReactNode } from 'react'
+
 import { act, renderHook } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatListProvider, useChatList } from '@/modules/sidebar/chat-list-context'
 import { useRunStatus } from './use-run-status'
 
@@ -22,7 +23,12 @@ describe('useRunStatus', () => {
     await act(async () => {})
     expect(stub).toHaveBeenCalledTimes(1)
     expect(stub).toHaveBeenCalledWith('/api/chats/c1/run', expect.anything())
-    expect(result.current).toMatchObject({ status: 'running', stage: 'ontology', runId: 'r1', assistantMessageId: 'a1' })
+    expect(result.current).toMatchObject({
+      status: 'running',
+      stage: 'ontology',
+      runId: 'r1',
+      assistantMessageId: 'a1',
+    })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
     })
@@ -133,7 +139,10 @@ describe('useRunStatus', () => {
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(ChatListProvider, { chats: [{ id: 'c1', title: 'T', runStatus: 'running' }], children })
     const { result } = renderHook(
-      () => ({ run: useRunStatus('c1', { enabled: true, intervalMs: 1000, fetch: asFetch(stub) }), list: useChatList() }),
+      () => ({
+        run: useRunStatus('c1', { enabled: true, intervalMs: 1000, fetch: asFetch(stub) }),
+        list: useChatList(),
+      }),
       { wrapper },
     )
     await act(async () => {})

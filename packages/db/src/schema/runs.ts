@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { bigserial, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 import { user } from './auth'
@@ -7,7 +7,15 @@ import { chats } from './chats'
 
 export type Stage = 'ontology' | 'graph_build' | 'sim_create' | 'sim_prepare' | 'sim_run' | 'report' | 'finished'
 
-export const RUN_STAGES = ['ontology', 'graph_build', 'sim_create', 'sim_prepare', 'sim_run', 'report', 'finished'] as const satisfies readonly Stage[]
+export const RUN_STAGES = [
+  'ontology',
+  'graph_build',
+  'sim_create',
+  'sim_prepare',
+  'sim_run',
+  'report',
+  'finished',
+] as const satisfies readonly Stage[]
 
 export type RunConfig = { requirement: string; maxRounds: number; uploadIds: string[] }
 

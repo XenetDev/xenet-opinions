@@ -16,7 +16,7 @@ const PLATFORMS: { value: Platform; label: string }[] = [
 export function SimulationFeed({ data }: { data: SimFeedData }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm font-medium">{`Round ${data.round} of ${data.totalRounds}`}</p>
+      <p aria-live="polite" className="text-sm font-medium">{`Round ${data.round} of ${data.totalRounds}`}</p>
       <Tabs defaultValue="twitter">
         <TabsList>
           {PLATFORMS.map(({ value, label }) => (

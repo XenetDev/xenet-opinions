@@ -12,7 +12,8 @@ import { getOwnedChat } from '@/server/chats'
 import { runStore } from '@/server/runs'
 import { GET } from './route'
 
-const call = (request = new Request('http://localhost/api/chats/c1/stream')) => GET(request, { params: Promise.resolve({ id: 'c1' }) })
+const call = (request = new Request('http://localhost/api/chats/c1/stream')) =>
+  GET(request, { params: Promise.resolve({ id: 'c1' }) })
 
 beforeEach(() => {
   vi.resetAllMocks()

@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { checkRunPolicy, DEMO_MAX_ROUNDS, MAX_RUNS_PER_DAY, QUOTA_WINDOW_MS } from './quota'
 
 const windowStartedAt = new Date('2026-01-01T00:00:00Z')
-const base = { demoMode: true, paused: false, runsInWindow: 0, maxRunsPerDay: 2, requestedRounds: 3, maxRounds: 3, windowStartedAt }
+const base = {
+  demoMode: true,
+  paused: false,
+  runsInWindow: 0,
+  maxRunsPerDay: 2,
+  requestedRounds: 3,
+  maxRounds: 3,
+  windowStartedAt,
+}
 
 describe('checkRunPolicy', () => {
   it('uses the documented constants', () => {
@@ -16,7 +24,10 @@ describe('checkRunPolicy', () => {
   })
 
   it('pause wins over quota and rounds', () => {
-    expect(checkRunPolicy({ ...base, paused: true, runsInWindow: 5, requestedRounds: 40 })).toEqual({ ok: false, code: 'demo_paused' })
+    expect(checkRunPolicy({ ...base, paused: true, runsInWindow: 5, requestedRounds: 40 })).toEqual({
+      ok: false,
+      code: 'demo_paused',
+    })
   })
 
   it('rejects when the quota is used up and reports the reset time', () => {

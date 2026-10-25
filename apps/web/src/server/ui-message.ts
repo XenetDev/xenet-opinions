@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { Message } from '@xo/db'
 import {
   AgentsDataSchema,
@@ -6,14 +5,15 @@ import {
   GraphDataSchema,
   InterviewDataSchema,
   OntologyDataSchema,
+  type OpinionsUIMessage,
   QueueDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
   SimFeedDataSchema,
   SourcesDataSchema,
   StageDataSchema,
-  type OpinionsUIMessage,
 } from '@xo/engine/parts'
+import { z } from 'zod'
 
 const rowSchema = z.object({
   id: z.string(),

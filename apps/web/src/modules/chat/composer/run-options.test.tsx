@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { RunOptions } from './run-options'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Composer } from './composer'
+import { RunOptions } from './run-options'
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false

@@ -2,7 +2,6 @@ export { createDb, type Db } from './client'
 export * as schema from './schema'
 export type { Chat, Message, NewChat, NewMessage } from './schema/chats'
 export type { Interview, NewInterview } from './schema/interviews'
-export { RUN_STAGES } from './schema/runs'
 export type {
   NewRun,
   NewRunEvent,
@@ -18,3 +17,4 @@ export type {
   Stage,
   Upload,
 } from './schema/runs'
+export { RUN_STAGES } from './schema/runs'

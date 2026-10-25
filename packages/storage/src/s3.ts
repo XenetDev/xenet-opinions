@@ -1,5 +1,5 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
-import { StorageError, type Storage } from './types'
+import { type Storage, StorageError } from './types'
 
 export type S3StorageOptions = {
   bucket: string

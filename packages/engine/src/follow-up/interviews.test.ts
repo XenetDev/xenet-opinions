@@ -18,7 +18,13 @@ describe('mirofishAgentId', () => {
 describe('interviewsToParts', () => {
   it('matches numeric ids, fails missing, ignores extras, keeps requested order', () => {
     const parts = interviewsToParts(
-      { results: [{ agent_id: 99, response: 'extra' }, { agent_id: 'abc', response: 'Hello' }, { agent_id: 3, response: 'Because' }] },
+      {
+        results: [
+          { agent_id: 99, response: 'extra' },
+          { agent_id: 'abc', response: 'Hello' },
+          { agent_id: 3, response: 'Because' },
+        ],
+      },
       requested,
     )
     expect(parts).toEqual([
@@ -40,6 +46,10 @@ describe('interviewsToParts', () => {
 
 describe('pendingInterviewParts', () => {
   it('returns pending parts in requested order', () => {
-    expect(pendingInterviewParts(requested).map((p) => [p.agentId, p.status])).toEqual([['3', 'pending'], ['abc', 'pending'], ['7', 'pending']])
+    expect(pendingInterviewParts(requested).map((p) => [p.agentId, p.status])).toEqual([
+      ['3', 'pending'],
+      ['abc', 'pending'],
+      ['7', 'pending'],
+    ])
   })
 })

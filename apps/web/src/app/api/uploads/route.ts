@@ -1,7 +1,7 @@
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
-import { createUploads } from '@/server/uploads'
 import { validateUploads } from '@/server/upload-rules'
+import { createUploads } from '@/server/uploads'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +31,10 @@ export async function POST(request: Request) {
     chatId,
     userId: user.id,
     files: await Promise.all(
-      validation.files.map(async (file, index) => ({ ...file, bytes: new Uint8Array(await files[index]!.arrayBuffer()) })),
+      validation.files.map(async (file, index) => ({
+        ...file,
+        bytes: new Uint8Array(await files[index]!.arrayBuffer()),
+      })),
     ),
   })
   return Response.json({ uploads }, { status: 201 })

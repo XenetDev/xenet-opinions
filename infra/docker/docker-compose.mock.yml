@@ -1,0 +1,17 @@
+services:
+  mirofish-mock:
+    # Built by `worker`; a second `build:` for the same tag races it and fails.
+    image: ghcr.io/jdships/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
+    pull_policy: missing
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@xo/mirofish", "mock"]
+    environment:
+      HOST: 0.0.0.0
+      PORT: "5001"
+      MOCK_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      MOCK_SPEED: ${MOCK_SPEED:-5}
+    networks: [backend]
+
+  mirofish-proxy:
+    environment:
+      MIROFISH_UPSTREAM: mirofish-mock:5001

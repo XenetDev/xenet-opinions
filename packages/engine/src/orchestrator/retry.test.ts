@@ -37,7 +37,13 @@ const failedAt = (stage: ActiveStage, extra: { ids?: RunIds; cursors?: RunCursor
 describe('prepareRetry', () => {
   it.each([
     ['graph_build', { ids: { projectId: 'p', graphTaskId: 'gt' } }],
-    ['sim_prepare', { ids: { projectId: 'p', graphId: 'g', simulationId: 's', prepareTaskId: 'pt' }, cursors: { ...cursors, prepareReady: true } }],
+    [
+      'sim_prepare',
+      {
+        ids: { projectId: 'p', graphId: 'g', simulationId: 's', prepareTaskId: 'pt' },
+        cursors: { ...cursors, prepareReady: true },
+      },
+    ],
     ['sim_run', {}],
     ['report', {}],
   ] as const)('resets %s so the stage enters again', (stage, extra) => {
@@ -50,8 +56,21 @@ describe('prepareRetry', () => {
 
   it('keeps upstream ids and drops report cursors on a report retry', () => {
     const next = prepareRetry(failedAt('report'))
-    expect(next.ids).toEqual({ projectId: 'p', graphId: 'g', graphTaskId: 'gt', simulationId: 's', prepareTaskId: 'pt' })
-    expect(next.cursors).toEqual({ prepareReady: true, simStarted: true, startAcked: true, retries: 0, startAttempts: 0, idlePolls: 0 })
+    expect(next.ids).toEqual({
+      projectId: 'p',
+      graphId: 'g',
+      graphTaskId: 'gt',
+      simulationId: 's',
+      prepareTaskId: 'pt',
+    })
+    expect(next.cursors).toEqual({
+      prepareReady: true,
+      simStarted: true,
+      startAcked: true,
+      retries: 0,
+      startAttempts: 0,
+      idlePolls: 0,
+    })
   })
 
   it('uses run.stage when there is no error', () => {

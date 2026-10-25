@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { MiroFishError, createHttp } from './index'
+import { createHttp, MiroFishError } from './index'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -34,7 +34,9 @@ describe('createHttp', () => {
   })
 
   it('maps non-JSON body to http error with status', async () => {
-    const http = make(async () => new Response('<html>bad gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }))
+    const http = make(
+      async () => new Response('<html>bad gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }),
+    )
     const err = await caught(http.getJson('/x', z.unknown()))
     expect(err.code).toBe('http')
     expect(err.status).toBe(502)

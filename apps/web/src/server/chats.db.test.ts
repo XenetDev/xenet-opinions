@@ -22,7 +22,15 @@ const otherId = `uo_${crypto.randomUUID()}`
 const now = new Date()
 
 const mkUser = (id: string) =>
-  db.insert(schema.user).values({ id, name: 'anon', email: `${id}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: now, updatedAt: now })
+  db.insert(schema.user).values({
+    id,
+    name: 'anon',
+    email: `${id}@anon.local`,
+    emailVerified: false,
+    isAnonymous: true,
+    createdAt: now,
+    updatedAt: now,
+  })
 
 const mkRun = (chatId: string, owner: string, status: 'queued' | 'running' | 'done', queuedAt: Date) =>
   db.insert(schema.runs).values({
@@ -66,8 +74,24 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
     })
     await db.insert(schema.runEvents).values({ runId, seq: 1, kind: 'x', payload: {} })
     await db.insert(schema.uploads).values([
-      { id: `up_${crypto.randomUUID()}`, userId, chatId, storageKey: 'key-a', filename: 'a.txt', mediaType: 'text/plain', sizeBytes: 1 },
-      { id: `up_${crypto.randomUUID()}`, userId, chatId, storageKey: 'key-b', filename: 'b.txt', mediaType: 'text/plain', sizeBytes: 1 },
+      {
+        id: `up_${crypto.randomUUID()}`,
+        userId,
+        chatId,
+        storageKey: 'key-a',
+        filename: 'a.txt',
+        mediaType: 'text/plain',
+        sizeBytes: 1,
+      },
+      {
+        id: `up_${crypto.randomUUID()}`,
+        userId,
+        chatId,
+        storageKey: 'key-b',
+        filename: 'b.txt',
+        mediaType: 'text/plain',
+        sizeBytes: 1,
+      },
     ])
     vi.mocked(storage.delete).mockReset()
     vi.mocked(cancelActiveRun).mockClear()
@@ -76,7 +100,12 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
     await expect(deleteChat(chatId)).resolves.toBeUndefined()
 
     expect(cancelActiveRun).toHaveBeenCalledWith(chatId)
-    expect(vi.mocked(storage.delete).mock.calls.map((c) => c[0]).sort()).toEqual(['key-a', 'key-b'])
+    expect(
+      vi
+        .mocked(storage.delete)
+        .mock.calls.map((c) => c[0])
+        .sort(),
+    ).toEqual(['key-a', 'key-b'])
     expect(await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))).toHaveLength(0)
     expect(await db.select().from(schema.messages).where(eq(schema.messages.chatId, chatId))).toHaveLength(0)
     expect(await db.select().from(schema.runs).where(eq(schema.runs.chatId, chatId))).toHaveLength(0)

@@ -2,14 +2,14 @@
 
 Deploys the hosted demo: web on Vercel, `Postgres`, `mirofish`, `mirofish-proxy` and `worker` on Railway, uploads in an S3-compatible bucket. Architecture, limits and the variable reference are in [hosting.md](hosting.md); the per-service table is in [infra/railway/README.md](../infra/railway/README.md).
 
-Nothing here has been executed yet. Commands were checked against `--help` of `railway` 5.28.0 and `vercel` 54.18.7. Items marked "verify in the dashboard" could not be confirmed from the CLI. Run everything from the repo root unless a step says otherwise.
+Nothing here has been executed yet. The container images are published to `ghcr.io/jdships/xenet-opinions-web`, `ghcr.io/jdships/xenet-opinions-worker` and `ghcr.io/jdships/xenet-opinions-mirofish` by the release workflow on each tag (`vX.Y.Z`, with `edge` for `main`); until the first release, `up.sh` builds them locally. The steps below build from source on Railway, but a host that runs images can use those instead, with the same variables. To run the whole stack on one machine instead, use `infra/docker/up.sh` (see [hosting.md](hosting.md#self-host)). Commands were checked against `--help` of `railway` 5.28.0 and `vercel` 54.18.7. Items marked "verify in the dashboard" could not be confirmed from the CLI. Run everything from the repo root unless a step says otherwise.
 
 ## 1. Prerequisites and credentials
 
 1. Tools: `railway` (5.28 or later), `vercel` (54 or later), `pnpm`, `openssl`, `curl`.
 2. Accounts:
    - Railway: `railway login`, then `railway whoami`.
-   - Vercel Pro or higher: `vercel login`, then `vercel whoami`. Hobby caps functions at 60 s and breaks run streaming and interviews.
+   - Vercel Pro (recommended) or Hobby: `vercel login`, then `vercel whoami`. Hobby allows the 300 s functions with Fluid compute but is non-commercial only and has small included usage; see [hosting.md](hosting.md#vercel-notes).
 3. S3-compatible bucket (Cloudflare R2 or AWS S3) for uploads, and a key pair that can read, write and delete in it. Note bucket name, region, endpoint, access key id, secret key. R2: region `auto`, endpoint `https://<account>.r2.cloudflarestorage.com`, path style `true`. S3: real region, no endpoint, path style `false`.
 4. LLM: an OpenAI-compatible API key, base URL and model name.
 5. Zep Cloud API key.
@@ -60,6 +60,7 @@ railway up infra/mirofish --path-as-root --service mirofish --detach
 - No `railway domain` for this service: it stays private (`mirofish.railway.internal:5001`).
 - The image is about 3.9 GB and the first build takes several minutes.
 - Keep it at one replica. Do not set `ZEP_API_URL`.
+- The image runs as uid 10001 (`mirofish`), but a Railway volume mounts root-owned, so MiroFish cannot write its uploads until the volume is chowned. Recommended, once after the volume is attached: set `RAILWAY_RUN_UID=0` on `mirofish` and let it redeploy, run `railway ssh --service mirofish -- chown -R 10001:10001 /app/backend/uploads`, then delete `RAILWAY_RUN_UID` and let it redeploy as uid 10001 (the chown needs root, hence the temporary variable). The alternative is to leave `RAILWAY_RUN_UID=0` set permanently, which runs MiroFish as root. Check with `railway ssh --service mirofish -- ls -ld /app/backend/uploads` (owner `mirofish`).
 - Healthcheck: set path `/health` in the service settings. Verify in the dashboard (the CLI help shows no healthcheck flag).
 - Verify in the dashboard that `railway up ... --path-as-root` used `infra/mirofish` as the build root and picked up `Dockerfile` (Settings, Build).
 
@@ -189,7 +190,7 @@ add DEMO_MAX_ROUNDS 3
 add HEALTH_CHECK_MIROFISH 1
 ```
 
-`<app-domain>` is `xenet-opinions.vercel.app` unless you attach a custom domain (`vercel domains add <domain>`). `NEXT_PUBLIC_APP_URL` is inlined at build time, so set it before the first build. Confirm with `vercel env ls production`.
+`<app-domain>` is `xenet-opinions.vercel.app` unless you attach a custom domain (`vercel domains add <domain>`). Confirm with `vercel env ls production`.
 
 ### 3.4 Deploy
 
@@ -220,6 +221,14 @@ vercel deploy --prod
 ```
 
 A new run is now refused with `demo_paused` and the composer is disabled; follow-ups on finished runs still work. Repeat with `0` to resume. (Alternatively edit the variable in the dashboard and redeploy.)
+
+4. MiroFish image labels, after each release. The published image must keep the upstream AGPL provenance:
+
+```sh
+docker inspect ghcr.io/jdships/xenet-opinions-mirofish:<tag> --format '{{json .Config.Labels}}'
+```
+
+Expect `org.opencontainers.image.licenses` to be `AGPL-3.0` and `org.opencontainers.image.source` to be `https://github.com/666ghj/MiroFish`; `ai.xenet.opinions.packaging-revision` names the packaging commit in this repo.
 
 ## 5. Operations
 
@@ -259,10 +268,10 @@ Use the kill switch in section 4. To stop the worker as well, remove its latest 
 ### Costs
 
 - Railway: usage-based (CPU, memory, volume, egress). `mirofish` is the heavy service; a 3.9 GB image sits idle between runs. The Hobby plan is the minimum; check the plan's included resource limits against the MiroFish memory need (verify in the dashboard).
-- Vercel: Pro seat plus function time; run streams hold a function open for up to 300 s per connection.
+- Vercel: Pro seat plus function time; run streams hold a function open for up to 300 s per connection, which is also what eats into Hobby's included usage.
 - LLM and Zep: dominant cost, scaling with agents times rounds. `DEMO_MAX_ROUNDS=3`, `MAX_RUNS_PER_DAY=2` per anonymous user and `MAX_CONCURRENT_RUNS=1` bound it; the global daily budget is not capped, so keep `DEMO_PAUSED` handy and set provider-side spend limits.
 - Bucket: R2 has no egress fees and uploads are small.
 
 ### Alternatives
 
-Fly.io works the same way: one app per service built from the same Dockerfiles (`fly launch --dockerfile infra/mirofish/Dockerfile`, a Fly volume at `/app/backend/uploads`, `.flycast` or `.internal` hostnames for private networking, public TLS on the proxy app only). A plain VM can run the compose bundle with `COMPOSE_PROFILES=real` and `MIROFISH_UPSTREAM=mirofish:5001` (see [hosting.md](hosting.md#profiles)); put a TLS-terminating reverse proxy such as Caddy or nginx in front of `web` (or of `mirofish-proxy` if the web app stays on Vercel), because the bundled Caddyfile serves plain HTTP and the token would otherwise travel in cleartext.
+Fly.io works the same way: one app per service built from the same Dockerfiles (`fly launch --dockerfile infra/mirofish/Dockerfile`, a Fly volume at `/app/backend/uploads`, which mounts root-owned while the image runs as uid 10001, so chown it once with `fly ssh console -C 'chown -R 10001:10001 /app/backend/uploads'` after the first deploy; `.flycast` or `.internal` hostnames for private networking, public TLS on the proxy app only). A plain VM can run the compose bundle with `infra/docker/up.sh` (see [hosting.md](hosting.md#real-and-mock-mirofish)); put a TLS-terminating reverse proxy such as Caddy or nginx in front of `web` (or of `mirofish-proxy` if the web app stays on Vercel), because the bundled Caddyfile serves plain HTTP and the token would otherwise travel in cleartext.

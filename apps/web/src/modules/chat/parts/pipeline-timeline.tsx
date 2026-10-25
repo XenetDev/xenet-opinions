@@ -1,5 +1,5 @@
-import { BanIcon, CheckCircle2Icon, CircleDashedIcon, XCircleIcon } from 'lucide-react'
 import { STAGES, type Stage, type StageData, type StageStatus } from '@xo/engine/parts'
+import { BanIcon, CheckCircle2Icon, CircleDashedIcon, XCircleIcon } from 'lucide-react'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { Button } from '@/components/ui/button'
@@ -29,9 +29,7 @@ function StageHeading({ status, title }: { status: StageStatus; title: string })
       {status === 'done' && <CheckCircle2Icon aria-hidden className="size-4 text-emerald-600" />}
       {status === 'failed' && <XCircleIcon aria-hidden className="size-4" />}
       {status === 'cancelled' && <BanIcon aria-hidden className="size-4" />}
-      {(status === 'pending' || status === 'running') && (
-        <CircleDashedIcon aria-hidden className="size-4" />
-      )}
+      {(status === 'pending' || status === 'running') && <CircleDashedIcon aria-hidden className="size-4" />}
       {status === 'running' ? <Shimmer as="span">{title}</Shimmer> : <span>{title}</span>}
       <span className="sr-only">{STATUS_LABELS[status]}</span>
     </>

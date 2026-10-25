@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import type { Stage } from '@xo/engine/parts'
+import { useEffect, useRef, useState } from 'react'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 
 export type RunStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
@@ -62,7 +62,8 @@ export function useRunStatus(
           envKeepaliveUntil: next.envKeepaliveUntil,
         }
         polls++
-        if (baseline === undefined) baseline = next.status === 'none' || isActive(next.status) ? null : (next.runId ?? null)
+        if (baseline === undefined)
+          baseline = next.status === 'none' || isActive(next.status) ? null : (next.runId ?? null)
         if (isActive(next.status)) {
           sawActive = true
           setState(exposed)

@@ -1,87 +1,99 @@
 # Xenet Opinions
 
-Xenet Opinions is an open-source, chat-first interface for running MiroFish simulations and reading the resulting opinions. A pipeline timeline in the chat shows each stage of a run as it streams in. Phase 1 connects it to MiroFish through a background worker, Phase 2 adds resume, cancel, retry and conversation history, and Phase 3 adds follow-up questions to the report agent and interviews with individual personas; a mock MiroFish lets you run the whole pipeline locally.
+Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions or interview individual personas. Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
 
-## Quickstart
+## Architecture
 
-Requires Node 24, pnpm 10 and Docker.
-
-```sh
-cp .env.example .env
-openssl rand -base64 32   # paste into BETTER_AUTH_SECRET in .env
-docker compose --env-file .env -f infra/docker/docker-compose.dev.yml up -d
-pnpm install
-pnpm --filter @xo/db db:migrate
-pnpm dev
+```
+                 +-------------+       +----------+       +--------+
+  browser -----> | web (Next)  | ----> | Postgres | <---- | worker |
+                 +-------------+       +----------+       +--------+
+                    |      |                                 |   |
+                    |      |  uploads   +------------+       |   |
+                    |      +----------> | S3 / MinIO | <-----+   |
+                    |                   +------------+           |
+                    |  HTTP + X-MiroFish-Token                   |
+                    +-------------------------+  +---------------+
+                                              v  v
+                                  +-------------------+
+                                  | Caddy token proxy |
+                                  +-------------------+
+  ================================= HTTP only ==================================
+                                              |       MIT above, AGPL below
+                                              v
+                                  +-------------------+
+                                  |     MiroFish      | ----> LLM API, Zep Cloud
+                                  | upstream, as is   |
+                                  +-------------------+
 ```
 
-Env is read from the repo-root `.env`.
+- **web** (`apps/web`, Next.js) serves the chat, stores messages and runs in Postgres, and streams run progress by tailing the `run_events` table. It calls MiroFish directly only for follow-up questions, interviews and the health check.
+- **worker** (`apps/worker`) claims queued runs from Postgres and drives them through MiroFish stage by stage, recording every step.
+- **Uploads** go to S3 or any S3-compatible store (MinIO in the Docker bundle, the local disk in development), shared by web and worker.
+- **MiroFish** runs unmodified behind a Caddy proxy that checks a shared token. Nothing in this repository imports MiroFish code; the only contact is HTTP through the proxy, and MiroFish's own port is never published.
 
-Then open http://localhost:3000.
+## Run it
 
-If port 5432 is already taken, set `XO_PG_PORT` in `.env` and use the same port in `DATABASE_URL` before starting the database. Start it with the `--env-file .env` command above so Compose reads the override.
+### 1. Self-host with Docker
 
-Other commands: `pnpm typecheck`, `pnpm test`, `pnpm build`.
-
-Tests run in parallel against per-package databases (`xo_test_engine`, `xo_test_worker`, `xo_test_web`, `xo_test_db`) created and migrated automatically on the same server. Set `TEST_DATABASE_URL` (for example `postgresql://xo:xo@localhost:5432/xo_test`) to choose the server and base name; without it the base is derived from `DATABASE_URL` (database name `xo_test`). If neither is set, database tests are skipped. Test databases are never the dev `xo` database.
-
-### Self-host with Docker
-
-The Compose bundle runs web, worker, Postgres, MinIO and MiroFish (or the mock) behind a token proxy, publishing only the web port. Copy the example, fill in the blank secrets (the file says how to generate each), and start it:
+You need Docker with Compose v2.20 or later, an API key for any OpenAI-compatible LLM provider, and a [Zep Cloud](https://www.getzep.com/) API key (MiroFish stores its knowledge graph there).
 
 ```sh
+git clone https://github.com/jdships/xenet-opinions.git
+cd xenet-opinions
 cp .env.selfhost.example .env.selfhost
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d --build
+sed -i.bak -e "s|^BETTER_AUTH_SECRET=$|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" -e "s|^MIROFISH_TOKEN=$|MIROFISH_TOKEN=$(openssl rand -hex 32)|" -e "s|^POSTGRES_PASSWORD=$|POSTGRES_PASSWORD=$(openssl rand -hex 32)|" -e "s|^MINIO_ROOT_PASSWORD=$|MINIO_ROOT_PASSWORD=$(openssl rand -hex 24)|" .env.selfhost && rm .env.selfhost.bak
 ```
 
-See [docs/hosting.md](docs/hosting.md) for profiles, environment, volumes, backups and the hosted demo setup.
-
-## Running the full pipeline locally
-
-Start the mock MiroFish in one terminal and the web app plus worker in another:
+The `sed` line fills in the four generated secrets. Now open `.env.selfhost`, set `LLM_API_KEY` and `ZEP_API_KEY` (and `LLM_BASE_URL` and `LLM_MODEL_NAME` if your provider is not OpenAI), then start the stack:
 
 ```sh
-MOCK_SPEED=5 pnpm mock   # terminal 1, listens on :5001
-pnpm dev                 # terminal 2, web on :3000 and the worker
+infra/docker/up.sh
 ```
 
-Open http://localhost:3000, start a new conversation, attach a `.txt`, `.md` or `.pdf`, ask a question and choose the number of simulation rounds. The chat then shows the run as it happens: the attached sources, a timeline of six running stages plus a final Done row, ontology chips, a graph preview, the persona roster as it fills, the simulation feed round by round, the report workbench steps and finally the report text. Reloading the page, switching tabs or hitting the stream cap is harmless: the page reattaches to the run and catches up from the stored events. The Stop button cancels an active run and the timeline shows the stage it stopped at as Cancelled, a failed run can be retried from its failed stage with the button on the timeline, and the sidebar lists your conversations and lets you rename or delete them. While a run is active the composer is locked and the API answers further messages with 409 `run_active`. Uploads accept `.pdf`, `.md` and `.txt` files, up to 5 files per message and 10 MB each.
+Open http://localhost:3000 (or the `XO_WEB_PORT` set in `.env.selfhost`), attach a `.txt`, `.md` or `.pdf` (a run needs at least one file), ask a question and pick a number of rounds. `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers. Images that are not available from `ghcr.io/jdships/xenet-opinions-*` are built locally on first start: compose first prints a `not found` pull error for each of them, then builds it. The MiroFish image takes several minutes. A real run takes roughly 20 to 60 minutes and spends LLM and Zep credits, so start with one round. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
 
-Once a run is done the composer unlocks for follow-ups. The target selector next to it chooses between **Ask the report**, which sends the question and the recent conversation to MiroFish's report agent and streams its reply, and **Interview personas**, which asks the same question to up to five personas picked from the roster cards (the picks show as removable chips in the composer) and shows one answer card per persona. Interviews need the simulation environment to still be open: the worker keeps it alive for 20 minutes after the run finishes, each interview extends that by 10 minutes (capped at one hour after the run finished), and a badge above the composer shows the time left. When the keepalive expires the worker's sweeper stops the simulation and closes the environment; the badge then reads "Agents offline", the interview option is disabled and the API answers interview requests with 409 `env_closed`, while questions to the report keep working. A follow-up that MiroFish fails to answer ends the stream with a `follow_up_failed` error and leaves no empty reply in the conversation. Interview answers are also stored in the `interviews` table.
+To try the bundle without any keys, run `infra/docker/up-mock.sh` instead; it swaps MiroFish for the bundled mock. Images, the environment reference, volumes, backups and updates are in [docs/hosting.md](docs/hosting.md).
 
-`MOCK_SPEED` divides the mock's delays (higher is faster), `MOCK_FAIL_STAGE` (`graph_build`, `sim_prepare`, `sim_run` or `report`) makes that stage fail with "Injected failure", `MOCK_TOKEN` requires the token header and `MOCK_LOG=1` prints one line per request. `POST /__mock/fail-stage` with `{"stage":"sim_prepare"}` (or `null`) switches the injected failure at runtime; a task that already failed stays failed, so clearing the flag and pressing Retry runs the stage again against a fresh task.
+### 2. Develop locally
 
-## Running against a real MiroFish
+No keys needed: the app runs against a mock MiroFish. You need Node 24, Docker (for Postgres) and pnpm 10.30 via corepack.
 
-Set `MIROFISH_URL` in `.env` to your MiroFish backend. Upstream MiroFish runs unmodified from a pinned commit; the token is enforced by the Caddy proxy in `infra/mirofish/`, so when you go through that proxy point `MIROFISH_URL` at it and set `MIROFISH_TOKEN` to the proxy's token (see [infra/mirofish/README.md](infra/mirofish/README.md)). Zep Cloud and LLM keys belong in MiroFish's own environment, not here. A real run takes roughly 20 to 60 minutes depending on agent count and rounds, so keep the worker running for the whole time. The page reattaches automatically if you reload, switch tabs or outlast the 280 s stream cap, so you can close it and come back. Restarting the worker is safe: it resumes the run from the stored cursors without starting the simulation twice. A graceful shutdown (SIGTERM) releases the run's lease after the current step; only a worker killed without SIGTERM leaves a lease that the next worker waits about 60 s to reclaim.
+```sh
+git clone https://github.com/jdships/xenet-opinions.git
+cd xenet-opinions
+corepack enable
+pnpm install
+cp .env.example .env
+sed -i.bak "s|^BETTER_AUTH_SECRET=$|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" .env && rm .env.bak
+docker compose --env-file .env -f infra/docker/docker-compose.dev.yml up -d
+pnpm --filter @xo/db db:migrate
+```
 
-## Worker
+Then start the mock and the app in two terminals:
 
-`apps/worker` claims queued runs from Postgres, drives them through the stages by calling MiroFish, and appends every step to `run_events`, which the web app tails to stream the chat. Tune it with `WORKER_POLL_MS` (queue poll interval, default 2000), `MAX_CONCURRENT_RUNS` (default 1), `WORKER_ID` (lease owner name, defaults to host and pid), `ENV_KEEPALIVE_MS` (how long a finished run's simulation environment stays open for interviews, default 1200000, that is 20 minutes) and `ENV_SWEEP_INTERVAL_MS` (how often the sweeper closes expired environments, default 60000; `0` disables the sweeper). Run it alone with `pnpm --filter worker dev`.
+```sh
+pnpm mock   # terminal 1: mock MiroFish on :5001
+pnpm dev    # terminal 2: web on :3000 and the worker
+```
 
-## Storage
+If `corepack enable` fails with a permission error (Node installed system-wide), run `sudo corepack enable`, or skip it when `pnpm --version` already prints 10.30 or later. Open http://localhost:3000, attach a `.txt`, `.md` or `.pdf`, ask a question and pick a number of rounds. If port 5432 is taken, set `XO_PG_PORT` in `.env` and use the same port in `DATABASE_URL` before starting Postgres. Tests, lint and the mock's switches are described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Uploaded files go through `@xo/storage`. `STORAGE_DRIVER=local` is the default and writes under `STORAGE_LOCAL_DIR` (`.data/uploads`, relative to the repo root). For S3 or compatible stores set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and optionally `S3_ENDPOINT` and `S3_FORCE_PATH_STYLE=true`. The web app and worker must share the same storage.
+### 3. Hosted demo
 
-## Repository layout
+The hosted shape puts the web app on Vercel and the worker, token proxy and MiroFish on a container host, with managed Postgres and an S3-compatible bucket. [docs/hosting.md](docs/hosting.md) describes the topology, demo quotas and the kill switch; [docs/hosting-runbook.md](docs/hosting-runbook.md) is the step-by-step deployment.
 
-- `apps/web`: Next.js 16 app with anonymous Better Auth sessions, the chat page and the pipeline parts.
-- `apps/worker`: background worker that drives runs against MiroFish.
-- `packages/config`: shared TypeScript and Vitest base configuration.
-- `packages/db`: Drizzle schema, migrations and Postgres client.
-- `packages/mirofish`: typed HTTP client for the MiroFish API, plus `mock/`, a local mock server.
-- `packages/storage`: local and S3 file storage for uploads.
-- `packages/engine`: run state machine, stage handlers, event projector and shared part types.
-- `infra/docker`: web and worker Dockerfiles, the self-host Compose bundle (`docker-compose.yml`) and the dev Postgres 18 Compose file (`docker-compose.dev.yml`).
-- `infra/mirofish`: MiroFish backend image, Caddy token proxy and uploads retention script.
-- `docs/hosting.md`: self-host and hosted demo guide.
-- `docs/superpowers`: design spec and implementation plans.
+## Licence
 
-## License
+This repository is MIT licensed (see [LICENSE](LICENSE)). Third-party components vendored into the web app are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-This repository is MIT licensed. Third-party components vendored into the web app are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). MiroFish (https://github.com/666ghj/MiroFish) is AGPL-3.0. This UI only talks to MiroFish over HTTP and never imports or vendors its code, so the AGPL does not apply here. Upstream MiroFish runs unmodified from a pinned commit (see [infra/mirofish/README.md](infra/mirofish/README.md)); a separate AGPL fork remains an option for future patches, not a requirement.
+MiroFish is AGPL-3.0. It runs unmodified as a separate service and this code only talks to it over HTTP; it never imports, vendors or patches MiroFish code. The published image `ghcr.io/jdships/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at the commit pinned in [infra/mirofish/Dockerfile](infra/mirofish/Dockerfile), and carries OCI labels pointing at that source and revision. Details are in [infra/mirofish/README.md](infra/mirofish/README.md).
 
-## Documents
+## Documentation
 
-- Design spec: [docs/superpowers/specs/2026-10-19-xenet-opinions-design.md](docs/superpowers/specs/2026-10-19-xenet-opinions-design.md)
-- Phase 0 plan: [docs/superpowers/plans/2026-10-19-phase-0-scaffold.md](docs/superpowers/plans/2026-10-19-phase-0-scaffold.md)
+- [docs/hosting.md](docs/hosting.md): self-hosting with Docker and the hosted topology
+- [docs/hosting-runbook.md](docs/hosting-runbook.md): deploying the hosted demo
+- [infra/mirofish/README.md](infra/mirofish/README.md): the MiroFish image, token proxy and retention
+- [CONTRIBUTING.md](CONTRIBUTING.md): development setup, checks and pull requests
+- [SECURITY.md](SECURITY.md): reporting vulnerabilities
+- [Design spec](docs/superpowers/specs/2026-10-19-xenet-opinions-design.md)

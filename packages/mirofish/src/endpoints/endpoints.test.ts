@@ -12,7 +12,10 @@ const first = <T>(a: T[]): T => nth(a, 0)
 type Call = { url: URL; init: RequestInit }
 
 const ok = (data: unknown) =>
-  new Response(JSON.stringify({ success: true, data }), { status: 200, headers: { 'content-type': 'application/json' } })
+  new Response(JSON.stringify({ success: true, data }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  })
 
 const stubbed = (data: unknown = {}) => {
   const calls: Call[] = []
@@ -30,11 +33,13 @@ type HttpCall = { kind: string; path: string; init?: RequestInitOptions }
 
 const spied = () => {
   const calls: HttpCall[] = []
-  const record = (kind: string) => async (path: string, ...rest: unknown[]) => {
-    const init = rest[rest.length - 1] as RequestInitOptions | undefined
-    calls.push({ kind, path, init: init && typeof init === 'object' && !('parse' in init) ? init : undefined })
-    return {} as never
-  }
+  const record =
+    (kind: string) =>
+    async (path: string, ...rest: unknown[]) => {
+      const init = rest[rest.length - 1] as RequestInitOptions | undefined
+      calls.push({ kind, path, init: init && typeof init === 'object' && !('parse' in init) ? init : undefined })
+      return {} as never
+    }
   const http: Http = {
     getJson: record('get') as Http['getJson'],
     postJson: record('postJson') as Http['postJson'],
@@ -84,12 +89,23 @@ describe('graph endpoints', () => {
   })
 
   it('getTask, getData, getProject use GET paths', async () => {
-    const { client, calls } = stubbed({ task_id: 't', status: 'pending', progress: 0, nodes: [], edges: [], project_id: 'p' })
+    const { client, calls } = stubbed({
+      task_id: 't',
+      status: 'pending',
+      progress: 0,
+      nodes: [],
+      edges: [],
+      project_id: 'p',
+    })
     await client.graph.getTask('t1')
     await client.graph.getData('g1')
     await client.graph.getProject('p1')
     expect(calls.map((c) => c.init.method)).toEqual(['GET', 'GET', 'GET'])
-    expect(calls.map((c) => c.url.pathname)).toEqual(['/api/graph/task/t1', '/api/graph/data/g1', '/api/graph/project/p1'])
+    expect(calls.map((c) => c.url.pathname)).toEqual([
+      '/api/graph/task/t1',
+      '/api/graph/data/g1',
+      '/api/graph/project/p1',
+    ])
   })
 })
 
@@ -154,7 +170,11 @@ describe('simulation endpoints', () => {
     const { client, calls } = stubbed({ posts: [] })
     await client.simulation.posts('s', { platform: 'twitter', limit: 20, offset: 40 })
     expect(first(calls).url.pathname).toBe('/api/simulation/s/posts')
-    expect(Object.fromEntries(first(calls).url.searchParams)).toEqual({ platform: 'twitter', limit: '20', offset: '40' })
+    expect(Object.fromEntries(first(calls).url.searchParams)).toEqual({
+      platform: 'twitter',
+      limit: '20',
+      offset: '40',
+    })
   })
 
   it('posts rejects an invalid platform before any request', async () => {
@@ -206,7 +226,11 @@ describe('report endpoints', () => {
     const { client, calls } = stubbed({ response: 'ok' })
     await client.report.chat({ simulationId: 's', message: 'm', history: [{ role: 'user', content: 'x' }] })
     expect(first(calls).url.pathname).toBe('/api/report/chat')
-    expect(body(first(calls))).toEqual({ simulation_id: 's', message: 'm', chat_history: [{ role: 'user', content: 'x' }] })
+    expect(body(first(calls))).toEqual({
+      simulation_id: 's',
+      message: 'm',
+      chat_history: [{ role: 'user', content: 'x' }],
+    })
   })
 })
 

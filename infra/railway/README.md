@@ -60,3 +60,4 @@ Vercel cannot use private hostnames. It reaches MiroFish through the proxy's pub
 - Railway ignores the `HEALTHCHECK` lines in Dockerfiles. Set the healthcheck path per service in the dashboard (Settings, Deploy) or in config as code.
 - Railway volumes attach to one service, so the retention job must run inside `mirofish` (see the runbook).
 - `mirofish` must stay at one replica.
+- The `mirofish` image runs as uid 10001 and the Railway volume mounts root-owned. Chown it once after attaching it (recommended): set `RAILWAY_RUN_UID=0`, redeploy, `railway ssh --service mirofish -- chown -R 10001:10001 /app/backend/uploads`, remove `RAILWAY_RUN_UID`, redeploy. Or keep `RAILWAY_RUN_UID=0` set, which runs MiroFish as root. Steps in the runbook.

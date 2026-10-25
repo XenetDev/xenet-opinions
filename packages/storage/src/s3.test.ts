@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3'
-import { createS3Storage } from './s3'
+import { describe, expect, it, vi } from 'vitest'
 import { createStorageFromEnv } from './from-env'
+import { createS3Storage } from './s3'
 import { uploadKey } from './upload-key'
 
 const opts = { bucket: 'b', region: 'us-east-1', accessKeyId: 'id', secretAccessKey: 'secret' }
@@ -32,7 +32,10 @@ describe('createS3Storage', () => {
 
   it('get maps NoSuchKey to not_found', async () => {
     const send = vi.fn().mockRejectedValue(Object.assign(new Error('x'), { name: 'NoSuchKey' }))
-    await expect(createS3Storage(opts, stub(send)).get('k')).rejects.toMatchObject({ name: 'StorageError', code: 'not_found' })
+    await expect(createS3Storage(opts, stub(send)).get('k')).rejects.toMatchObject({
+      name: 'StorageError',
+      code: 'not_found',
+    })
   })
 
   it('get rethrows other errors', async () => {

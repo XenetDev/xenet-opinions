@@ -1,10 +1,10 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
-import { getOwnedChat } from '@/server/chats'
-import { loadChatPage } from '@/server/chat-page'
-import { getLimits } from '@/server/limits'
 import { Chat } from '@/modules/chat/chat'
+import { loadChatPage } from '@/server/chat-page'
+import { getOwnedChat } from '@/server/chats'
+import { getLimits } from '@/server/limits'
 
 export default async function ChatPage({
   params,

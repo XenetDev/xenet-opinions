@@ -1,0 +1,23 @@
+services:
+  mirofish:
+    build:
+      context: ../mirofish
+      dockerfile: Dockerfile
+    image: ghcr.io/jdships/xenet-opinions-mirofish:${XO_IMAGE_TAG:-edge}
+    pull_policy: missing
+    restart: unless-stopped
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in .env.selfhost}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-gpt-4o-mini}
+      ZEP_API_KEY: ${ZEP_API_KEY:?set ZEP_API_KEY in .env.selfhost}
+    volumes:
+      - mirofish-uploads:/app/backend/uploads
+    networks: [backend]
+
+  mirofish-proxy:
+    environment:
+      MIROFISH_UPSTREAM: mirofish:5001
+
+volumes:
+  mirofish-uploads:

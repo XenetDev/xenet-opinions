@@ -91,7 +91,14 @@ describe('GET /api/chats/[id]/run', () => {
   it('reports the queue position of a queued run', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'queued', stage: 'ontology', assistantMessageId: 'a1', envState: 'none', envKeepaliveUntil: null } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'queued',
+      stage: 'ontology',
+      assistantMessageId: 'a1',
+      envState: 'none',
+      envKeepaliveUntil: null,
+    } as never)
     vi.mocked(runStore.lastSeq).mockResolvedValue(0)
     vi.mocked(runStore.queuePosition).mockResolvedValue(2)
     expect((await (await call()).json()).queuePosition).toBe(2)

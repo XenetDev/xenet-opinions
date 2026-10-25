@@ -33,8 +33,28 @@ export const buildGraphData = () => ({
 export const PROFILE_COUNT = 12
 
 const FIRST = ['Maya', 'Liam', 'Priya', 'Noah', 'Sofia', 'Omar', 'Chloe', 'Ethan', 'Aisha', 'Lucas', 'Hannah', 'Diego']
-const LAST = ['Chen', 'Walker', 'Patel', 'Ortiz', 'Novak', 'Haddad', 'Dubois', 'Kim', 'Bello', 'Silva', 'Meyer', 'Reyes']
-const ROLES = ['Small team lead', 'Freelancer', 'Procurement manager', 'Industry analyst', 'Startup founder', 'Power user']
+const LAST = [
+  'Chen',
+  'Walker',
+  'Patel',
+  'Ortiz',
+  'Novak',
+  'Haddad',
+  'Dubois',
+  'Kim',
+  'Bello',
+  'Silva',
+  'Meyer',
+  'Reyes',
+]
+const ROLES = [
+  'Small team lead',
+  'Freelancer',
+  'Procurement manager',
+  'Industry analyst',
+  'Startup founder',
+  'Power user',
+]
 const TOPICS = ['pricing', 'churn', 'alternatives', 'support', 'roadmap', 'contracts', 'value']
 
 export const buildProfile = (i: number) => {

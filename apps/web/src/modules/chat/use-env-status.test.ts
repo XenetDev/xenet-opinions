@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { act, renderHook } from '@testing-library/react'
-import { useEnvStatus, type EnvSeed } from './use-env-status'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { type EnvSeed, useEnvStatus } from './use-env-status'
 
 const NOW = new Date('2026-10-21T10:00:00.000Z')
 const inMinutes = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000).toISOString()
@@ -19,7 +20,11 @@ describe('useEnvStatus', () => {
   it('uses the seed without fetching', async () => {
     const stub = vi.fn()
     const { result } = renderHook(() =>
-      useEnvStatus('c1', { seed: { envState: 'open', envKeepaliveUntil: inMinutes(12) }, refreshKey: 0, fetch: asFetch(stub) }),
+      useEnvStatus('c1', {
+        seed: { envState: 'open', envKeepaliveUntil: inMinutes(12) },
+        refreshKey: 0,
+        fetch: asFetch(stub),
+      }),
     )
     await act(async () => {})
     expect(result.current).toEqual({ state: 'open', minutesLeft: 12 })
@@ -35,7 +40,11 @@ describe('useEnvStatus', () => {
     const stub = vi.fn(async () => Response.json({ status: 'done', envState: 'closed', envKeepaliveUntil: null }))
     const { result, rerender } = renderHook(
       ({ refreshKey }) =>
-        useEnvStatus('c1', { seed: { envState: 'open', envKeepaliveUntil: inMinutes(5) }, refreshKey, fetch: asFetch(stub) }),
+        useEnvStatus('c1', {
+          seed: { envState: 'open', envKeepaliveUntil: inMinutes(5) },
+          refreshKey,
+          fetch: asFetch(stub),
+        }),
       { initialProps: { refreshKey: 0 } },
     )
     rerender({ refreshKey: 1 })
@@ -46,7 +55,11 @@ describe('useEnvStatus', () => {
 
   it('ticks down and flips to closed once the deadline passes', async () => {
     const { result } = renderHook(() =>
-      useEnvStatus('c1', { seed: { envState: 'open', envKeepaliveUntil: inMinutes(1) }, refreshKey: 0, fetch: asFetch(vi.fn()) }),
+      useEnvStatus('c1', {
+        seed: { envState: 'open', envKeepaliveUntil: inMinutes(1) },
+        refreshKey: 0,
+        fetch: asFetch(vi.fn()),
+      }),
     )
     expect(result.current).toEqual({ state: 'open', minutesLeft: 1 })
     await act(async () => {

@@ -45,7 +45,7 @@ export function useUploads(chatId: string, deps: { fetch?: typeof fetch } = {}) 
     [setFiles],
   )
 
-  const reset = useCallback(() => setFiles(() => []), [])
+  const reset = useCallback(() => setFiles(() => []), [setFiles])
 
   const uploadAll = useCallback(async (): Promise<string[]> => {
     const pending = filesRef.current.filter((f) => f.status === 'pending')

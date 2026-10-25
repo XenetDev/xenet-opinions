@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { axe } from '@/test/axe'
 import { InterviewSelectionProvider, useInterviewSelection } from '../interview-selection'
 import { Composer } from './composer'
 
@@ -30,11 +32,16 @@ describe('Composer', () => {
     render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.click(submit())
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('hello', { kind: 'run', uploadIds: [], runOptions: { maxRounds: 3 } }))
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('hello', { kind: 'run', uploadIds: [], runOptions: { maxRounds: 3 } }),
+    )
   })
 
   it('does not send and keeps text when upload rejects', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 })),
+    )
     const onSend = vi.fn()
     render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
     attach()
@@ -46,7 +53,9 @@ describe('Composer', () => {
   })
 
   it('refuses to submit while a failed file is present', async () => {
-    const fetchStub = vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 }))
+    const fetchStub = vi.fn(async () =>
+      Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 }),
+    )
     vi.stubGlobal('fetch', fetchStub)
     const onSend = vi.fn()
     render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
@@ -68,11 +77,30 @@ describe('Composer', () => {
     expect(submit().disabled).toBe(true)
   })
 
+  it('disables both file inputs when disabled', () => {
+    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} disabled />)
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+    expect(inputs).toHaveLength(2)
+    expect(inputs.every((input) => input.disabled)).toBe(true)
+  })
+
+  it('leaves both file inputs enabled when not disabled', () => {
+    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+    expect(inputs).toHaveLength(2)
+    expect(inputs.some((input) => input.disabled)).toBe(false)
+  })
+
   it('shows attach and rounds in run mode only', () => {
     render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Attach/ })).toBeTruthy()
     expect(screen.getByText('Rounds')).toBeTruthy()
     expect(screen.queryByRole('combobox', { name: 'Follow-up target' })).toBeNull()
+  })
+
+  it('has no axe violations', async () => {
+    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
+    expect(await axe(container)).toHaveNoViolations()
   })
 })
 
@@ -110,7 +138,9 @@ describe('Composer in follow-up mode', () => {
     expect(targetTrigger().textContent).toBe('Ask the report')
     fireEvent.change(textarea(), { target: { value: 'why?' } })
     fireEvent.click(submit())
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'report', agentIds: [] }))
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'report', agentIds: [] }),
+    )
   })
 
   it('refuses an interview with no personas selected', async () => {
@@ -124,6 +154,16 @@ describe('Composer in follow-up mode', () => {
     expect(textarea().value).toBe('why?')
   })
 
+  it('clears the persona notice once a persona is picked', async () => {
+    render(<FollowUp />)
+    chooseTarget('Interview personas')
+    fireEvent.change(textarea(), { target: { value: 'why?' } })
+    fireEvent.click(submit())
+    await waitFor(() => expect(screen.getByText('Select at least one persona to interview')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    expect(screen.queryByText('Select at least one persona to interview')).toBeNull()
+  })
+
   it('shows chips for selected personas, sends their ids and clears them after sending', async () => {
     const onSend = vi.fn()
     render(<FollowUp onSend={onSend} />)
@@ -132,7 +172,9 @@ describe('Composer in follow-up mode', () => {
     expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeTruthy()
     fireEvent.change(textarea(), { target: { value: 'why?' } })
     fireEvent.click(submit())
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'agents', agentIds: ['p1'] }))
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'agents', agentIds: ['p1'] }),
+    )
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull())
   })
 
@@ -156,5 +198,12 @@ describe('Composer in follow-up mode', () => {
     expect(targetTrigger().textContent).toBe('Interview personas')
     act(() => view.rerender(<FollowUp envOpen={false} />))
     expect(targetTrigger().textContent).toBe('Ask the report')
+  })
+
+  it('has no axe violations', async () => {
+    const { container } = render(<FollowUp />)
+    chooseTarget('Interview personas')
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

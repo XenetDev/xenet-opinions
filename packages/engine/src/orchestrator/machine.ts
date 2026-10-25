@@ -1,7 +1,7 @@
 import type { Run } from '@xo/db'
 import { keepaliveAfterFinish } from '../follow-up/keepalive'
-import { event } from './emit'
 import { FenceError } from '../store/types'
+import { event } from './emit'
 import { fail, isRetriable, messageOf } from './fail'
 import { HANDLERS } from './stages'
 import type { Deps } from './types'
@@ -14,15 +14,19 @@ export async function tick(run: Run, deps: Deps): Promise<Run> {
   if (run.stage === 'finished') {
     const finishedAt = deps.now()
     const envKeepaliveUntil = keepaliveAfterFinish(finishedAt, deps.envKeepaliveMs)
-    return deps.store.transition(run.id, { status: 'done', finishedAt, envState: 'open', envKeepaliveUntil }, [
-      event('stage', { stage: 'finished', status: 'done' }),
-      event('done', {}),
-    ], deps.fence)
+    return deps.store.transition(
+      run.id,
+      { status: 'done', finishedAt, envState: 'open', envKeepaliveUntil },
+      [event('stage', { stage: 'finished', status: 'done' }), event('done', {})],
+      deps.fence,
+    )
   }
   const handler = HANDLERS[run.stage]
   try {
     const next = handler.hasEntered(run) ? await handler.poll(run, deps) : await handler.enter(run, deps)
-    return next.status === 'running' && next.cursors.retries ? await deps.store.update(next.id, { cursors: { retries: 0 } }, deps.fence) : next
+    return next.status === 'running' && next.cursors.retries
+      ? await deps.store.update(next.id, { cursors: { retries: 0 } }, deps.fence)
+      : next
   } catch (err) {
     if (err instanceof FenceError) throw err
     const current = (await deps.store.get(run.id)) ?? run

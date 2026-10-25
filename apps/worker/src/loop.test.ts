@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { type Deps, cancelRun, createMemoryStore } from '@xo/engine'
+import { cancelRun, createMemoryStore, type Deps } from '@xo/engine'
 import type { MiroFishClient } from '@xo/mirofish'
 import { describe, expect, it, vi } from 'vitest'
 import { runWorkerLoop } from './loop'
@@ -51,12 +51,23 @@ const fakeClient = (o: Overrides = {}): MiroFishClient =>
       prepare: vi.fn(async () => ({ simulation_id: 'sim_1', task_id: 'ptask_1' })),
       prepareStatus: vi
         .fn()
-        .mockResolvedValueOnce({ task_id: 'ptask_1', status: 'processing', progress: 50, progress_detail: { current_stage_name: 'Profiles' } })
+        .mockResolvedValueOnce({
+          task_id: 'ptask_1',
+          status: 'processing',
+          progress: 50,
+          progress_detail: { current_stage_name: 'Profiles' },
+        })
         .mockResolvedValue({ task_id: 'ptask_1', status: 'completed', progress: 100 }),
       profilesRealtime: vi
         .fn()
         .mockResolvedValueOnce({ profiles: [{ agent_id: 0, name: 'Maya' }], total_expected: 2 })
-        .mockResolvedValue({ profiles: [{ agent_id: 0, name: 'Maya' }, { agent_id: 1, name: 'Liam' }], total_expected: 2 }),
+        .mockResolvedValue({
+          profiles: [
+            { agent_id: 0, name: 'Maya' },
+            { agent_id: 1, name: 'Liam' },
+          ],
+          total_expected: 2,
+        }),
       start: vi.fn(async () => ({ runner_status: 'starting' })),
       runStatus: vi
         .fn()
@@ -80,7 +91,12 @@ const fakeClient = (o: Overrides = {}): MiroFishClient =>
       get: vi
         .fn()
         .mockResolvedValueOnce({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'generating' })
-        .mockResolvedValue({ report_id: 'rep_1', simulation_id: 'sim_1', status: 'completed', markdown_content: '# Report' }),
+        .mockResolvedValue({
+          report_id: 'rep_1',
+          simulation_id: 'sim_1',
+          status: 'completed',
+          markdown_content: '# Report',
+        }),
       chat: vi.fn(),
       ...o.report,
     },
@@ -100,7 +116,12 @@ const setup = async (o: Overrides = {}) => {
     sizeBytes: 12,
     createdAt: NOW,
   })
-  const created = await store.create({ chatId: 'c1', userId: 'u1', assistantMessageId: 'm1', config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'] } })
+  const created = await store.create({
+    chatId: 'c1',
+    userId: 'u1',
+    assistantMessageId: 'm1',
+    config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'] },
+  })
   const stages: string[] = []
   const update = store.update.bind(store)
   store.update = vi.fn(async (id, patch) => {
@@ -155,7 +176,13 @@ describe('runWorkerLoop', () => {
   })
 
   it('fails a run with code internal when a stage throws an unexpected error', async () => {
-    const { store, deps, runId } = await setup({ graph: { getTask: vi.fn(async () => { throw new Error('boom') }) } as never })
+    const { store, deps, runId } = await setup({
+      graph: {
+        getTask: vi.fn(async () => {
+          throw new Error('boom')
+        }),
+      } as never,
+    })
     const run = await runUntilTerminal(store, runId, deps)
     expect(run.status).toBe('failed')
     expect(run.error?.code).toBe('internal')
@@ -181,7 +208,9 @@ describe('runWorkerLoop', () => {
   })
 
   it('exits promptly on abort mid-run', async () => {
-    const { deps } = await setup({ graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'processing', progress: 10 })) } as never })
+    const { deps } = await setup({
+      graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'processing', progress: 10 })) } as never,
+    })
     deps.sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     const ac = new AbortController()
     const loop = runWorkerLoop({ ...deps, ...loopOpts, pollMs: 50, signal: ac.signal })
@@ -195,7 +224,11 @@ describe('runWorkerLoop', () => {
   it('stops the simulation and never fails the run when it is cancelled mid-run', async () => {
     const running = { runner_status: 'running', current_round: 1, total_rounds: 5, progress_percent: 20 }
     const { store, deps, runId } = await setup({ simulation: { runStatus: vi.fn(async () => running) } as never })
-    await store.update(runId, { stage: 'sim_run', ids: { simulationId: 's1' }, cursors: { simStarted: true, startAcked: true } })
+    await store.update(runId, {
+      stage: 'sim_run',
+      ids: { simulationId: 's1' },
+      cursors: { simStarted: true, startAcked: true },
+    })
     const ac = new AbortController()
     const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
     await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.runStatus)).toHaveBeenCalled())
@@ -212,13 +245,22 @@ describe('runWorkerLoop', () => {
     const events = await store.listEvents(runId, 0)
     expect(events.at(-1)?.kind).toBe('cancelled')
     expect(events.some((e) => e.kind === 'error')).toBe(false)
-    expect(store.parts.get('m1')).toContainEqual(expect.objectContaining({ type: 'data-stage', data: expect.objectContaining({ stage: 'sim_run', status: 'cancelled' }) }))
+    expect(store.parts.get('m1')).toContainEqual(
+      expect.objectContaining({
+        type: 'data-stage',
+        data: expect.objectContaining({ stage: 'sim_run', status: 'cancelled' }),
+      }),
+    )
   })
 
   it('stops the simulation once and stops driving when the run is deleted mid-run', async () => {
     const running = { runner_status: 'running', current_round: 1, total_rounds: 5, progress_percent: 20 }
     const { store, deps, runId } = await setup({ simulation: { runStatus: vi.fn(async () => running) } as never })
-    await store.update(runId, { stage: 'sim_run', ids: { simulationId: 's1' }, cursors: { simStarted: true, startAcked: true } })
+    await store.update(runId, {
+      stage: 'sim_run',
+      ids: { simulationId: 's1' },
+      cursors: { simStarted: true, startAcked: true },
+    })
     const ac = new AbortController()
     const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
     await vi.waitFor(() => expect(vi.mocked(deps.mirofish.simulation.runStatus)).toHaveBeenCalled())
@@ -255,7 +297,9 @@ describe('runWorkerLoop', () => {
   })
 
   it('releases the lease once on abort with a run in flight', async () => {
-    const { store, deps, runId } = await setup({ graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'processing', progress: 10 })) } as never })
+    const { store, deps, runId } = await setup({
+      graph: { getTask: vi.fn(async () => ({ task_id: 'gtask_1', status: 'processing', progress: 10 })) } as never,
+    })
     store.releaseLease = vi.fn(store.releaseLease.bind(store))
     const ac = new AbortController()
     const loop = runWorkerLoop({ ...deps, ...loopOpts, signal: ac.signal })
@@ -267,7 +311,12 @@ describe('runWorkerLoop', () => {
 
   it('closes an expired environment within the sweep interval and stops sweeping on abort', async () => {
     const { store, deps, runId } = await setup()
-    await store.update(runId, { status: 'done', ids: { simulationId: 's1' }, envState: 'open', envKeepaliveUntil: new Date(NOW.getTime() - 1) })
+    await store.update(runId, {
+      status: 'done',
+      ids: { simulationId: 's1' },
+      envState: 'open',
+      envKeepaliveUntil: new Date(NOW.getTime() - 1),
+    })
     const ac = new AbortController()
     const loop = runWorkerLoop({ ...deps, ...loopOpts, sweepIntervalMs: 20, signal: ac.signal })
     await vi.waitFor(async () => expect((await store.get(runId))?.envState).toBe('closed'), { timeout: 500 })
@@ -306,7 +355,10 @@ describe('runWorkerLoop', () => {
     const loop = runWorkerLoop({ ...deps, ...loopOpts, sweepIntervalMs: 10, signal: ac.signal })
     await new Promise((r) => setTimeout(r, 70))
     expect(calls).toBe(2)
-    expect(vi.mocked(deps.log)).toHaveBeenCalledWith('env sweep failed', expect.objectContaining({ error: expect.any(Error) }))
+    expect(vi.mocked(deps.log)).toHaveBeenCalledWith(
+      'env sweep failed',
+      expect.objectContaining({ error: expect.any(Error) }),
+    )
     ac.abort()
     await loop
   })

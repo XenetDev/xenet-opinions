@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import type { ReactNode } from 'react'
 import './globals.css'
 import { AnonymousSession } from '@/components/providers/anonymous-session'
 
@@ -21,10 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <AnonymousSession>{children}</AnonymousSession>
       </body>

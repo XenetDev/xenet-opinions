@@ -17,7 +17,9 @@ describe('createUploads', () => {
   it('rolls back written blobs without inserting rows when a later put fails', async () => {
     vi.mocked(storage.put).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('boom'))
     vi.mocked(storage.delete).mockResolvedValue(undefined)
-    await expect(createUploads({ chatId: 'c1', userId: 'u1', files: [file('a.txt'), file('b.txt')] })).rejects.toThrow('boom')
+    await expect(createUploads({ chatId: 'c1', userId: 'u1', files: [file('a.txt'), file('b.txt')] })).rejects.toThrow(
+      'boom',
+    )
     expect(db.insert).not.toHaveBeenCalled()
     const firstKey = vi.mocked(storage.put).mock.calls[0]![0]
     expect(storage.delete).toHaveBeenCalledTimes(1)

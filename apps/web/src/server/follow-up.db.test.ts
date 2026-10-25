@@ -33,7 +33,10 @@ const seed = async () => {
       id: anchor,
       chatId,
       role: 'assistant',
-      parts: [{ type: 'data-agents', id: 'agents', data: { count: 2, profiles: roster } }, { type: 'text', text: 'Report' }],
+      parts: [
+        { type: 'data-agents', id: 'agents', data: { count: 2, profiles: roster } },
+        { type: 'text', text: 'Report' },
+      ],
       createdAt: new Date(old.getTime() + 1),
     },
   ])
@@ -58,15 +61,24 @@ const seed = async () => {
 }
 
 const fakeMirofish = (impl: { chat?: () => Promise<unknown>; interviewBatch?: () => Promise<unknown> }) =>
-  ({ report: { chat: vi.fn(impl.chat) }, simulation: { interviewBatch: vi.fn(impl.interviewBatch) } }) as unknown as MiroFishClient
+  ({
+    report: { chat: vi.fn(impl.chat) },
+    simulation: { interviewBatch: vi.fn(impl.interviewBatch) },
+  }) as unknown as MiroFishClient
 
 const userMessage = () => ({ id: `u_${crypto.randomUUID()}`, parts: [{ type: 'text', text: 'Why?' }] })
 
 describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
   beforeAll(async () => {
-    await db
-      .insert(schema.user)
-      .values({ id: userId, name: 'anon', email: `${userId}@anon.local`, emailVerified: false, isAnonymous: true, createdAt: new Date(), updatedAt: new Date() })
+    await db.insert(schema.user).values({
+      id: userId,
+      name: 'anon',
+      email: `${userId}@anon.local`,
+      emailVerified: false,
+      isAnonymous: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
   })
 
   it('persists a report reply after the user row and bumps the chat', async () => {
@@ -83,7 +95,11 @@ describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
     })
     await response.text()
 
-    const rows = await db.select().from(schema.messages).where(eq(schema.messages.chatId, chatId)).orderBy(asc(schema.messages.createdAt))
+    const rows = await db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.chatId, chatId))
+      .orderBy(asc(schema.messages.createdAt))
     expect(rows.slice(1).map((r) => [r.id === anchor ? 'anchor' : r.role, r.parts])).toEqual([
       ['anchor', expect.any(Array)],
       ['user', message.parts],
@@ -111,7 +127,11 @@ describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
     expect(await response.text()).toContain('follow_up_failed')
     expect(quiet).toHaveBeenCalled()
     quiet.mockRestore()
-    const rows = await db.select().from(schema.messages).where(eq(schema.messages.chatId, chatId)).orderBy(asc(schema.messages.createdAt))
+    const rows = await db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.chatId, chatId))
+      .orderBy(asc(schema.messages.createdAt))
     expect(rows.map((r) => r.role)).toEqual(['user', 'assistant', 'user'])
     expect(rows[2]!.id).toBe(message.id)
   })
@@ -131,17 +151,55 @@ describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
     })
     await response.text()
 
-    const rows = await db.select().from(schema.messages).where(eq(schema.messages.chatId, chatId)).orderBy(asc(schema.messages.createdAt))
+    const rows = await db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.chatId, chatId))
+      .orderBy(asc(schema.messages.createdAt))
     const assistant = rows.at(-1)!
     expect(assistant.parts).toEqual([
-      { type: 'data-interview', id: 'interview:2', data: { agentId: '2', agentName: 'Bo', question: 'Why?', status: 'done', answer: 'Yes' } },
-      { type: 'data-interview', id: 'interview:1', data: { agentId: '1', agentName: 'Ada', question: 'Why?', status: 'failed', error: 'No answer' } },
+      {
+        type: 'data-interview',
+        id: 'interview:2',
+        data: { agentId: '2', agentName: 'Bo', question: 'Why?', status: 'done', answer: 'Yes' },
+      },
+      {
+        type: 'data-interview',
+        id: 'interview:1',
+        data: { agentId: '1', agentName: 'Ada', question: 'Why?', status: 'failed', error: 'No answer' },
+      },
     ])
     const interviews = await db.select().from(schema.interviews).where(eq(schema.interviews.chatId, chatId))
-    expect(interviews.map(({ runId, messageId, agentId, agentName, question, answer, status }) => ({ runId, messageId, agentId, agentName, question, answer, status }))).toEqual(
+    expect(
+      interviews.map(({ runId, messageId, agentId, agentName, question, answer, status }) => ({
+        runId,
+        messageId,
+        agentId,
+        agentName,
+        question,
+        answer,
+        status,
+      })),
+    ).toEqual(
       expect.arrayContaining([
-        { runId: run.id, messageId: assistant.id, agentId: '2', agentName: 'Bo', question: 'Why?', answer: 'Yes', status: 'done' },
-        { runId: run.id, messageId: assistant.id, agentId: '1', agentName: 'Ada', question: 'Why?', answer: null, status: 'failed' },
+        {
+          runId: run.id,
+          messageId: assistant.id,
+          agentId: '2',
+          agentName: 'Bo',
+          question: 'Why?',
+          answer: 'Yes',
+          status: 'done',
+        },
+        {
+          runId: run.id,
+          messageId: assistant.id,
+          agentId: '1',
+          agentName: 'Ada',
+          question: 'Why?',
+          answer: null,
+          status: 'failed',
+        },
       ]),
     )
     expect(interviews).toHaveLength(2)

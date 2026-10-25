@@ -1,9 +1,9 @@
-import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
-import { anonymous } from 'better-auth/plugins'
 import { schema } from '@xo/db'
-import { db } from '@/lib/db'
+import { betterAuth } from 'better-auth'
+import { anonymous } from 'better-auth/plugins'
 import { env } from '@/env'
+import { db } from '@/lib/db'
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema }),

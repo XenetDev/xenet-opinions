@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { AgentRoster } from './agent-roster'
+import { afterEach, describe, expect, it } from 'vitest'
+import { axe } from '@/test/axe'
 import { InterviewSelectionProvider } from '../interview-selection'
+import { AgentRoster } from './agent-roster'
 
 afterEach(cleanup)
 
@@ -56,6 +58,11 @@ describe('AgentRoster', () => {
       expect(screen.getByText('Writes programs')).toBeTruthy()
     })
 
+    it('pads selectable cards so the details button does not cover the name', () => {
+      renderEnabled()
+      expect(screen.getAllByTestId('agent-card')[0]!.className).toContain('pr-8')
+    })
+
     it('shows a hint when the selection is full', () => {
       renderEnabled(2)
       const cards = screen.getAllByTestId('agent-card')
@@ -65,5 +72,14 @@ describe('AgentRoster', () => {
       expect(screen.getByText('Up to 2 personas per interview')).toBeTruthy()
       expect(cards[2]!.getAttribute('aria-pressed')).toBe('false')
     })
+  })
+  it('has no axe violations', async () => {
+    const { container } = render(
+      <InterviewSelectionProvider enabled max={2}>
+        <AgentRoster data={{ count: 3, expected: 12, profiles }} />
+      </InterviewSelectionProvider>,
+    )
+    for (const card of screen.getAllByTestId('agent-card')) fireEvent.click(card)
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

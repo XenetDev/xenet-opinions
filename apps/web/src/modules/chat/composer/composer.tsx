@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
 import type { ChatStatus } from 'ai'
 import { PaperclipIcon, XIcon } from 'lucide-react'
+import { useRef, useState } from 'react'
 import {
   PromptInput,
   PromptInputBody,
@@ -16,11 +16,13 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Badge } from '@/components/ui/badge'
 import { useInterviewSelection } from '../interview-selection'
-import { RunOptions, defaultRounds, type RunOptionsValue } from './run-options'
-import { TargetSelector, type FollowUpTarget } from './target-selector'
+import { useAnnounce } from '../notice-region'
+import { defaultRounds, RunOptions, type RunOptionsValue } from './run-options'
+import { type FollowUpTarget, TargetSelector } from './target-selector'
 import { useUploads } from './use-uploads'
 
 const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
+const NO_PERSONAS = 'Select at least one persona to interview'
 
 export type ComposerSubmit =
   | { kind: 'run'; uploadIds: string[]; runOptions: RunOptionsValue }
@@ -55,6 +57,8 @@ export function Composer({
   if (!envOpen && target !== 'report') setTarget('report')
   const followUp = mode === 'followUp'
   const personas = followUp && target === 'agents' ? (selection?.selected ?? []) : []
+  if (notice === NO_PERSONAS && personas.length > 0) setNotice(null)
+  const routed = useAnnounce(notice)
   const inputRef = useRef<HTMLInputElement>(null)
   const generating = status === 'submitted' || status === 'streaming'
   const uploading = files.some((f) => f.status === 'uploading')
@@ -63,11 +67,12 @@ export function Composer({
     <PromptInputProvider initialInput={initialText}>
       <PromptInput
         className="mt-4"
+        disabled={disabled}
         onSubmit={async ({ text }) => {
           if (!text.trim()) throw new Error('empty')
           if (followUp) {
             if (target === 'agents' && personas.length === 0) {
-              setNotice('Select at least one persona to interview')
+              setNotice(NO_PERSONAS)
               throw new Error('no_personas')
             }
             setNotice(null)
@@ -134,7 +139,7 @@ export function Composer({
           </PromptInputHeader>
         )}
         {notice && (
-          <p role="status" className="px-3 pt-2 text-sm text-destructive">
+          <p role={routed ? undefined : 'status'} className="px-3 pt-2 text-sm text-destructive">
             {notice}
           </p>
         )}
@@ -159,6 +164,7 @@ export function Composer({
                   type="file"
                   multiple
                   hidden
+                  disabled={disabled}
                   accept={ACCEPT}
                   data-testid="file-input"
                   onChange={(event) => {

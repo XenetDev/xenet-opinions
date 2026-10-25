@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest'
 
 const cwd = fileURLToPath(new URL('..', import.meta.url))
 const run = (databaseUrl: string) =>
-  spawnSync('pnpm', ['exec', 'tsx', 'src/migrate.ts'], { cwd, env: { ...process.env, DATABASE_URL: databaseUrl }, encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL' })
+  spawnSync('pnpm', ['exec', 'tsx', 'src/migrate.ts'], {
+    cwd,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: 'utf8',
+    timeout: 60_000,
+    killSignal: 'SIGKILL',
+  })
 
 describe.skipIf(!process.env.DATABASE_URL)('production migrator', () => {
   it('is idempotent', () => {
@@ -24,7 +30,13 @@ describe.skipIf(!process.env.DATABASE_URL)('production migrator', () => {
   }, 60_000)
 
   it('fails fast when DATABASE_URL is unset', () => {
-    const res = spawnSync('pnpm', ['exec', 'tsx', 'src/migrate.ts'], { cwd, env: { ...process.env, DATABASE_URL: '' }, encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL' })
+    const res = spawnSync('pnpm', ['exec', 'tsx', 'src/migrate.ts'], {
+      cwd,
+      env: { ...process.env, DATABASE_URL: '' },
+      encoding: 'utf8',
+      timeout: 60_000,
+      killSignal: 'SIGKILL',
+    })
     expect(res.status).toBe(1)
     expect(res.stderr).toBe('MissingDatabaseUrl\n')
   }, 60_000)

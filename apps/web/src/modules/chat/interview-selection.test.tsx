@@ -1,14 +1,17 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+
 import { act, cleanup, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { InterviewSelectionProvider, useInterviewSelection } from './interview-selection'
 
 afterEach(cleanup)
 
 const wrap =
   (props: { enabled: boolean; max?: number }) =>
-  ({ children }: { children: ReactNode }) => <InterviewSelectionProvider {...props}>{children}</InterviewSelectionProvider>
+  ({ children }: { children: ReactNode }) => (
+    <InterviewSelectionProvider {...props}>{children}</InterviewSelectionProvider>
+  )
 
 describe('useInterviewSelection', () => {
   it('is null outside a provider', () => {

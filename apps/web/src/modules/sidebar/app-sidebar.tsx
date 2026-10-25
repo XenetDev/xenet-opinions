@@ -1,9 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
 import { PlusIcon } from 'lucide-react'
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from '@/components/ui/sidebar'
 import { ChatList } from './chat-list'
 import { useChatList } from './chat-list-context'
 

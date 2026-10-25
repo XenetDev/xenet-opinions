@@ -9,5 +9,7 @@ export function loadRootEnv(importMetaUrl: string): void {
     if (parent === dir) return
     dir = parent
   }
-  try { process.loadEnvFile(join(dir, '.env')) } catch {}
+  try {
+    process.loadEnvFile(join(dir, '.env'))
+  } catch {}
 }

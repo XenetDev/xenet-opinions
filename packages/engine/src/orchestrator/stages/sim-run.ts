@@ -28,12 +28,21 @@ const onIdle = async (run: Run, deps: Deps) => {
   const idlePolls = (run.cursors.idlePolls ?? 0) + 1
   if (idlePolls < IDLE_POLLS_BEFORE_RESTART) return deps.store.update(run.id, { cursors: { idlePolls } }, deps.fence)
   if (run.cursors.startAcked) {
-    return fail(run, deps, 'sim_run', new MiroFishError({ code: 'api', message: 'simulation backend reported idle after start', path: 'run-status' }))
+    return fail(
+      run,
+      deps,
+      'sim_run',
+      new MiroFishError({ code: 'api', message: 'simulation backend reported idle after start', path: 'run-status' }),
+    )
   }
   const attempts = (run.cursors.startAttempts ?? 0) + 1
   if (attempts > MAX_START_ATTEMPTS) return fail(run, deps, 'sim_run', new Error('simulation never started'))
   deps.log('simulation idle after start, restarting', { runId: run.id, attempts })
-  return deps.store.update(run.id, { cursors: { simStarted: false, startAttempts: attempts, idlePolls: 0 } }, deps.fence)
+  return deps.store.update(
+    run.id,
+    { cursors: { simStarted: false, startAttempts: attempts, idlePolls: 0 } },
+    deps.fence,
+  )
 }
 
 export const simRun: StageHandler = {
@@ -72,9 +81,13 @@ export const simRun: StageHandler = {
       const progress = status.progress_percent ?? Math.round((feed.round / totalRounds) * 100)
       await running(deps, run, 'sim_run', { progress, message: `Round ${feed.round}/${totalRounds}` })
     }
-    const next = await deps.store.update(run.id, {
-      cursors: { feed, postsOffsetTwitter: twitter.offset, postsOffsetReddit: reddit.offset, idlePolls: 0 },
-    }, deps.fence)
+    const next = await deps.store.update(
+      run.id,
+      {
+        cursors: { feed, postsOffsetTwitter: twitter.offset, postsOffsetReddit: reddit.offset, idlePolls: 0 },
+      },
+      deps.fence,
+    )
     return finished ? advance(deps, next, 'sim_run', 'report') : next
   },
 }

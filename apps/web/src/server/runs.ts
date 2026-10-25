@@ -1,7 +1,7 @@
-import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
-import { generateId } from 'ai'
-import { schema, type Run } from '@xo/db'
+import { type Run, schema } from '@xo/db'
 import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
+import { generateId } from 'ai'
+import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 
 const { chats, messages, runs, uploads } = schema
@@ -37,23 +37,36 @@ export class RunNotFailedError extends Error {
 }
 
 export function isActiveRunViolation(error: unknown): boolean {
-  for (let current = error as { message?: string; cause?: unknown } | undefined, depth = 0; current && depth < 4; depth++) {
+  for (
+    let current = error as { message?: string; cause?: unknown } | undefined, depth = 0;
+    current && depth < 4;
+    depth++
+  ) {
     if (typeof current.message === 'string' && current.message.includes('runs_one_active_per_chat')) return true
     current = current.cause as typeof current
   }
   return false
 }
 
-export async function countOwnedUploads(input: { chatId: string; userId: string; uploadIds: string[] }): Promise<number> {
+export async function countOwnedUploads(input: {
+  chatId: string
+  userId: string
+  uploadIds: string[]
+}): Promise<number> {
   if (input.uploadIds.length === 0) return 0
   const [row] = await db
     .select({ n: count() })
     .from(uploads)
-    .where(and(inArray(uploads.id, input.uploadIds), eq(uploads.chatId, input.chatId), eq(uploads.userId, input.userId)))
+    .where(
+      and(inArray(uploads.id, input.uploadIds), eq(uploads.chatId, input.chatId), eq(uploads.userId, input.userId)),
+    )
   return row?.n ?? 0
 }
 
-export async function runsStartedSince(userId: string, since: Date): Promise<{ count: number; oldestQueuedAt: Date | null }> {
+export async function runsStartedSince(
+  userId: string,
+  since: Date,
+): Promise<{ count: number; oldestQueuedAt: Date | null }> {
   const [row] = await db
     .select({ n: count(), oldest: min(runs.queuedAt) })
     .from(runs)
@@ -96,7 +109,10 @@ export async function startRun(input: {
         .returning()
       await tx
         .update(chats)
-        .set({ title: sql`case when ${chats.title} = '' then ${input.text.slice(0, 60)} else ${chats.title} end`, updatedAt: sql`now()` })
+        .set({
+          title: sql`case when ${chats.title} = '' then ${input.text.slice(0, 60)} else ${chats.title} end`,
+          updatedAt: sql`now()`,
+        })
         .where(eq(chats.id, input.chatId))
       return row!
     })

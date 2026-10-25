@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Message } from '@xo/db'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { toUIMessages } from './ui-message'
 
 afterEach(() => vi.restoreAllMocks())
@@ -28,7 +28,11 @@ describe('toUIMessages', () => {
 
   it('whitelists data-interview parts and drops invalid ones', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    const good = { type: 'data-interview', id: 'interview:a1', data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' } }
+    const good = {
+      type: 'data-interview',
+      id: 'interview:a1',
+      data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' },
+    }
     const bad = { type: 'data-interview', data: { agentId: 'a1', status: 'nope' } }
     const [message] = toUIMessages([row([good, bad])])
     expect(message?.parts).toEqual([good])

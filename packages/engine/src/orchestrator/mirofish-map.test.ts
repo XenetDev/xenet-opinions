@@ -11,7 +11,11 @@ import {
 } from './mirofish-map'
 
 const fixture = <T>(name: string): T =>
-  (JSON.parse(readFileSync(new URL(`../../../mirofish/src/fixtures/${name}.json`, import.meta.url), 'utf8')) as { data: T }).data
+  (
+    JSON.parse(readFileSync(new URL(`../../../mirofish/src/fixtures/${name}.json`, import.meta.url), 'utf8')) as {
+      data: T
+    }
+  ).data
 const agentLog = fixture<AgentLogPage>('report.agent-log')
 const ontology = fixture<OntologyResult>('graph.ontology.generate')
 
@@ -55,7 +59,14 @@ describe('profilesToPart', () => {
     })
     expect(part.count).toBe(2)
     expect(part.expected).toBe(12)
-    expect(part.profiles[0]).toEqual({ id: '0', name: 'Maya Chen', handle: 'maya', role: 'Lead', bio: 'b', topics: ['pricing'] })
+    expect(part.profiles[0]).toEqual({
+      id: '0',
+      name: 'Maya Chen',
+      handle: 'maya',
+      role: 'Lead',
+      bio: 'b',
+      topics: ['pricing'],
+    })
     expect(part.profiles[1]).toMatchObject({ id: '1', name: 'Agent 2', topics: [] })
   })
 })
@@ -72,13 +83,27 @@ describe('posts and feed', () => {
 
   it('keeps the last 50 posts and prefers status counters', () => {
     const mk = (i: number) => ({ id: `p${i}`, platform: 'twitter' as const, agent: 'a', content: 'c', round: 1 })
-    const prev = { round: 1, totalRounds: 3, twitterActs: 40, redditActs: 0, posts: Array.from({ length: 40 }, (_, i) => mk(i)) }
-    const next = runStatusToFeed(prev, { runner_status: 'running', current_round: 2, total_rounds: 3 }, Array.from({ length: 20 }, (_, i) => mk(40 + i)))
+    const prev = {
+      round: 1,
+      totalRounds: 3,
+      twitterActs: 40,
+      redditActs: 0,
+      posts: Array.from({ length: 40 }, (_, i) => mk(i)),
+    }
+    const next = runStatusToFeed(
+      prev,
+      { runner_status: 'running', current_round: 2, total_rounds: 3 },
+      Array.from({ length: 20 }, (_, i) => mk(40 + i)),
+    )
     expect(next.posts).toHaveLength(50)
     expect(next.posts[0]?.id).toBe('p10')
     expect(next.round).toBe(2)
     expect(next.twitterActs).toBe(60)
-    const counted = runStatusToFeed(undefined, { runner_status: 'running', current_round: 1, twitter_actions_count: 9, reddit_actions_count: 4 }, [])
+    const counted = runStatusToFeed(
+      undefined,
+      { runner_status: 'running', current_round: 1, twitter_actions_count: 9, reddit_actions_count: 4 },
+      [],
+    )
     const mixed = runStatusToFeed(undefined, { runner_status: 'running' }, [
       { ...mk(1), round: 2 },
       { ...mk(2), platform: 'reddit', round: 1 },
@@ -106,7 +131,12 @@ describe('agentLogToEvents', () => {
       [5, 'section_complete', 'Finished: Overall sentiment'],
       [6, 'report_complete', 'Report complete'],
     ])
-    expect(events[2]).toMatchObject({ sectionIndex: 1, sectionTitle: 'Overall sentiment', toolName: 'quick_search', elapsedSeconds: 11.1 })
+    expect(events[2]).toMatchObject({
+      sectionIndex: 1,
+      sectionTitle: 'Overall sentiment',
+      toolName: 'quick_search',
+      elapsedSeconds: 11.1,
+    })
   })
 
   it('continues numbering and outline state across pages', () => {
@@ -132,7 +162,12 @@ describe('agentLogToEvents', () => {
       ],
       5,
     )
-    expect(events.map((e) => e.summary)).toEqual(['x'.repeat(160), 'deep_search returned', 'Writing: Risks', 'LLM timeout'])
+    expect(events.map((e) => e.summary)).toEqual([
+      'x'.repeat(160),
+      'deep_search returned',
+      'Writing: Risks',
+      'LLM timeout',
+    ])
     expect(events.map((e) => e.n)).toEqual([5, 6, 7, 8])
   })
 })

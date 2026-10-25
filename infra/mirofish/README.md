@@ -20,6 +20,8 @@ MiroFish ([666ghj/MiroFish](https://github.com/666ghj/MiroFish)) is AGPL-3.0. Th
 
 Because MiroFish runs as a network service, AGPL section 13 applies to it; the exact source we run is the pinned SHA on the public upstream repository.
 
+The published image `ghcr.io/jdships/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at commit `7657031ac01184afe2cb220f5ee3545573b5e843`. Its source is https://github.com/666ghj/MiroFish at that commit. The image keeps the upstream licence at `/app/LICENSE` and carries the OCI labels `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.licenses=AGPL-3.0` and `org.opencontainers.image.description`. The only additions are the base image, the locked Python dependencies and a non-root user.
+
 ### Bumping `MIROFISH_REF`
 
 1. Pick the new upstream commit and read its diff for API changes against `packages/mirofish` (routes, payloads, the `/health` route, `Config.validate()`, `backend/pyproject.toml` Python range).
@@ -31,12 +33,16 @@ Because MiroFish runs as a network service, AGPL section 13 applies to it; the e
 ```sh
 docker build -f infra/mirofish/Dockerfile -t xo-mirofish infra/mirofish
 docker run --rm xo-mirofish uv run python -c "import flask, camel, zep_cloud, fitz"
+docker run --rm xo-mirofish id -u   # 10001
+docker run --rm xo-mirofish head -1 /app/LICENSE   # GNU AFFERO GENERAL PUBLIC LICENSE
 docker run --rm xo-mirofish   # exits 1: "配置错误: - LLM_API_KEY 未配置 - ZEP_API_KEY 未配置"
 sh infra/mirofish/caddyfile.test.sh
 sh infra/mirofish/retain.sh --self-test
 ```
 
 The image is backend-only (`python:3.11-slim`; upstream requires Python `>=3.11,<3.13`). `gcc` and `libc6-dev` are installed because `psutil` 5.9.8 (pulled in by `camel-ai`) has no prebuilt wheel for linux/arm64 and builds from source there. The image is about 3.9 GB, almost all of it the locked Python dependencies.
+
+The backend runs as the non-root user `mirofish` (uid 10001). It owns `/app/backend/uploads` and `/app/backend/logs` (upstream's logger writes there); everything else in `/app` is read-only to it.
 
 ## MiroFish environment
 
@@ -64,7 +70,7 @@ The backend is Flask's built-in server with `threaded=True` in one process. Task
 
 ## Volume
 
-All per-run state lives under `/app/backend/uploads`. The image declares no `VOLUME`, so the operator must mount a named volume there (compose does this). Without it the state is lost on every container recreate, and an anonymous volume would sit outside the path `retain.sh` cleans:
+All per-run state lives under `/app/backend/uploads`. The image declares no `VOLUME`, so the operator must mount a named volume at exactly `/app/backend/uploads` (compose does this). A new, empty named volume takes the directory's `mirofish` ownership from the image. A volume created by an older image that ran as root stays root-owned; fix it once with `docker run --rm -v <volume>:/v alpine chown -R 10001:10001 /v`. Platform volumes (Railway, Fly) always mount root-owned and need the same one-off `chown -R 10001:10001 /app/backend/uploads` as root; see [docs/hosting-runbook.md](../../docs/hosting-runbook.md). Without it the state is lost on every container recreate, and an anonymous volume would sit outside the path `retain.sh` cleans:
 
 - `projects/<project_id>/` from graph builds
 - `simulations/<simulation_id>/` from simulation prepare and run
@@ -83,13 +89,13 @@ Rules:
 - Any other request whose `X-MiroFish-Token` is not exactly `MIROFISH_TOKEN` gets `401` with `{"success":false,"error":"unauthorized"}` and `Content-Type: application/json`. An empty `MIROFISH_TOKEN` rejects everything except `/health`.
 - Everything else is reverse-proxied with a 900 s read and write timeout, because ontology and report calls take minutes.
 
-Point the web app and worker at the proxy (`MIROFISH_URL=http://mirofish-proxy:8080`) and do not publish the backend's port 5001.
+Point the web app and worker at the proxy (`MIROFISH_URL=http://mirofish-proxy:8080`) and never publish the backend's port 5001. A blank `MIROFISH_TOKEN` on the web app makes `/api/health` answer 503 with `"mirofish":"unauthorized"` instead of failing silently.
 
 ### Why the token lives in Caddy
 
 The design spec planned a small fork of MiroFish adding a token check. A fork means carrying modified AGPL code, and our repo would have to host and publish it. A sidecar keeps upstream unmodified and keeps all of our code on the far side of an HTTP boundary.
 
-The spec's other fork patches are deferred: traceback stripping in error responses and platform sanitising. Until they land, treat MiroFish error bodies as untrusted and never show them to end users verbatim.
+The spec's other fork patches (traceback stripping in error responses, platform sanitising) are not planned while upstream runs unmodified. MiroFish error bodies are treated as untrusted instead: tracebacks are never shown and a failed run shows at most the first line of the message, capped at 300 characters. The token is the only authentication in front of MiroFish; see [SECURITY.md](../../SECURITY.md).
 
 ## Retention
 

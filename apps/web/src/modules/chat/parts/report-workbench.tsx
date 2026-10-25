@@ -1,9 +1,14 @@
 'use client'
 
-import { CheckCircle2Icon, CircleDashedIcon, Loader2Icon } from 'lucide-react'
-import { useState } from 'react'
 import type { ReportEventData, ReportOutlineData } from '@xo/engine/parts'
-import { ChainOfThought, ChainOfThoughtContent, ChainOfThoughtHeader, ChainOfThoughtStep } from '@/components/ai-elements/chain-of-thought'
+import { CheckCircle2Icon, CircleDashedIcon, Loader2Icon } from 'lucide-react'
+import { useId, useState } from 'react'
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtHeader,
+  ChainOfThoughtStep,
+} from '@/components/ai-elements/chain-of-thought'
 import { Tool, ToolContent, ToolHeader } from '@/components/ai-elements/tool'
 
 type SectionStatus = ReportOutlineData['sections'][number]['status']
@@ -13,6 +18,11 @@ const STATUS_ICONS = {
   writing: Loader2Icon,
   done: CheckCircle2Icon,
 } as const
+
+const STATUS_LABELS = { pending: 'Pending', writing: 'Running', done: 'Done' } as const satisfies Record<
+  SectionStatus,
+  string
+>
 
 const STEP_STATUS = { pending: 'pending', writing: 'active', done: 'complete' } as const satisfies Record<
   SectionStatus,
@@ -52,6 +62,7 @@ export function ReportWorkbench({
 }) {
   const [prevCollapsed, setPrevCollapsed] = useState(collapsed)
   const [open, setOpen] = useState(!collapsed)
+  const contentId = useId()
   if (collapsed !== prevCollapsed) {
     setPrevCollapsed(collapsed)
     setOpen(!collapsed)
@@ -62,8 +73,10 @@ export function ReportWorkbench({
 
   return (
     <ChainOfThought open={open} onOpenChange={setOpen} data-event-count={events.length}>
-      <ChainOfThoughtHeader>{outline?.title ?? 'Writing the report'}</ChainOfThoughtHeader>
-      <ChainOfThoughtContent>
+      <ChainOfThoughtHeader aria-controls={open ? contentId : undefined}>
+        {outline?.title ?? 'Writing the report'}
+      </ChainOfThoughtHeader>
+      <ChainOfThoughtContent id={contentId}>
         {planning.length > 0 && (
           <ChainOfThoughtStep label="Planning" status="complete">
             {planning.map((event) => (
@@ -75,7 +88,12 @@ export function ReportWorkbench({
           <ChainOfThoughtStep
             key={section.index}
             icon={STATUS_ICONS[section.status]}
-            label={section.title}
+            label={
+              <>
+                <span className="sr-only">{`${STATUS_LABELS[section.status]}: `}</span>
+                {section.title}
+              </>
+            }
             status={STEP_STATUS[section.status]}
           >
             {events

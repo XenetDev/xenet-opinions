@@ -1,17 +1,4 @@
 import { z } from 'zod'
-import {
-  AgentsDataSchema,
-  ErrorDataSchema,
-  GraphDataSchema,
-  OntologyDataSchema,
-  ReportEventDataSchema,
-  ReportOutlineDataSchema,
-  SimFeedDataSchema,
-  SourcesDataSchema,
-  StageDataSchema,
-  STAGES,
-  stagePartId,
-} from './parts'
 import type {
   AgentsData,
   ErrorData,
@@ -22,6 +9,19 @@ import type {
   SimFeedData,
   SourcesData,
   StageData,
+} from './parts'
+import {
+  AgentsDataSchema,
+  ErrorDataSchema,
+  GraphDataSchema,
+  OntologyDataSchema,
+  ReportEventDataSchema,
+  ReportOutlineDataSchema,
+  SimFeedDataSchema,
+  SourcesDataSchema,
+  STAGES,
+  StageDataSchema,
+  stagePartId,
 } from './parts'
 
 export const EVENT_KINDS = [

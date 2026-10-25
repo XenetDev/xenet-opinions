@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+
 import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { axe } from '@/test/axe'
 import { ReportWorkbench } from './report-workbench'
 
 afterEach(cleanup)
@@ -42,5 +44,16 @@ describe('ReportWorkbench', () => {
   it('renders without an outline', () => {
     render(<ReportWorkbench events={events} />)
     expect(screen.getByText('Planning')).toBeTruthy()
+  })
+  it('labels section status icons as text and hides the icons', () => {
+    const { container } = render(<ReportWorkbench outline={outline} events={events} />)
+    expect(screen.getByText('Done:', { selector: '.sr-only' })).toBeTruthy()
+    expect(screen.getByText('Running:', { selector: '.sr-only' })).toBeTruthy()
+    for (const icon of container.querySelectorAll('svg')) expect(icon.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('has no axe violations', async () => {
+    const { container } = render(<ReportWorkbench outline={outline} events={events} />)
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

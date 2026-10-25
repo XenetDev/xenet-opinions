@@ -24,7 +24,11 @@ export const graphBuild: StageHandler = {
       await running(deps, entered, 'graph_build', { progress: 100, message: 'Reusing existing graph' })
       return finish(entered, deps, started.graph_id)
     }
-    const entered = await deps.store.update(run.id, { ids: { graphTaskId: need(started.task_id, 'graph build task id') } }, deps.fence)
+    const entered = await deps.store.update(
+      run.id,
+      { ids: { graphTaskId: need(started.task_id, 'graph build task id') } },
+      deps.fence,
+    )
     await running(deps, entered, 'graph_build', { progress: 0, message: 'Building knowledge graph' })
     return entered
   },
@@ -32,12 +36,16 @@ export const graphBuild: StageHandler = {
     if (run.ids.graphId) return finish(run, deps, run.ids.graphId)
     const taskId = need(run.ids.graphTaskId, 'graphTaskId')
     const task = await deps.mirofish.graph.getTask(taskId)
-    if (task.status === 'failed') throw remoteFailure(task.error ?? task.message, 'Graph build failed', `/api/graph/task/${taskId}`)
+    if (task.status === 'failed')
+      throw remoteFailure(task.error ?? task.message, 'Graph build failed', `/api/graph/task/${taskId}`)
     if (task.status === 'completed') {
       const graphId = need(graphIdOf(task.result), 'graph_id in graph build result')
       return finish(await deps.store.update(run.id, { ids: { graphId } }, deps.fence), deps, graphId)
     }
-    await running(deps, run, 'graph_build', { progress: task.progress, ...(task.message ? { message: task.message } : {}) })
+    await running(deps, run, 'graph_build', {
+      progress: task.progress,
+      ...(task.message ? { message: task.message } : {}),
+    })
     return run
   },
 }

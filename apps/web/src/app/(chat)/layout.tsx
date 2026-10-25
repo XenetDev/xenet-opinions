@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react'
 import { headers } from 'next/headers'
+import type { ReactNode } from 'react'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { getSessionUser } from '@/lib/session'
-import { listChats } from '@/server/chats'
 import { AppSidebar } from '@/modules/sidebar/app-sidebar'
 import { ChatListProvider } from '@/modules/sidebar/chat-list-context'
+import { listChats } from '@/server/chats'
 
 export default async function ChatLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser(await headers())

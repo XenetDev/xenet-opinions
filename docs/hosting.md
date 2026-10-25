@@ -7,13 +7,23 @@ Two supported shapes: a single-host Docker Compose bundle for self-hosting, and 
 Requires Docker with Compose v2.20 or later. From the repo root:
 
 ```sh
-cp .env.selfhost.example .env.selfhost   # then fill in the four required secrets
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d --build
+cp .env.selfhost.example .env.selfhost   # then fill in the four required secrets and the two keys
+infra/docker/up.sh
 ```
 
-`BETTER_AUTH_SECRET`, `MIROFISH_TOKEN`, `POSTGRES_PASSWORD` and `MINIO_ROOT_PASSWORD` must be filled in first; until they are, every compose command (including `config`) stops with `set <NAME> in .env.selfhost`.
+`infra/docker/up.sh` runs the bundle with the real MiroFish; `infra/docker/up-mock.sh` runs it with the bundled mock instead (no keys needed). Both run from the repo root whatever the current directory, pass their arguments to `docker compose` and default to `up -d`. `up.sh` is short for:
 
-Open http://localhost:3000 (or `XO_WEB_PORT`). `docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost ps` shows the services; `web` turns healthy once `/api/health` answers 200.
+```sh
+docker compose -f infra/docker/docker-compose.yml -f infra/docker/docker-compose.real.yml --env-file .env.selfhost up -d
+```
+
+`BETTER_AUTH_SECRET`, `MIROFISH_TOKEN`, `POSTGRES_PASSWORD` and `MINIO_ROOT_PASSWORD` must be filled in first; until they are, every compose command (including `config`) stops with `set <NAME> in .env.selfhost`. `up.sh` also requires `LLM_API_KEY` and `ZEP_API_KEY` and stops the same way while either is blank. Set `XO_ENV_FILE` (a path relative to the repo root, or absolute) to use an env file other than `.env.selfhost`.
+
+Open http://localhost:3000 (or `XO_WEB_PORT`). `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers 200.
+
+### Images
+
+`web`, `worker` (shared by `migrate` and `mirofish-mock`) and `mirofish` use `ghcr.io/jdships/xenet-opinions-web`, `ghcr.io/jdships/xenet-opinions-worker` and `ghcr.io/jdships/xenet-opinions-mirofish`, tagged `XO_IMAGE_TAG` (default `edge`, the latest `main`; releases are `vX.Y.Z`). With `pull_policy: missing`, compose pulls an image that is not on the host yet when it is published on GHCR, and otherwise builds it locally from the repo's Dockerfiles (after printing a `failed to resolve reference ... not found` pull error for it, which is expected). The first local build of the MiroFish image takes several minutes and produces about 3.9 GB. `worker` is the only service that builds the shared worker image, so on a host with neither the published image nor a local build, run a full `infra/docker/up.sh` (or `infra/docker/up.sh build worker`) before starting `migrate` or `mirofish-mock` on their own (for example `infra/docker/up-mock.sh up -d mirofish-mock`). Images already on the host are reused as they are; run `infra/docker/up.sh pull` (published images) or `infra/docker/up.sh up -d --build` (local builds) to update them. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
 
 ### Services
 
@@ -22,32 +32,40 @@ Open http://localhost:3000 (or `XO_WEB_PORT`). `docker compose -f infra/docker/d
 | `postgres` | `postgres:18` | Healthcheck `pg_isready` |
 | `minio` | `pgsty/minio` | S3-compatible upload store; console not published |
 | `minio-init` | `pgsty/mc` | One-shot, creates the `xo-uploads` bucket |
-| `migrate` | `xo-worker` | One-shot `pnpm --filter @xo/db db:migrate:prod` once Postgres is healthy |
-| `worker` | `xo-worker` | Starts after `migrate` succeeds |
-| `web` | `xo-web` | Starts after `migrate` and `minio-init` succeed; the only published port |
+| `migrate` | `xenet-opinions-worker` | One-shot `pnpm --filter @xo/db db:migrate:prod` once Postgres is healthy |
+| `worker` | `xenet-opinions-worker` | Starts after `migrate` succeeds |
+| `web` | `xenet-opinions-web` | Starts after `migrate` and `minio-init` succeed; the only published port |
 | `mirofish-proxy` | `caddy:2` | Token proxy in front of MiroFish (`infra/mirofish/Caddyfile`) |
-| `mirofish` | `xo-mirofish` | Profile `real`; upstream MiroFish backend |
-| `mirofish-mock` | `xo-worker` | Profile `mock`; the bundled mock MiroFish |
+| `mirofish` | `xenet-opinions-mirofish` | `docker-compose.real.yml` (`up.sh`); upstream MiroFish backend, runs as uid 10001 |
+| `mirofish-mock` | `xenet-opinions-worker` | `docker-compose.mock.yml` (`up-mock.sh`); the bundled mock MiroFish |
 
-The official `minio/minio` and `minio/mc` images are no longer published on Docker Hub, so the bundle uses `pgsty/minio` and `pgsty/mc`, a community-maintained fork with the same CLI, pinned by release tag.
+`infra/docker/docker-compose.yml` holds every service except MiroFish. `docker-compose.real.yml` adds `mirofish` and `docker-compose.mock.yml` adds `mirofish-mock`; each also points `mirofish-proxy` at its backend (`MIROFISH_UPSTREAM`), so the proxy always matches the backend that is running.
+
+The official `minio/minio` and `minio/mc` images are no longer published on Docker Hub, so the bundle uses `pgsty/minio` and `pgsty/mc`, a community-maintained fork with the same CLI, pinned by digest (multi-arch index):
+
+| Image | Tag | Digest |
+| --- | --- | --- |
+| `pgsty/minio` | `RELEASE.2026-08-04T00-00-00Z` | `sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372` |
+| `pgsty/mc` | `RELEASE.2026-10-18T00-00-00Z` | `sha256:6ecdaec70bc5e8cf9d0e9a70c190f3beb1c83f11617ff4333f1fcd71ab1daf18` |
+
+To move to a newer release, resolve the tag with `docker buildx imagetools inspect pgsty/minio:<tag>` (the `Digest:` line), replace the digest in the compose file and update this table.
 
 Networks: `web` sits on `edge` and `internal`; `worker`, `postgres`, `minio` and the one-shots on `internal`; `mirofish` and `mirofish-mock` on `backend` only. `mirofish-proxy` is the one service on both `internal` and `backend`, so web and worker reach MiroFish only through `http://mirofish-proxy:8080` with the token, and `web` cannot even resolve `mirofish`. No network is marked `internal: true` because MiroFish needs outbound internet for the LLM and Zep.
 
-### Profiles
+### Real and mock MiroFish
 
-The active profile comes from `COMPOSE_PROFILES` in `.env.selfhost` (or `--profile` on the command line, which takes precedence). Set `MIROFISH_UPSTREAM` to match.
+- Real (`up.sh`): upstream MiroFish. A real run takes roughly 20 to 60 minutes and spends LLM and Zep credits (see [Limits and costs](#limits-and-costs)).
+- Mock (`up-mock.sh`): no keys needed. Runs finish in under a minute. `MOCK_SPEED` divides the mock's simulated stage delays (about 16 s plus 1 s per round at `1`); end-to-end time is dominated by the worker's 2 s poll interval, so values above about 5 make little difference. The mock keeps its simulations in memory, so restarting or recreating `mirofish-mock` makes follow-ups on earlier runs fail.
 
-- `mock` (default): no keys needed. `COMPOSE_PROFILES=mock`, `MIROFISH_UPSTREAM=mirofish-mock:5001`. Runs finish in under a minute. `MOCK_SPEED` divides the mock's simulated stage delays (about 16 s plus 1 s per round at `1`); end-to-end time is dominated by the worker's 2 s poll interval, so values above about 5 make little difference. The mock keeps its simulations in memory, so restarting or recreating `mirofish-mock` makes follow-ups on earlier runs fail.
-- `real`: upstream MiroFish; follow the checklist below. The first build of the MiroFish image takes several minutes and produces about 3.9 GB. A real run takes roughly 20 to 60 minutes. Without `LLM_API_KEY` and `ZEP_API_KEY` the `mirofish` container exits 1 with `配置错误` (configuration error) and restarts in a loop.
+Use one script consistently for a running stack: both share the project name `xenet-opinions`, and each knows only its own MiroFish service.
 
-**Switching to real MiroFish.** `--profile real` alone is not enough: the proxy still points at `MIROFISH_UPSTREAM`, so with the mock value it forwards to a service that is not running and health reports `"mirofish":"error"`.
+**Switching to real MiroFish.**
 
-1. `docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost down` (no `-v`) while the mock profile is still set, so the mock container stops.
-2. In `.env.selfhost` set, together: `COMPOSE_PROFILES=real` and `MIROFISH_UPSTREAM=mirofish:5001`.
-3. Set `LLM_API_KEY` and `ZEP_API_KEY` (and optionally `LLM_BASE_URL`, `LLM_MODEL_NAME`).
-4. `docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d --build`.
+1. `infra/docker/up-mock.sh down` (no `-v`), so the mock container stops.
+2. Fill in `LLM_API_KEY` and `ZEP_API_KEY` in `.env.selfhost` (and optionally `LLM_BASE_URL`, `LLM_MODEL_NAME`).
+3. `infra/docker/up.sh`.
 
-Switching back is the same with `mock` and `mirofish-mock:5001`.
+Switching back is `infra/docker/up.sh down`, then `infra/docker/up-mock.sh`; the keys can stay in the file.
 
 ### Environment
 
@@ -55,21 +73,20 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `COMPOSE_PROFILES` | `mock` | `mock` or `real` |
-| `MIROFISH_UPSTREAM` | `mirofish-mock:5001` | `mirofish:5001` for the real profile |
+| `XO_IMAGE_TAG` | `edge` | Tag of the `ghcr.io/jdships/xenet-opinions-*` images; `edge` follows `main`, releases are `vX.Y.Z` |
 | `XO_WEB_PORT` | `3000` | Host port for `web` |
-| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Public URL; baked into the web image at build time, so rebuild after changing it |
-| `BETTER_AUTH_URL` | `http://localhost:3000` | Same as the public URL |
+| `NEXT_PUBLIC_APP_URL` | unset | Public URL. Unset or blank means `http://localhost:${XO_WEB_PORT}`; set it only when the app is served from another origin (a domain or reverse proxy), then recreate `web` |
+| `BETTER_AUTH_URL` | unset | Same as `NEXT_PUBLIC_APP_URL`, with the same default; anonymous sign-in fails when it does not match the browser's origin |
 | `BETTER_AUTH_SECRET` | blank | Required. `openssl rand -base64 32` |
 | `MIROFISH_TOKEN` | blank | Required. `openssl rand -hex 32`; shared by the proxy, web and worker |
 | `POSTGRES_PASSWORD` | blank | Required. `openssl rand -hex 32`; must be URL-safe because it goes into `DATABASE_URL` |
 | `MINIO_ROOT_USER` | `xo-admin` | At least 3 characters. Also the S3 access key |
 | `MINIO_ROOT_PASSWORD` | blank | Required. `openssl rand -hex 24` (MinIO needs at least 8 characters). Also the S3 secret key |
-| `LLM_API_KEY` | blank | Real profile. Any OpenAI-compatible key |
-| `LLM_BASE_URL` | `https://api.openai.com/v1` | Real profile |
-| `LLM_MODEL_NAME` | `gpt-4o-mini` | Real profile |
-| `ZEP_API_KEY` | blank | Real profile. Zep Cloud key |
-| `MOCK_SPEED` | `5` | Mock profile |
+| `LLM_API_KEY` | blank | Required by `up.sh`. Any OpenAI-compatible key |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | Real MiroFish |
+| `LLM_MODEL_NAME` | `gpt-4o-mini` | Real MiroFish |
+| `ZEP_API_KEY` | blank | Required by `up.sh`. Zep Cloud key |
+| `MOCK_SPEED` | `5` | Mock MiroFish |
 | `DEMO_MODE` | `0` | `1` enables per-user quotas and the rounds cap |
 | `DEMO_PAUSED` | `0` | `1` refuses new runs (follow-ups still work) |
 | `MAX_RUNS_PER_DAY` | `2` | New runs per anonymous user per 24 h; retries of a failed run are free. Demo mode only |
@@ -79,16 +96,16 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 
 ### Demo mode and pause
 
-`DEMO_MODE` and `DEMO_PAUSED` are read by `web` at startup. After editing them in `.env.selfhost`, recreate only `web`:
+`DEMO_MODE` and `DEMO_PAUSED` are read by `web` at startup. After editing them in `.env.selfhost`, recreate only `web` (with `up-mock.sh` if you run the mock):
 
 ```sh
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d web
+infra/docker/up.sh up -d web
 ```
 
-With `DEMO_PAUSED=1` new runs are refused (`demo_paused`) and the composer is disabled in new chats; follow-ups in finished chats keep working. Other variables follow the same pattern: recreate the service that reads them (`up -d web` after changing `BETTER_AUTH_URL`; `MOCK_SPEED` is read by `mirofish-mock`). `NEXT_PUBLIC_APP_URL` is baked into the image, so rebuild `web` after changing it:
+With `DEMO_PAUSED=1` new runs are refused (`demo_paused`) and the composer is disabled in new chats; follow-ups in finished chats keep working. Other variables follow the same pattern: recreate the service that reads them (`MOCK_SPEED` is read by `mirofish-mock`). The web image works on any origin. Changing only `XO_WEB_PORT` needs nothing else; when the app is served from another origin, uncomment `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL`, set both to the public URL and recreate `web`:
 
 ```sh
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost up -d --build web
+infra/docker/up.sh up -d web
 ```
 
 ### Volumes
@@ -99,17 +116,17 @@ Compose names them with the project prefix `xenet-opinions_`.
 | --- | --- | --- |
 | `postgres-data` | `/var/lib/postgresql` | Users, chats, runs, run events, interviews |
 | `minio-data` | `/data` | Uploaded source files |
-| `mirofish-uploads` | `/app/backend/uploads` | MiroFish per-run projects, simulations and reports (real profile) |
+| `mirofish-uploads` | `/app/backend/uploads` | MiroFish per-run projects, simulations and reports (real MiroFish only) |
 
-`docker compose ... down` keeps the volumes; `down -v` deletes them.
+`infra/docker/up.sh down` keeps the volumes; `down -v` deletes them.
 
 ### Backups
 
 Postgres holds everything the UI shows; back it up regularly:
 
 ```sh
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost exec -T postgres pg_dump -U xo -Fc xo > xo-$(date +%F).dump
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost exec -T postgres pg_restore -U xo -d xo --clean < xo-2026-10-22.dump
+infra/docker/up.sh exec -T postgres pg_dump -U xo -Fc xo > xo-$(date +%F).dump
+infra/docker/up.sh exec -T postgres pg_restore -U xo -d xo --clean < xo-2026-10-22.dump
 ```
 
 Back up uploads by archiving the `minio-data` volume while `minio` is stopped (or with any S3 tool against the bucket). `mirofish-uploads` is working state for MiroFish and is pruned by the retention job; back it up only if you need to reopen old simulations.
@@ -129,10 +146,12 @@ MiroFish never deletes its per-run folders. On a Linux host, run `infra/mirofish
 The upstream version is pinned by `ARG MIROFISH_REF` in `infra/mirofish/Dockerfile`. Follow [Bumping `MIROFISH_REF`](../infra/mirofish/README.md#bumping-mirofish_ref), then rebuild and restart only MiroFish:
 
 ```sh
-docker compose -f infra/docker/docker-compose.yml --env-file .env.selfhost --profile real up -d --build mirofish
+infra/docker/up.sh up -d --build mirofish
 ```
 
 MiroFish keeps task state in memory, so any in-flight run is lost on restart; update between runs.
+
+The image runs as uid 10001. A `mirofish-uploads` volume created before that (by an image that ran as root) is root-owned and not writable; fix it once with `docker run --rm -v xenet-opinions_mirofish-uploads:/v alpine chown -R 10001:10001 /v`.
 
 ## Hosted demo topology
 
@@ -147,15 +166,54 @@ web + worker ──► S3-compatible bucket (R2 or S3)
 
 - Web: Vercel, root directory `apps/web` (see below).
 - Postgres: managed Postgres reachable from Vercel and the container host. Run `pnpm --filter @xo/db db:migrate:prod` with its `DATABASE_URL` before each deploy that adds migrations.
-- Container host: `worker`, `mirofish-proxy` and `mirofish` on one private network, built from the same Dockerfiles as the bundle. Exactly one MiroFish replica with a persistent volume on `/app/backend/uploads` and the retention cron. MiroFish's port is never public. The proxy is the only public entry point, because Vercel needs to reach it; it requires `X-MiroFish-Token` on everything but `GET /health`. The Caddyfile serves plain HTTP on `:8080` (`auto_https off`), so the container host or platform must terminate TLS in front of it: Railway and Fly do this on their public URLs, a bare VM needs a TLS-terminating reverse proxy. Without TLS the token travels in cleartext.
+- Container host: `worker`, `mirofish-proxy` and `mirofish` on one private network, built from the same Dockerfiles as the bundle (or run from the published `ghcr.io/jdships/xenet-opinions-worker` and `ghcr.io/jdships/xenet-opinions-mirofish` images; the proxy is `caddy:2` with `infra/mirofish/Caddyfile`, or `infra/mirofish/Dockerfile.proxy` where files cannot be mounted). Their environment is listed under [Container host environment](#container-host-environment). Exactly one MiroFish replica with a persistent volume on `/app/backend/uploads` and the retention cron. MiroFish's port is never public. The proxy is the only public entry point, because Vercel needs to reach it; it requires `X-MiroFish-Token` on everything but `GET /health`. The Caddyfile serves plain HTTP on `:8080` (`auto_https off`), so the container host or platform must terminate TLS in front of it: Railway and Fly do this on their public URLs, a bare VM needs a TLS-terminating reverse proxy. Without TLS the token travels in cleartext.
 - Uploads: an S3-compatible bucket (`STORAGE_DRIVER=s3`, `S3_*`) shared by web and worker. For R2 set `S3_ENDPOINT` to the account endpoint, `S3_REGION=auto` and `S3_FORCE_PATH_STYLE=true`.
 - Policy: `DEMO_MODE=1` enables the per-anonymous-user quota (`MAX_RUNS_PER_DAY=2` runs per rolling 24 h) and the rounds cap (`DEMO_MAX_ROUNDS=3`). Runs queue FIFO with one at a time (`MAX_CONCURRENT_RUNS=1`) and the chat shows the queue position.
 - Kill switch: set `DEMO_PAUSED=1` on Vercel and redeploy (or promote) to refuse new runs with `demo_paused`; follow-ups on finished runs keep working. Set it back to `0` to resume.
 - Monitoring: poll `GET /api/health` on the public URL. It returns 200 with `{"ok":true,"db":"ok","mirofish":"ok"}` and 503 when Postgres or the proxy (and through it MiroFish) is down. Set `HEALTH_CHECK_MIROFISH=0` to drop the MiroFish probe. Monitor the worker by its container status and logs.
 
+### Container host environment
+
+`mirofish`:
+
+| Variable | Value |
+| --- | --- |
+| `LLM_API_KEY` | Any OpenAI-compatible key. Required |
+| `LLM_BASE_URL` | Provider endpoint, default `https://api.openai.com/v1` |
+| `LLM_MODEL_NAME` | Model, default `gpt-4o-mini` |
+| `ZEP_API_KEY` | Zep Cloud key. Required |
+
+Never set `ZEP_API_URL` (MiroFish refuses to start) and never mount a `.env` file into the container. Mount a persistent volume at `/app/backend/uploads`, run one replica, and publish no port. Optional tuning variables are in [infra/mirofish/README.md](../infra/mirofish/README.md#mirofish-environment).
+
+`mirofish-proxy`:
+
+| Variable | Value |
+| --- | --- |
+| `MIROFISH_TOKEN` | `openssl rand -hex 32`. Required; a blank token rejects every call except `/health` |
+| `MIROFISH_UPSTREAM` | MiroFish's private address, for example `mirofish:5001` or `mirofish.railway.internal:5001` |
+
+It listens on `:8080` (plain HTTP); the platform terminates TLS on its public URL.
+
+`worker`:
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | The managed Postgres URL (private address where the host offers one) |
+| `MIROFISH_URL` | The proxy's private address, for example `http://mirofish-proxy:8080` |
+| `MIROFISH_TOKEN` | Same value as on the proxy and Vercel |
+| `STORAGE_DRIVER` | `s3` |
+| `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | The same bucket settings as Vercel |
+| `MAX_CONCURRENT_RUNS` | `1` |
+| `ENV_KEEPALIVE_MS` | `1200000` (20 minutes) |
+| `ENV_SWEEP_INTERVAL_MS` | `60000` |
+| `WORKER_POLL_MS` | Optional, default `2000` |
+| `WORKER_ID` | Optional lease owner name, default host and pid; leave unset rather than blank |
+
+Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABASE_URL}}`) are in [infra/railway/README.md](../infra/railway/README.md).
+
 ## Vercel notes
 
-- Plan: Pro (or higher) is required. Hobby caps functions at 60 s, which cuts the 280 s run stream short on every reconnect and kills the interview call, which can take up to 200 s.
+- Plan: functions need Fluid compute, which is on by default for new projects. With it, Hobby allows up to 300 s per function (default and maximum) and Pro allows 300 s by default and up to 800 s (checked against Vercel's [function limits](https://vercel.com/docs/functions/limitations) in October 2026). The app's 300 s routes therefore fit on Hobby. Pro is still recommended: Hobby is limited to non-commercial personal use, and its included monthly usage (4 active CPU hours, 360 GB-hours of provisioned memory) can be used up by run streams, which hold a function open for minutes at a time; once exceeded, Hobby pauses the feature until 30 days have passed.
 - Duration: `apps/web/vercel.json` sets `maxDuration` 300 for `src/app/api/**/*.ts`, and the long routes (`chats/[id]/messages`, `chats/[id]/stream`) also export `maxDuration = 300`.
 - Project settings: root directory `apps/web`, framework Next.js, install command `cd ../.. && pnpm install --frozen-lockfile` (install at the repo root), build command left at the default (`next build`). Keep "Include files outside the root directory" enabled; the app imports workspace packages.
 - Upload size: Vercel limits request bodies to 4.5 MB, below the app's 10 MB per-file limit, so larger files fail on Vercel until uploads move to presigned URLs.

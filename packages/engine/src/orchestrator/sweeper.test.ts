@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { NOW, setupRun } from './test-helpers'
 import { sweepEnvs } from './sweeper'
+import { NOW, setupRun } from './test-helpers'
 
 const expired = new Date(NOW.getTime() - 1000)
 const finish = (store: Awaited<ReturnType<typeof setupRun>>['store'], id: string, patch = {}) =>

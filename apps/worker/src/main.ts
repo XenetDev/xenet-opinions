@@ -25,7 +25,9 @@ const findRepoRoot = (from: string) => {
 async function main() {
   loadRootEnv(import.meta.url)
   const env = parseWorkerEnv()
-  const localDir = isAbsolute(env.STORAGE_LOCAL_DIR) ? env.STORAGE_LOCAL_DIR : resolve(findRepoRoot(import.meta.url), env.STORAGE_LOCAL_DIR)
+  const localDir = isAbsolute(env.STORAGE_LOCAL_DIR)
+    ? env.STORAGE_LOCAL_DIR
+    : resolve(findRepoRoot(import.meta.url), env.STORAGE_LOCAL_DIR)
 
   const db = createDb(env.DATABASE_URL)
   const controller = new AbortController()

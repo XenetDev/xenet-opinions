@@ -1,7 +1,7 @@
 import type { Message, Run } from '@xo/db'
-import { MiroFishError, type MiroFishClient } from '@xo/mirofish'
+import { type MiroFishClient, MiroFishError } from '@xo/mirofish'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
-import { getTableName, type Table } from 'drizzle-orm'
+import type { Table } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type Write = { op: 'insert' | 'update' | 'delete'; table: string; arg?: unknown; tx: boolean }
@@ -14,10 +14,17 @@ vi.mock('@/lib/db', async () => {
     const builder = (op: Write['op'], table: Table) => {
       const entry: Write = { op, table: getTableName(table), tx }
       const chain = {
-        values: (v: unknown) => ((entry.arg = v), chain),
-        set: (v: unknown) => ((entry.arg = v), chain),
+        values: (v: unknown) => {
+          entry.arg = v
+          return chain
+        },
+        set: (v: unknown) => {
+          entry.arg = v
+          return chain
+        },
         where: () => chain,
         onConflictDoNothing: () => chain,
+        // biome-ignore lint/suspicious/noThenProperty: the mock query builder must be thenable like Drizzle's
         then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) => {
           state.log.push(entry)
           return Promise.resolve(undefined).then(resolve, reject)
@@ -79,7 +86,11 @@ const userMessage = { id: 'u2', parts: [{ type: 'text', text: 'Why?' }] }
 const fakeMirofish = () => {
   const chat = vi.fn()
   const interviewBatch = vi.fn()
-  return { client: { report: { chat }, simulation: { interviewBatch } } as unknown as MiroFishClient, chat, interviewBatch }
+  return {
+    client: { report: { chat }, simulation: { interviewBatch } } as unknown as MiroFishClient,
+    chat,
+    interviewBatch,
+  }
 }
 
 const call = (input: { target: 'report' | 'agents'; agentIds?: string[]; run?: Run; mirofish: MiroFishClient }) =>
@@ -280,7 +291,9 @@ describe('runFollowUp agents', () => {
       ],
     })
     expect(runStore.update).toHaveBeenCalledWith('run1', { envKeepaliveUntil: at(30) })
-    expect(vi.mocked(runStore.update).mock.invocationCallOrder[0]!).toBeLessThan(mf.interviewBatch.mock.invocationCallOrder[0]!)
+    expect(vi.mocked(runStore.update).mock.invocationCallOrder[0]!).toBeLessThan(
+      mf.interviewBatch.mock.invocationCallOrder[0]!,
+    )
     expect(state.log.some((w) => w.table === 'interviews')).toBe(false)
 
     gate.resolve()
@@ -296,8 +309,26 @@ describe('runFollowUp agents', () => {
     ])
     expect(persistTx[0]!.arg).toEqual({ parts: [done, failed] })
     expect(persistTx[1]!.arg).toEqual([
-      expect.objectContaining({ chatId: 'c1', runId: 'run1', messageId: assistantId, agentId: '3', agentName: 'Agent 3', question: 'Why?', answer: 'Yes', status: 'done' }),
-      expect.objectContaining({ chatId: 'c1', runId: 'run1', messageId: assistantId, agentId: '6', agentName: 'Agent 6', question: 'Why?', answer: null, status: 'failed' }),
+      expect.objectContaining({
+        chatId: 'c1',
+        runId: 'run1',
+        messageId: assistantId,
+        agentId: '3',
+        agentName: 'Agent 3',
+        question: 'Why?',
+        answer: 'Yes',
+        status: 'done',
+      }),
+      expect.objectContaining({
+        chatId: 'c1',
+        runId: 'run1',
+        messageId: assistantId,
+        agentId: '6',
+        agentName: 'Agent 6',
+        question: 'Why?',
+        answer: null,
+        status: 'failed',
+      }),
     ])
     expect(await finalParts([...head, ...tail])).toEqual([done, failed])
     expect(mf.chat).not.toHaveBeenCalled()
@@ -329,7 +360,10 @@ describe('runFollowUp agents', () => {
     const mf = fakeMirofish()
     mf.interviewBatch.mockRejectedValue(error)
     const chunks = await allChunks(await call({ target: 'agents', agentIds: ['1', '2'], mirofish: mf.client }))
-    const failed = [interview('1', { status: 'failed', error: message }), interview('2', { status: 'failed', error: message })]
+    const failed = [
+      interview('1', { status: 'failed', error: message }),
+      interview('2', { status: 'failed', error: message }),
+    ]
     expect(chunks.slice(3)).toEqual([...failed, { type: 'finish' }])
     expect(chunks.some((c) => c.type === 'error')).toBe(false)
     const persistTx = state.log.filter((w) => w.tx).slice(3)
@@ -356,7 +390,10 @@ describe('runFollowUp validation', () => {
 
   it('rejects interviews when the env is not open', async () => {
     const mf = fakeMirofish()
-    await rejects({ target: 'agents', agentIds: ['1'], run: run({ envState: 'closed' }), mirofish: mf.client }, 'env_closed')
+    await rejects(
+      { target: 'agents', agentIds: ['1'], run: run({ envState: 'closed' }), mirofish: mf.client },
+      'env_closed',
+    )
     expect(mf.interviewBatch).not.toHaveBeenCalled()
   })
 
@@ -372,7 +409,9 @@ describe('runFollowUp validation', () => {
   })
 
   it('reads the roster from the last agents part of the run message', async () => {
-    vi.mocked(getMessage).mockResolvedValue(msg('a0', 'assistant', [agentsPart(roster), agentsPart(roster.slice(0, 2))]))
+    vi.mocked(getMessage).mockResolvedValue(
+      msg('a0', 'assistant', [agentsPart(roster), agentsPart(roster.slice(0, 2))]),
+    )
     await rejects({ target: 'agents', agentIds: ['3'], mirofish: fakeMirofish().client }, 'invalid_body')
     expect(getMessage).toHaveBeenCalledWith('a0')
   })

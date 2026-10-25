@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    # MiroFish arm64 compiles psutil under QEMU
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            dockerfile: infra/docker/Dockerfile.web
+            context: .
+          - name: worker
+            dockerfile: infra/docker/Dockerfile.worker
+            context: .
+          - name: mirofish
+            dockerfile: infra/mirofish/Dockerfile
+            context: infra/mirofish
+            labels: |
+              org.opencontainers.image.source=https://github.com/666ghj/MiroFish
+              org.opencontainers.image.revision=7657031ac01184afe2cb220f5ee3545573b5e843
+              org.opencontainers.image.licenses=AGPL-3.0
+              org.opencontainers.image.description=Upstream MiroFish backend, unmodified, packaged for Xenet Opinions
+              org.opencontainers.image.vendor=Xenet
+              ai.xenet.opinions.packaging-revision=${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/jdships/xenet-opinions-${{ matrix.name }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{raw}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ matrix.labels || steps.meta.outputs.labels }}
+          annotations: ${{ !matrix.labels && steps.meta.outputs.annotations || '' }}
+          build-args: ${{ matrix.name == 'web' && 'NEXT_PUBLIC_APP_URL=http://localhost:3000' || '' }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

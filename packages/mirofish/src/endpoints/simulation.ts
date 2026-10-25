@@ -3,9 +3,9 @@ import type { Http, RequestInitOptions } from '../client'
 import { type Platform, PlatformSchema } from '../schemas/common'
 import {
   InterviewBatchResult,
+  Posts,
   PrepareStarted,
   PrepareStatus,
-  Posts,
   ProfilesRealtime,
   RunStatus,
   SimulationState,

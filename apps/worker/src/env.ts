@@ -1,7 +1,10 @@
 import { hostname } from 'node:os'
 import { z } from 'zod'
 
-const optional = z.string().optional().transform((v) => v || undefined)
+const optional = z
+  .string()
+  .optional()
+  .transform((v) => v || undefined)
 
 export const workerEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),

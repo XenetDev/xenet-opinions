@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { MoreHorizontalIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { MoreHorizontalIcon } from 'lucide-react'
+import { useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +34,16 @@ export function ChatItem({ chat, active }: { chat: SidebarChat; active: boolean 
       <SidebarMenuButton asChild isActive={active}>
         <Link href={`/c/${chat.id}`}>
           <span className="truncate">{label}</span>
-          {running && <span data-testid="run-status-dot" aria-label="Run in progress" className="ml-auto size-2 shrink-0 rounded-full bg-emerald-500" />}
+          {running && (
+            <span
+              data-testid="run-status-dot"
+              role="img"
+              aria-label="Run in progress"
+              className="ml-auto size-2 shrink-0 rounded-full bg-emerald-500"
+            >
+              <span className="sr-only">Run in progress</span>
+            </span>
+          )}
         </Link>
       </SidebarMenuButton>
       <DropdownMenu>
@@ -72,7 +81,9 @@ export function ChatItem({ chat, active }: { chat: SidebarChat; active: boolean 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
-            <AlertDialogDescription>This removes its messages and uploaded files. A run in progress will be cancelled.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This removes its messages and uploaded files. A run in progress will be cancelled.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

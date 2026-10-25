@@ -1,9 +1,9 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
-import { StorageError, type Storage } from './types'
+import { type Storage, StorageError } from './types'
 
 export function createLocalStorage(rootDir: string): Storage {
-  const root = resolve(process.cwd(), rootDir)
+  const root = resolve(/* turbopackIgnore: true */ process.cwd(), rootDir)
 
   function pathFor(key: string): string {
     if (key === '' || key.includes('\\') || key.includes('\0') || key.startsWith('/')) {
@@ -13,7 +13,7 @@ export function createLocalStorage(rootDir: string): Storage {
     if (segments.some((s) => s === '' || s === '.' || s === '..')) {
       throw new StorageError('invalid_key', `invalid key: ${JSON.stringify(key)}`)
     }
-    const full = resolve(root, ...segments)
+    const full = resolve(/* turbopackIgnore: true */ root, ...segments)
     if (!full.startsWith(root + sep)) {
       throw new StorageError('invalid_key', `invalid key: ${JSON.stringify(key)}`)
     }

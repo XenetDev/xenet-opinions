@@ -9,3 +9,4 @@ coverage
 .context/
 .superpowers/
 .env.selfhost
+.vercel

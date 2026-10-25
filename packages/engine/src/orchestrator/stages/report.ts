@@ -15,13 +15,17 @@ const drain = async (run: Run, deps: Deps, reportId: string, untilEmpty: boolean
     const { outline, events } = agentLogToEvents(page.logs, startN, current.cursors.reportOutline)
     if (outline) await emit(deps, current, 'report_outline', outline)
     for (const event of events) await emit(deps, current, 'report_event', event)
-    current = await deps.store.update(current.id, {
-      cursors: {
-        agentLogLine: from + page.logs.length,
-        reportEventCount: startN + events.length,
-        ...(outline ? { reportOutline: outline } : {}),
+    current = await deps.store.update(
+      current.id,
+      {
+        cursors: {
+          agentLogLine: from + page.logs.length,
+          reportEventCount: startN + events.length,
+          ...(outline ? { reportOutline: outline } : {}),
+        },
       },
-    }, deps.fence)
+      deps.fence,
+    )
     if (!untilEmpty && !page.has_more) break
   }
   return { run: current, exhausted: false }
@@ -32,9 +36,13 @@ export const report: StageHandler = {
   hasEntered: (run) => Boolean(run.ids.reportId),
   async enter(run, deps) {
     const started = await deps.mirofish.report.generate({ simulationId: need(run.ids.simulationId, 'simulationId') })
-    const entered = await deps.store.update(run.id, {
-      ids: { reportId: started.report_id, ...(started.task_id ? { reportTaskId: started.task_id } : {}) },
-    }, deps.fence)
+    const entered = await deps.store.update(
+      run.id,
+      {
+        ids: { reportId: started.report_id, ...(started.task_id ? { reportTaskId: started.task_id } : {}) },
+      },
+      deps.fence,
+    )
     await running(deps, entered, 'report', { message: 'Writing the report' })
     return entered
   },
@@ -42,7 +50,8 @@ export const report: StageHandler = {
     const reportId = need(run.ids.reportId, 'reportId')
     const drained = await drain(run, deps, reportId, false)
     const result = await deps.mirofish.report.get(reportId)
-    if (result.status === 'failed') throw remoteFailure(result.error, 'Report generation failed', `/api/report/${reportId}`)
+    if (result.status === 'failed')
+      throw remoteFailure(result.error, 'Report generation failed', `/api/report/${reportId}`)
     if (result.status !== 'completed') return drained.run
     const final = await drain(drained.run, deps, reportId, true)
     if (!final.exhausted) return final.run

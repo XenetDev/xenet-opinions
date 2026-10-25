@@ -1,5 +1,6 @@
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
+import { getLimits } from '@/server/limits'
 import { retryRun } from '@/server/retry'
 import { RunActiveError, RunNotFailedError, runStore } from '@/server/runs'
 
@@ -12,6 +13,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id: chatId } = await params
   const chat = await getOwnedChat(chatId, user.id)
   if (!chat) return Response.json({ error: 'not_found' }, { status: 404 })
+  if (getLimits().paused) return Response.json({ error: 'demo_paused' }, { status: 409 })
 
   if (await runStore.getActiveByChat(chatId)) return Response.json({ error: 'run_active' }, { status: 409 })
   const latest = await runStore.getLatestByChat(chatId)

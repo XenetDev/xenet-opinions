@@ -1,13 +1,14 @@
 'use client'
 
+import type { GraphData } from '@xo/engine/parts'
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { GraphData } from '@xo/engine/parts'
 import { Artifact, ArtifactContent, ArtifactHeader, ArtifactTitle } from '@/components/ai-elements/artifact'
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
 const HEIGHT = 240
+const LABEL_LIMIT = 10
 
 export function nodeColor(type: string | undefined): string {
   let hash = 0
@@ -44,6 +45,12 @@ export function GraphPreview({ data }: { data: GraphData }) {
         <ArtifactTitle>{`Knowledge graph · ${data.nodeCount} nodes · ${data.edgeCount} edges`}</ArtifactTitle>
       </ArtifactHeader>
       <ArtifactContent className="p-0">
+        <p className="sr-only">{`Graph with ${data.nodeCount} nodes and ${data.edgeCount} edges`}</p>
+        <ul className="sr-only">
+          {data.nodes.slice(0, LABEL_LIMIT).map((node) => (
+            <li key={node.id}>{node.label}</li>
+          ))}
+        </ul>
         <div ref={containerRef} style={{ height: HEIGHT }} className="w-full overflow-hidden">
           {width > 0 && (
             <ForceGraph2D

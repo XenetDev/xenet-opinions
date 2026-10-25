@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+
 import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { axe } from '@/test/axe'
 import { InterviewCard } from './interview-card'
 
 afterEach(cleanup)
@@ -24,5 +26,15 @@ describe('InterviewCard', () => {
   it('renders an alert when failed', () => {
     render(<InterviewCard data={{ ...base, status: 'failed', error: 'Agent unreachable' }} />)
     expect(screen.getByRole('alert').textContent).toContain('Agent unreachable')
+  })
+  it('has no axe violations', async () => {
+    const { container } = render(
+      <>
+        <InterviewCard data={{ ...base, status: 'pending' }} />
+        <InterviewCard data={{ ...base, status: 'done', answer: 'I like it' }} />
+        <InterviewCard data={{ ...base, status: 'failed', error: 'Agent unreachable' }} />
+      </>,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { axe } from '@/test/axe'
 import { SimulationFeed } from './simulation-feed'
 
 afterEach(cleanup)
@@ -37,5 +39,16 @@ describe('SimulationFeed', () => {
     expect(screen.getAllByTestId('feed-post')).toHaveLength(50)
     expect(screen.getByText('post 59')).toBeTruthy()
     expect(screen.queryByText('post 0')).toBeNull()
+  })
+  it('announces the round counter politely', () => {
+    render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
+    expect(screen.getByText('Round 2 of 10').closest('[aria-live]')?.getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('has no axe violations', async () => {
+    const { container } = render(
+      <SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />,
+    )
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

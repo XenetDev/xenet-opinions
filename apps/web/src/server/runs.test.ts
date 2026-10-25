@@ -7,7 +7,7 @@ const cancelRun = vi.hoisted(() => vi.fn())
 const materialiseRun = vi.hoisted(() => vi.fn())
 vi.mock('@xo/engine', () => ({ createDrizzleStore: vi.fn(() => store), cancelRun, materialiseRun }))
 
-import { RunActiveError, RunNotActiveError, RunNotFoundError, cancelActiveRun, startRun } from './runs'
+import { cancelActiveRun, RunActiveError, RunNotActiveError, RunNotFoundError, startRun } from './runs'
 
 const input = { chatId: 'c1', userId: 'u1', message: { id: 'm1', parts: [] }, text: 'hi', uploadIds: [], maxRounds: 3 }
 
@@ -18,7 +18,9 @@ beforeEach(() => {
 describe('startRun', () => {
   it('maps the active-run unique violation to RunActiveError', async () => {
     transaction.mockRejectedValue(
-      Object.assign(new Error('Failed query'), { cause: new Error('duplicate key value violates unique constraint "runs_one_active_per_chat"') }),
+      Object.assign(new Error('Failed query'), {
+        cause: new Error('duplicate key value violates unique constraint "runs_one_active_per_chat"'),
+      }),
     )
     await expect(startRun(input)).rejects.toBeInstanceOf(RunActiveError)
   })

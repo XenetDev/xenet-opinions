@@ -6,7 +6,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Status = 'ok' | 'error'
-type Health = { ok: boolean; db: Status; mirofish: Status | 'skipped' }
+type MirofishStatus = Status | 'skipped' | 'unauthorized'
+type Health = { ok: boolean; db: Status; mirofish: MirofishStatus }
 
 const HEALTH_MEMO_MS = 5_000
 
@@ -21,19 +22,43 @@ const checkDb = async (): Promise<Status> => {
   }
 }
 
-const checkMirofish = async (): Promise<Status | 'skipped'> => {
-  if (env.HEALTH_CHECK_MIROFISH === '0') return 'skipped'
+const MIROFISH_TIMEOUT_MS = 3_000
+
+const checkMirofishHealth = async (base: string): Promise<Status> => {
   try {
-    const res = await fetch(`${env.MIROFISH_URL.replace(/\/$/, '')}/health`, { signal: AbortSignal.timeout(3000) })
+    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(MIROFISH_TIMEOUT_MS) })
+    void res.body?.cancel()
     return res.ok ? 'ok' : 'error'
   } catch {
     return 'error'
   }
 }
 
+const checkMirofishToken = async (base: string): Promise<'ok' | 'error' | 'unauthorized'> => {
+  const headers: Record<string, string> = env.MIROFISH_TOKEN ? { 'X-MiroFish-Token': env.MIROFISH_TOKEN } : {}
+  try {
+    const res = await fetch(`${base}/api/graph/task/health-probe`, {
+      headers,
+      signal: AbortSignal.timeout(MIROFISH_TIMEOUT_MS),
+    })
+    void res.body?.cancel()
+    return res.status === 401 ? 'unauthorized' : 'ok'
+  } catch {
+    return 'error'
+  }
+}
+
+const checkMirofish = async (): Promise<MirofishStatus> => {
+  if (env.HEALTH_CHECK_MIROFISH === '0') return 'skipped'
+  const base = env.MIROFISH_URL.replace(/\/$/, '')
+  const [health, token] = await Promise.all([checkMirofishHealth(base), checkMirofishToken(base)])
+  if (token === 'unauthorized') return 'unauthorized'
+  return health === 'ok' && token === 'ok' ? 'ok' : 'error'
+}
+
 const computeHealth = async (): Promise<Health> => {
   const [dbStatus, mirofish] = await Promise.all([checkDb(), checkMirofish()])
-  return { ok: dbStatus === 'ok' && mirofish !== 'error', db: dbStatus, mirofish }
+  return { ok: dbStatus === 'ok' && mirofish !== 'error' && mirofish !== 'unauthorized', db: dbStatus, mirofish }
 }
 
 export async function GET() {

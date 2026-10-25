@@ -1,0 +1,66 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!pnpm-lock.yaml",
+      "!!**/node_modules",
+      "!!**/.next",
+      "!!**/dist",
+      "!!**/.turbo",
+      "!!**/coverage",
+      "!!**/next-env.d.ts",
+      "!**/drizzle/meta",
+      "!apps/web/src/components/ai-elements",
+      "!apps/web/src/components/ui",
+      "!!.superpowers",
+      "!!.context",
+      "!!.data"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "useExhaustiveDependencies": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "off"
+      }
+    },
+    "domains": {
+      "react": "recommended",
+      "next": "recommended"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "yaml": {
+    "formatter": {
+      "enabled": false
+    }
+  }
+}

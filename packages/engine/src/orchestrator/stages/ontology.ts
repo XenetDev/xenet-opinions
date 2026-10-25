@@ -13,7 +13,11 @@ export const ontology: StageHandler = {
       files: uploads.map((u) => ({ id: u.id, filename: u.filename, mediaType: u.mediaType, sizeBytes: u.sizeBytes })),
     })
     const files = await Promise.all(
-      uploads.map(async (u) => ({ name: safeUploadName(u.filename, u.mediaType), bytes: await deps.storage.get(u.storageKey), type: u.mediaType })),
+      uploads.map(async (u) => ({
+        name: safeUploadName(u.filename, u.mediaType),
+        bytes: await deps.storage.get(u.storageKey),
+        type: u.mediaType,
+      })),
     )
     const result = await deps.mirofish.graph.generateOntology({ files, requirement: run.config.requirement })
     const entered = await deps.store.update(run.id, { ids: { projectId: result.project_id } }, deps.fence)
