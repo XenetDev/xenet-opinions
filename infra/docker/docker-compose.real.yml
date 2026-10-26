@@ -3,7 +3,7 @@ services:
     build:
       context: ../mirofish
       dockerfile: Dockerfile
-    image: ghcr.io/jdships/xenet-opinions-mirofish:${XO_IMAGE_TAG:-edge}
+    image: ghcr.io/xenetdev/xenet-opinions-mirofish:${XO_IMAGE_TAG:-edge}
     pull_policy: missing
     restart: unless-stopped
     environment:

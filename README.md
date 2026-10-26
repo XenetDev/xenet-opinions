@@ -39,7 +39,7 @@ Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://gi
 You need Docker with Compose v2.20 or later, an API key for any OpenAI-compatible LLM provider, and a [Zep Cloud](https://www.getzep.com/) API key (MiroFish stores its knowledge graph there).
 
 ```sh
-git clone https://github.com/jdships/xenet-opinions.git
+git clone https://github.com/XenetDev/xenet-opinions.git
 cd xenet-opinions
 cp .env.selfhost.example .env.selfhost
 sed -i.bak -e "s|^BETTER_AUTH_SECRET=$|BETTER_AUTH_SECRET=$(openssl rand -base64 32)|" -e "s|^MIROFISH_TOKEN=$|MIROFISH_TOKEN=$(openssl rand -hex 32)|" -e "s|^POSTGRES_PASSWORD=$|POSTGRES_PASSWORD=$(openssl rand -hex 32)|" -e "s|^MINIO_ROOT_PASSWORD=$|MINIO_ROOT_PASSWORD=$(openssl rand -hex 24)|" .env.selfhost && rm .env.selfhost.bak
@@ -51,7 +51,7 @@ The `sed` line fills in the four generated secrets. Now open `.env.selfhost`, se
 infra/docker/up.sh
 ```
 
-Open http://localhost:3000 (or the `XO_WEB_PORT` set in `.env.selfhost`), attach a `.txt`, `.md` or `.pdf` (a run needs at least one file), ask a question and pick a number of rounds. `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers. Images that are not available from `ghcr.io/jdships/xenet-opinions-*` are built locally on first start: compose first prints a `not found` pull error for each of them, then builds it. The MiroFish image takes several minutes. A real run takes roughly 20 to 60 minutes and spends LLM and Zep credits, so start with one round. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
+Open http://localhost:3000 (or the `XO_WEB_PORT` set in `.env.selfhost`), attach a `.txt`, `.md` or `.pdf` (a run needs at least one file), ask a question and pick a number of rounds. `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers. Images that are not available from `ghcr.io/xenetdev/xenet-opinions-*` are built locally on first start: compose first prints a `not found` pull error for each of them, then builds it. The MiroFish image takes several minutes. A real run takes roughly 20 to 60 minutes and spends LLM and Zep credits, so start with one round. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
 
 To try the bundle without any keys, run `infra/docker/up-mock.sh` instead; it swaps MiroFish for the bundled mock. Images, the environment reference, volumes, backups and updates are in [docs/hosting.md](docs/hosting.md).
 
@@ -60,7 +60,7 @@ To try the bundle without any keys, run `infra/docker/up-mock.sh` instead; it sw
 No keys needed: the app runs against a mock MiroFish. You need Node 24, Docker (for Postgres) and pnpm 10.30 via corepack.
 
 ```sh
-git clone https://github.com/jdships/xenet-opinions.git
+git clone https://github.com/XenetDev/xenet-opinions.git
 cd xenet-opinions
 corepack enable
 pnpm install
@@ -87,7 +87,7 @@ The hosted shape puts the web app on Vercel and the worker, token proxy and Miro
 
 This repository is MIT licensed (see [LICENSE](LICENSE)). Third-party components vendored into the web app are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-MiroFish is AGPL-3.0. It runs unmodified as a separate service and this code only talks to it over HTTP; it never imports, vendors or patches MiroFish code. The published image `ghcr.io/jdships/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at the commit pinned in [infra/mirofish/Dockerfile](infra/mirofish/Dockerfile), and carries OCI labels pointing at that source and revision. Details are in [infra/mirofish/README.md](infra/mirofish/README.md).
+MiroFish is AGPL-3.0. It runs unmodified as a separate service and this code only talks to it over HTTP; it never imports, vendors or patches MiroFish code. The published image `ghcr.io/xenetdev/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at the commit pinned in [infra/mirofish/Dockerfile](infra/mirofish/Dockerfile), and carries OCI labels pointing at that source and revision. Details are in [infra/mirofish/README.md](infra/mirofish/README.md).
 
 ## Documentation
 

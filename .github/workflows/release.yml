@@ -55,7 +55,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/jdships/xenet-opinions-${{ matrix.name }}
+          images: ghcr.io/xenetdev/xenet-opinions-${{ matrix.name }}
           flavor: latest=false
           tags: |
             type=semver,pattern={{raw}}

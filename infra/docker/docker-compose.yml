@@ -68,7 +68,7 @@ services:
 
   migrate:
     # Built by `worker`; a second `build:` for the same tag races it and fails.
-    image: ghcr.io/jdships/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
+    image: ghcr.io/xenetdev/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
     pull_policy: missing
     restart: "no"
     command: ["pnpm", "--filter", "@xo/db", "db:migrate:prod"]
@@ -83,7 +83,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.worker
-    image: ghcr.io/jdships/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
+    image: ghcr.io/xenetdev/xenet-opinions-worker:${XO_IMAGE_TAG:-edge}
     pull_policy: missing
     restart: unless-stopped
     environment:
@@ -106,7 +106,7 @@ services:
       dockerfile: infra/docker/Dockerfile.web
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${XO_WEB_PORT:-3000}}
-    image: ghcr.io/jdships/xenet-opinions-web:${XO_IMAGE_TAG:-edge}
+    image: ghcr.io/xenetdev/xenet-opinions-web:${XO_IMAGE_TAG:-edge}
     pull_policy: missing
     restart: unless-stopped
     ports:

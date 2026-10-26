@@ -20,7 +20,7 @@ MiroFish ([666ghj/MiroFish](https://github.com/666ghj/MiroFish)) is AGPL-3.0. Th
 
 Because MiroFish runs as a network service, AGPL section 13 applies to it; the exact source we run is the pinned SHA on the public upstream repository.
 
-The published image `ghcr.io/jdships/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at commit `7657031ac01184afe2cb220f5ee3545573b5e843`. Its source is https://github.com/666ghj/MiroFish at that commit. The image keeps the upstream licence at `/app/LICENSE` and carries the OCI labels `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.licenses=AGPL-3.0` and `org.opencontainers.image.description`. The only additions are the base image, the locked Python dependencies and a non-root user.
+The published image `ghcr.io/xenetdev/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at commit `7657031ac01184afe2cb220f5ee3545573b5e843`. Its source is https://github.com/666ghj/MiroFish at that commit. The image keeps the upstream licence at `/app/LICENSE` and carries the OCI labels `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.licenses=AGPL-3.0` and `org.opencontainers.image.description`. The only additions are the base image, the locked Python dependencies and a non-root user.
 
 ### Bumping `MIROFISH_REF`
 

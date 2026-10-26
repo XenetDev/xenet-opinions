@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report vulnerabilities privately through GitHub's private vulnerability reporting: https://github.com/jdships/xenet-opinions/security/advisories/new
+Report vulnerabilities privately through GitHub's private vulnerability reporting: https://github.com/XenetDev/xenet-opinions/security/advisories/new
 
 Please do not open a public issue, pull request or discussion for a security problem. Include what you found, how to reproduce it, the version or commit, and the impact you expect. If you are unsure whether something is in scope, report it anyway.
 
@@ -12,7 +12,7 @@ In scope:
 
 - The code in this repository (`apps/`, `packages/`, `scripts/`).
 - The Docker Compose bundle in `infra/docker` and the MiroFish token proxy in `infra/mirofish`.
-- The published images `ghcr.io/jdships/xenet-opinions-web`, `ghcr.io/jdships/xenet-opinions-worker` and `ghcr.io/jdships/xenet-opinions-mirofish` (for the last one, how we build and configure it).
+- The published images `ghcr.io/xenetdev/xenet-opinions-web`, `ghcr.io/xenetdev/xenet-opinions-worker` and `ghcr.io/xenetdev/xenet-opinions-mirofish` (for the last one, how we build and configure it).
 
 Out of scope: vulnerabilities in MiroFish itself, which runs unmodified from upstream (report those to [666ghj/MiroFish](https://github.com/666ghj/MiroFish)); third-party services such as your LLM provider, Zep Cloud, Vercel or your container host; and deployments that ignore the points below.
 

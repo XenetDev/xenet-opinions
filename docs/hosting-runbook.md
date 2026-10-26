@@ -2,7 +2,7 @@
 
 Deploys the hosted demo: web on Vercel, `Postgres`, `mirofish`, `mirofish-proxy` and `worker` on Railway, uploads in an S3-compatible bucket. Architecture, limits and the variable reference are in [hosting.md](hosting.md); the per-service table is in [infra/railway/README.md](../infra/railway/README.md).
 
-Nothing here has been executed yet. The container images are published to `ghcr.io/jdships/xenet-opinions-web`, `ghcr.io/jdships/xenet-opinions-worker` and `ghcr.io/jdships/xenet-opinions-mirofish` by the release workflow on each tag (`vX.Y.Z`, with `edge` for `main`); until the first release, `up.sh` builds them locally. The steps below build from source on Railway, but a host that runs images can use those instead, with the same variables. To run the whole stack on one machine instead, use `infra/docker/up.sh` (see [hosting.md](hosting.md#self-host)). Commands were checked against `--help` of `railway` 5.28.0 and `vercel` 54.18.7. Items marked "verify in the dashboard" could not be confirmed from the CLI. Run everything from the repo root unless a step says otherwise.
+Nothing here has been executed yet. The container images are published to `ghcr.io/xenetdev/xenet-opinions-web`, `ghcr.io/xenetdev/xenet-opinions-worker` and `ghcr.io/xenetdev/xenet-opinions-mirofish` by the release workflow on each tag (`vX.Y.Z`, with `edge` for `main`); until the first release, `up.sh` builds them locally. The steps below build from source on Railway, but a host that runs images can use those instead, with the same variables. To run the whole stack on one machine instead, use `infra/docker/up.sh` (see [hosting.md](hosting.md#self-host)). Commands were checked against `--help` of `railway` 5.28.0 and `vercel` 54.18.7. Items marked "verify in the dashboard" could not be confirmed from the CLI. Run everything from the repo root unless a step says otherwise.
 
 ## 1. Prerequisites and credentials
 
@@ -225,7 +225,7 @@ A new run is now refused with `demo_paused` and the composer is disabled; follow
 4. MiroFish image labels, after each release. The published image must keep the upstream AGPL provenance:
 
 ```sh
-docker inspect ghcr.io/jdships/xenet-opinions-mirofish:<tag> --format '{{json .Config.Labels}}'
+docker inspect ghcr.io/xenetdev/xenet-opinions-mirofish:<tag> --format '{{json .Config.Labels}}'
 ```
 
 Expect `org.opencontainers.image.licenses` to be `AGPL-3.0` and `org.opencontainers.image.source` to be `https://github.com/666ghj/MiroFish`; `ai.xenet.opinions.packaging-revision` names the packaging commit in this repo.
