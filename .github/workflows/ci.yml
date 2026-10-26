@@ -56,6 +56,11 @@ jobs:
       - uses: actions/checkout@v7
       - run: bash infra/docker/compose.test.sh
       - run: bash infra/mirofish/caddyfile.test.sh
+      # the MiroFish image pulls torch + CUDA wheels; the default runner disk is too small
+      - uses: jlumbroso/free-disk-space@v2
+        with:
+          tool-cache: true
+          docker-images: false
       - uses: docker/setup-buildx-action@v4
       # ci-* scopes keep amd64-only CI exports from evicting release.yml's multi-arch cache
       - uses: docker/build-push-action@v7
