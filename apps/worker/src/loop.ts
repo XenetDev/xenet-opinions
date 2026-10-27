@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { type Deps, FenceError, fail, materialiseRun, sweepEnvs, tick } from '@xo/engine'
+import { cleanupEnv, type Deps, FenceError, fail, materialiseRun, sweepEnvs, tick } from '@xo/engine'
 
 export type WorkerLoopOptions = Deps & {
   owner: string
@@ -35,31 +35,16 @@ export async function runWorkerLoop(opts: WorkerLoopOptions): Promise<void> {
     }
   }
 
-  const cleanupCancelled = async (run: Run) => {
-    const simulationId = run.ids.simulationId
-    if (!simulationId || (run.stage !== 'sim_run' && run.stage !== 'report')) return
-    try {
-      await opts.mirofish.simulation.stop(simulationId)
-    } catch (error) {
-      log('simulation stop failed', { runId: run.id, simulationId, error })
-    }
-    try {
-      await opts.mirofish.simulation.closeEnv(simulationId)
-    } catch (error) {
-      log('simulation closeEnv failed', { runId: run.id, simulationId, error })
-    }
-  }
-
   const handleLost = async (run: Run) => {
     try {
       const latest = await store.get(run.id)
       if (!latest) {
-        await cleanupCancelled(run)
+        await cleanupEnv(run, opts)
         log('run deleted', { runId: run.id, owner })
         return
       }
       if (latest.status === 'cancelled') {
-        await cleanupCancelled(latest)
+        await cleanupEnv(latest, opts)
         await materialise(latest)
         log('run cancelled', { runId: run.id, owner })
         return

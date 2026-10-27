@@ -8,6 +8,7 @@ import {
   PrepareStatus,
   ProfilesRealtime,
   RunStatus,
+  SimulationConfig,
   SimulationState,
   StartResult,
 } from '../schemas/simulation'
@@ -45,6 +46,9 @@ export const simulationEndpoints = (http: Http) => ({
     const query = platform === undefined ? undefined : { platform: PlatformSchema.parse(platform) }
     return http.getJson(`${sim(simulationId)}/profiles/realtime`, ProfilesRealtime, { ...init, query })
   },
+  configRealtime(simulationId: string, init?: RequestInitOptions) {
+    return http.getJson(`${sim(simulationId)}/config/realtime`, SimulationConfig, init)
+  },
   start(input: { simulationId: string; maxRounds?: number }, init?: RequestInitOptions) {
     return http.postJson(
       '/api/simulation/start',
@@ -77,7 +81,12 @@ export const simulationEndpoints = (http: Http) => ({
     return http.postJson('/api/simulation/close-env', { simulation_id: simulationId }, z.unknown(), init)
   },
   interviewBatch(
-    input: { simulationId: string; interviews: Array<{ agentId: number | string; prompt: string }> },
+    input: {
+      simulationId: string
+      interviews: Array<{ agentId: number | string; prompt: string }>
+      platform?: Platform
+      timeout?: number
+    },
     init?: RequestInitOptions,
   ) {
     return http.postJson(

@@ -3,6 +3,7 @@ import type { AgentLogPage, OntologyResult } from '@xo/mirofish'
 import { describe, expect, it } from 'vitest'
 import {
   agentLogToEvents,
+  configToPlatform,
   graphDataToPart,
   ontologyToPart,
   postsToFeed,
@@ -69,6 +70,21 @@ describe('profilesToPart', () => {
       topics: ['pricing'],
     })
     expect(part.profiles[1]).toMatchObject({ id: '1', name: 'Agent 2', topics: [] })
+  })
+})
+
+describe('configToPlatform', () => {
+  it('takes the first platform from the simulation config', () => {
+    expect(configToPlatform({ config: { platform_configs: { twitter: {}, reddit: {} } } })).toBe('twitter')
+    expect(configToPlatform({ platform_configs: [{ platform: 'reddit' }, { platform: 'twitter' }] })).toBe('reddit')
+    expect(configToPlatform({ config: { twitter_config: {}, reddit_config: {} } })).toBe('twitter')
+    expect(configToPlatform({ reddit_config: {} })).toBe('reddit')
+  })
+
+  it("falls back to reddit, MiroFish's default", () => {
+    expect(configToPlatform({})).toBe('reddit')
+    expect(configToPlatform(null)).toBe('reddit')
+    expect(configToPlatform({ platform_configs: { parallel: {} } })).toBe('reddit')
   })
 })
 

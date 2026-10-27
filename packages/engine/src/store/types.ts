@@ -1,4 +1,4 @@
-import type { Run, RunConfig, RunEvent, Upload } from '@xo/db'
+import type { Interview, NewInterview, Run, RunConfig, RunEvent, Upload } from '@xo/db'
 import type { RunEventInput } from '../events'
 
 export type RunPatch = Partial<
@@ -19,6 +19,10 @@ export type RunPatch = Partial<
 >
 
 export type Fence = { owner: string }
+
+export type InterviewRow = Interview
+
+export type InterviewPatch = { status: string; answer?: string | null }
 
 export type TransitionOpts = { expectStatus?: Run['status'][] }
 
@@ -48,4 +52,7 @@ export type RunStore = {
   listEnvsToSweep(now: Date, limit?: number): Promise<Run[]>
   closeEnv(id: string): Promise<boolean>
   listUploads(ids: string[]): Promise<Upload[]>
+  listPendingInterviews(runId: string): Promise<InterviewRow[]>
+  updateInterview(id: string, patch: InterviewPatch): Promise<void>
+  createInterviews(rows: NewInterview[]): Promise<InterviewRow[]>
 }

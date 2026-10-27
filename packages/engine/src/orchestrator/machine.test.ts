@@ -3,8 +3,9 @@ import { StorageError } from '@xo/storage'
 import { describe, expect, it, vi } from 'vitest'
 import type { StageData } from '../parts'
 import { FenceError } from '../store/types'
+import { fail } from './fail'
 import { tick } from './machine'
-import { drive, LOGS, NOW, setupRun as setup } from './test-helpers'
+import { drive, driveUntil, LOGS, NOW, setupRun as setup } from './test-helpers'
 
 const label = (e: { kind: string; payload: unknown }) => {
   if (e.kind === 'stage') {
@@ -18,20 +19,17 @@ const label = (e: { kind: string; payload: unknown }) => {
 const ids = { projectId: 'proj_1', graphId: 'graph_1', simulationId: 'sim_1' }
 
 describe('tick', () => {
-  it('sets the env keepalive deadline when a run finishes', async () => {
+  it('closes the env state with no keepalive when a run finishes', async () => {
     const { deps, run } = await setup({}, { stage: 'finished', ids })
     const done = await tick(run, deps)
-    expect(done.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 20 * 60_000))
-    const short = await setup({}, { stage: 'finished', ids })
-    const quick = await tick(short.run, { ...short.deps, envKeepaliveMs: 60_000 })
-    expect(quick.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 60_000))
+    expect(done).toMatchObject({ status: 'done', envState: 'closed', envKeepaliveUntil: null })
   })
 
   it('drives a run through every stage to done', async () => {
     const { store, deps, run } = await setup()
     const done = await drive(run, deps)
     expect(done.status).toBe('done')
-    expect(done.envState).toBe('open')
+    expect(done.envState).toBe('closed')
     expect(done.finishedAt).toEqual(NOW)
     expect(done.ids).toEqual({
       projectId: 'proj_1',
@@ -84,6 +82,9 @@ describe('tick', () => {
       { files: [{ id: 'up_1', filename: 'brief.md', mediaType: 'text/markdown', sizeBytes: 12 }] },
     ])
     expect(payloadOf('report_text')).toEqual([{ markdown: '# Report' }])
+    expect(payloadOf('agents').at(-1)).toMatchObject({ count: 2, platform: 'reddit' })
+    expect(events.some((e) => e.kind === 'interview_window' || e.partId === 'stage:interviews')).toBe(false)
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
     expect(payloadOf('sim_feed').at(-1)).toMatchObject({ round: 2, totalRounds: 2, twitterActs: 2, redditActs: 2 })
     expect(events.find((e) => e.kind === 'stage' && (e.payload as StageData).message === 'Round 1/2')).toBeDefined()
     expect(deps.storage.get).toHaveBeenCalledWith('k/brief.md')
@@ -307,6 +308,26 @@ describe('tick', () => {
     expect((await tick(run, deps)).stage).toBe('sim_run')
   })
 
+  it('records the simulation platform on the agents part when prepare finishes', async () => {
+    const twitter = await setup(
+      { simulation: { configRealtime: vi.fn(async () => ({ config: { twitter_config: {} } })) } },
+      { stage: 'sim_prepare', ids: { ...ids, prepareTaskId: 'ptask_1' }, cursors: { lastAgentCount: 2 } },
+    )
+    let next = await tick(twitter.run, twitter.deps)
+    next = await tick(next, twitter.deps)
+    expect(next.stage).toBe('sim_run')
+    const agents = (twitter.store.events.get(next.id) ?? []).filter((e) => e.kind === 'agents')
+    expect(agents.at(-1)?.payload).toMatchObject({ count: 2, platform: 'twitter' })
+    expect(twitter.deps.mirofish.simulation.configRealtime).toHaveBeenCalledWith('sim_1')
+    const down = await setup(
+      { simulation: { configRealtime: vi.fn(async () => Promise.reject(new Error('404'))) } },
+      { stage: 'sim_prepare', ids: { ...ids, prepareTaskId: 'ptask_1' } },
+    )
+    await drive(down.run, down.deps)
+    const last = (down.store.events.get(down.run.id) ?? []).filter((e) => e.kind === 'agents').at(-1)
+    expect(last?.payload).toMatchObject({ platform: 'reddit' })
+  })
+
   it('closes the env once after the last round and stays in sim_run through stopping', async () => {
     const roundsDone = {
       runner_status: 'running' as const,
@@ -518,7 +539,7 @@ describe('tick', () => {
   it('ends the run when the stage is finished', async () => {
     const { store, deps, run } = await setup({}, { stage: 'finished', ids })
     const next = await tick(run, deps)
-    expect(next).toMatchObject({ status: 'done', envState: 'open', finishedAt: NOW })
+    expect(next).toMatchObject({ status: 'done', envState: 'closed', envKeepaliveUntil: null, finishedAt: NOW })
     const events = store.events.get(run.id) ?? []
     expect(events.map((e) => e.kind)).toEqual(['stage', 'done'])
     expect(events[0]).toMatchObject({ partId: 'stage:finished', payload: { stage: 'finished', status: 'done' } })
@@ -659,5 +680,234 @@ describe('failures', () => {
       'ontology',
       'stage:ontology:done',
     ])
+  })
+})
+
+describe('interview window', () => {
+  const MIN = 60_000
+  const entered = (r: { stage: string; cursors: { interviewsStartedAt?: string } }) =>
+    r.stage === 'interviews' && Boolean(r.cursors.interviewsStartedAt)
+
+  const paused = async (o: Parameters<typeof setup>[0] = {}) => {
+    const ctx = await setup(o, undefined, { pauseForInterviews: true })
+    let clock = NOW
+    ctx.deps.now = () => clock
+    const run = await driveUntil(ctx.run, ctx.deps, entered)
+    const ask = (agentIds: string[], question = 'Q?', questionId = 'q1') =>
+      ctx.store.createInterviews(
+        agentIds.map((agentId, i) => ({
+          id: `${questionId}_${i}`,
+          chatId: 'c1',
+          runId: run.id,
+          messageId: 'm1',
+          agentId,
+          agentName: agentId === '0' ? 'Maya' : 'Liam',
+          question,
+          status: 'pending',
+          questionId,
+        })),
+      )
+    const setClock = (ms: number) => {
+      clock = new Date(NOW.getTime() + ms)
+    }
+    const events = () => ctx.store.events.get(run.id) ?? []
+    const payloads = (kind: string) =>
+      events()
+        .filter((e) => e.kind === kind)
+        .map((e) => e.payload)
+    return { ...ctx, run, ask, setClock, events, payloads }
+  }
+
+  it('pauses after the rounds with personas online and the env open', async () => {
+    const { deps, run, events } = await paused()
+    expect(run).toMatchObject({ status: 'running', stage: 'interviews', envState: 'open' })
+    expect(run.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 20 * MIN))
+    expect(run.cursors.interviewsStartedAt).toBe(NOW.toISOString())
+    expect(events().map(label).slice(-4)).toEqual([
+      'sim_feed',
+      'stage:sim_run:done',
+      'stage:interviews:running',
+      'interview_window',
+    ])
+    expect(events().at(-1)).toMatchObject({
+      partId: 'interview_window',
+      payload: { until: new Date(NOW.getTime() + 20 * MIN).toISOString(), personaCount: 2, closed: false },
+    })
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    const statusCalls = vi.mocked(deps.mirofish.simulation.runStatus).mock.calls.length
+    const idle = await tick(run, deps)
+    expect(idle.stage).toBe('interviews')
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(statusCalls)
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
+  })
+
+  it('interviews one pending persona per tick with platform and timeout', async () => {
+    const { deps, run, store, ask, payloads } = await paused()
+    await ask(['0'])
+    const next = await tick(run, deps)
+    expect(next.stage).toBe('interviews')
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(1)
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledWith(
+      { simulationId: 'sim_1', interviews: [{ agentId: 0, prompt: 'Q?' }], platform: 'reddit', timeout: 240 },
+      { timeoutMs: 270_000 },
+    )
+    expect(store.interviews.get('q1_0')).toMatchObject({ status: 'done', answer: 'Answer from 0' })
+    expect(payloads('interview')).toEqual([
+      {
+        id: 'q1_0',
+        questionId: 'q1',
+        agentId: '0',
+        agentName: 'Maya',
+        question: 'Q?',
+        status: 'done',
+        answer: 'Answer from 0',
+      },
+    ])
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [new MiroFishError({ code: 'api', message: 'x', path: '/i' }), 'Agents are offline'],
+    [new MiroFishError({ code: 'http', status: 502, message: 'x', path: '/i' }), 'Agents are offline'],
+    [new MiroFishError({ code: 'timeout', message: 'x', path: '/i' }), 'No answer in time'],
+    [new Error('boom'), 'Interview failed'],
+  ])('fails the persona without failing the run on %s', async (err, message) => {
+    const { deps, run, store, ask, payloads } = await paused({
+      simulation: { interviewBatch: vi.fn(async () => Promise.reject(err)) },
+    })
+    await ask(['0'])
+    const next = await tick(run, deps)
+    expect(next).toMatchObject({ status: 'running', stage: 'interviews' })
+    expect(store.interviews.get('q1_0')?.status).toBe('failed')
+    expect(payloads('interview').at(-1)).toMatchObject({ status: 'failed', error: message })
+    expect(deps.sleep).not.toHaveBeenCalled()
+  })
+
+  it('finishes the pending persona before closing on a report request', async () => {
+    const { deps, run, store, ask, payloads } = await paused()
+    await ask(['0'])
+    await store.update(run.id, { cursors: { reportRequested: true } })
+    let current = await tick(run, deps)
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(1)
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    current = await tick(current, deps)
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
+    expect(current.stage).toBe('interviews')
+    current = await tick(current, deps)
+    expect(current).toMatchObject({ stage: 'report', envState: 'closed', envKeepaliveUntil: null })
+    expect(payloads('interview_window').at(-1)).toEqual({
+      until: null,
+      personaCount: 2,
+      closed: true,
+      reason: 'report_requested',
+    })
+    const order = (fn: unknown) => vi.mocked(fn as () => void).mock.invocationCallOrder[0] as number
+    expect(order(deps.mirofish.simulation.interviewBatch)).toBeLessThan(order(deps.mirofish.simulation.closeEnv))
+    const done = await drive(current, deps)
+    expect(done.status).toBe('done')
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes every pending persona after expiry, then closes once', async () => {
+    const { deps, run, ask, setClock, events } = await paused()
+    await ask(['0', '1'])
+    setClock(21 * MIN)
+    let current = await tick(run, deps)
+    current = await tick(current, deps)
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(2)
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    current = await tick(current, deps)
+    current = await tick(current, deps)
+    expect(current.stage).toBe('report')
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
+    const labels = events().map(label)
+    expect(labels.slice(labels.indexOf('stage:interviews:running'))).toEqual([
+      'stage:interviews:running',
+      'interview_window',
+      'interview',
+      'interview',
+      'interview_window',
+      'stage:interviews:done',
+    ])
+    expect(events().at(-2)?.payload).toMatchObject({ closed: true, reason: 'expired' })
+  })
+
+  it('checks the env every 30 seconds and ends the window when the runner stopped', async () => {
+    const { deps, run, store, ask, setClock, payloads } = await paused({
+      simulation: {
+        runStatus: vi
+          .fn()
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 2,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
+          .mockResolvedValueOnce({ runner_status: 'running' })
+          .mockResolvedValue({ runner_status: 'stopped' }),
+      },
+    })
+    setClock(29_000)
+    let current = await tick(run, deps)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
+    setClock(30_000)
+    current = await tick(current, deps)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    expect(current.cursors.envCheckedAt).toBe(new Date(NOW.getTime() + 30_000).toISOString())
+    setClock(59_000)
+    current = await tick(current, deps)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    await ask(['0'])
+    vi.spyOn(store, 'listPendingInterviews').mockResolvedValueOnce([])
+    setClock(60_000)
+    current = await tick(current, deps)
+    expect(current).toMatchObject({ stage: 'report', envState: 'closed' })
+    expect(store.interviews.get('q1_0')?.status).toBe('failed')
+    expect(payloads('interview').at(-1)).toMatchObject({ id: 'q1_0', status: 'failed', error: 'Agents are offline' })
+    expect(payloads('interview_window').at(-1)).toMatchObject({ closed: true, reason: 'environment_stopped' })
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
+  })
+
+  it('fails with env_stuck when the env does not close in time', async () => {
+    const { deps, run, store, setClock } = await paused({
+      simulation: {
+        runStatus: vi
+          .fn()
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 2,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
+          .mockResolvedValue({ runner_status: 'stopping' }),
+      },
+    })
+    await store.update(run.id, { cursors: { reportRequested: true } })
+    const closing = await tick(run, deps)
+    setClock(3 * MIN + 1)
+    const failed = await tick(closing, deps)
+    expect(failed).toMatchObject({ status: 'failed', envState: 'closed' })
+    expect(failed.error).toMatchObject({ stage: 'interviews', code: 'env_stuck' })
+    expect(deps.mirofish.simulation.stop).toHaveBeenCalledWith('sim_1')
+  })
+
+  it('fail() in interviews stops and closes the env', async () => {
+    const { deps, run } = await paused()
+    const failed = await fail(run, deps, 'interviews', new Error('boom'))
+    expect(failed).toMatchObject({ status: 'failed', envState: 'closed', envKeepaliveUntil: null })
+    expect(deps.mirofish.simulation.stop).toHaveBeenCalledWith('sim_1')
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
+  })
+
+  it('fail() before sim_run leaves MiroFish alone', async () => {
+    const { deps, run } = await setup({}, { stage: 'sim_prepare', ids })
+    await fail(run, deps, 'sim_prepare', new Error('boom'))
+    expect(deps.mirofish.simulation.stop).not.toHaveBeenCalled()
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
   })
 })

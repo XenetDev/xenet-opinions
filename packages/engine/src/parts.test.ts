@@ -5,6 +5,7 @@ import {
   ErrorDataSchema,
   GraphDataSchema,
   InterviewDataSchema,
+  InterviewWindowDataSchema,
   interviewPartId,
   OntologyDataSchema,
   QueueDataSchema,
@@ -26,9 +27,17 @@ describe('parts', () => {
     expect(stagePartId('ontology')).toBe('stage:ontology')
   })
 
-  it('lists seven stages starting with ontology', () => {
-    expect(STAGES).toHaveLength(7)
-    expect(STAGES[0]).toBe('ontology')
+  it('lists eight stages with interviews between sim_run and report', () => {
+    expect(STAGES).toEqual([
+      'ontology',
+      'graph_build',
+      'sim_create',
+      'sim_prepare',
+      'sim_run',
+      'interviews',
+      'report',
+      'finished',
+    ])
   })
 
   it('matches the db stages', () => {
@@ -69,6 +78,8 @@ describe('parts', () => {
       profiles: [{ id: 'p1', name: 'Ann', handle: '@ann', role: 'r', bio: 'b', topics: ['t'] }],
     }
     expect(AgentsDataSchema.parse(d)).toEqual(d)
+    expect(AgentsDataSchema.parse({ ...d, platform: 'reddit' })).toEqual({ ...d, platform: 'reddit' })
+    expect(AgentsDataSchema.safeParse({ ...d, platform: 'parallel' }).success).toBe(false)
   })
 
   it('parses sim feed data', () => {
@@ -111,10 +122,29 @@ describe('parts', () => {
   })
 
   it('parses interview data and builds part ids', () => {
-    const d = { agentId: '3', agentName: 'Ada', question: 'Why?', status: 'done' as const, answer: 'Because' }
+    const d = {
+      id: 'iv_1',
+      questionId: 'q_1',
+      agentId: '3',
+      agentName: 'Ada',
+      question: 'Why?',
+      status: 'done' as const,
+      answer: 'Because',
+    }
     expect(InterviewDataSchema.parse(d)).toEqual(d)
     expect(InterviewDataSchema.safeParse({ ...d, status: 'nope' }).success).toBe(false)
-    expect(interviewPartId('3')).toBe('interview:3')
+    expect(InterviewDataSchema.safeParse({ ...d, id: undefined }).success).toBe(false)
+    expect(InterviewDataSchema.safeParse({ ...d, questionId: undefined }).success).toBe(false)
+    expect(interviewPartId('iv_1')).toBe('interview:iv_1')
+  })
+
+  it('parses interview window data', () => {
+    const open = { until: '2026-10-27T12:20:00.000Z', personaCount: 2, closed: false }
+    expect(InterviewWindowDataSchema.parse(open)).toEqual(open)
+    const closed = { until: null, personaCount: 2, closed: true, reason: 'environment_stopped' as const }
+    expect(InterviewWindowDataSchema.parse(closed)).toEqual(closed)
+    expect(InterviewWindowDataSchema.safeParse({ ...closed, reason: 'other' }).success).toBe(false)
+    expect(InterviewWindowDataSchema.safeParse({ ...open, personaCount: 1.5 }).success).toBe(false)
   })
 
   it('parses queue data and rejects negative positions', () => {

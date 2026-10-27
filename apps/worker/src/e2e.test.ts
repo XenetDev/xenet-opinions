@@ -168,15 +168,16 @@ e2e('stops the simulation and ends cancelled when cancelled during sim_run', { t
   expect((await store.listEvents(runId, 0)).at(-1)?.kind).toBe('cancelled')
 })
 
-e2e('closes the environment once after the keepalive deadline', { timeout: 90_000 }, async () => {
+e2e('finishes with the environment closed and still sweeps a legacy open one', { timeout: 90_000 }, async () => {
   const { store, mock, deps, runId } = await fixture()
   const ac = new AbortController()
   const loop = runWorkerLoop({ ...deps, ...opts, sweepIntervalMs: 50, signal: ac.signal })
   await waitFor(async () => (await store.get(runId))!.status === 'done')
   const done = (await store.get(runId))!
-  expect(done.envState).toBe('open')
-  expect(done.envKeepaliveUntil!.getTime()).toBeGreaterThan(Date.now())
-  await store.update(runId, { envKeepaliveUntil: new Date(Date.now() - 1000) })
+  expect(done.envState).toBe('closed')
+  expect(done.envKeepaliveUntil).toBeNull()
+  expect(mock.calls['POST /api/simulation/close-env']).toBe(1)
+  await store.update(runId, { envState: 'open', envKeepaliveUntil: new Date(Date.now() - 1000) })
   await waitFor(async () => (await store.get(runId))!.envState === 'closed', 10_000)
   await new Promise((r) => setTimeout(r, 200))
   ac.abort()

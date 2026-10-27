@@ -1,5 +1,6 @@
 import type { ActiveStage, StageHandler } from '../types'
 import { graphBuild } from './graph-build'
+import { interviews } from './interviews'
 import { ontology } from './ontology'
 import { report } from './report'
 import { simCreate } from './sim-create'
@@ -12,5 +13,6 @@ export const HANDLERS: Record<ActiveStage, StageHandler> = {
   sim_create: simCreate,
   sim_prepare: simPrepare,
   sim_run: simRun,
+  interviews,
   report,
 }

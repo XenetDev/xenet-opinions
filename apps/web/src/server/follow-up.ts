@@ -79,10 +79,11 @@ async function requestedInterviews(run: Run, agentIds: string[], question: strin
     throw new FollowUpError('invalid_body')
   }
   const names = new Map((await loadRoster(run)).map((agent) => [agent.id, agent.name]))
+  const questionId = generateId()
   return agentIds.map((agentId) => {
     const agentName = names.get(agentId)
     if (agentName === undefined) throw new FollowUpError('invalid_body')
-    return { agentId, agentName, question }
+    return { id: generateId(), questionId, agentId, agentName, question }
   })
 }
 
@@ -179,7 +180,8 @@ export async function runFollowUp(input: {
       await tx.update(messages).set({ parts }).where(eq(messages.id, assistantMessageId))
       await tx.insert(interviews).values(
         results.map((r) => ({
-          id: generateId(),
+          id: r.id,
+          questionId: r.questionId,
           chatId: chat.id,
           runId: run.id,
           messageId: assistantMessageId,

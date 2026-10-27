@@ -10,7 +10,13 @@ export async function cancelRun(store: RunStore, runId: string, now: Date): Prom
   if (!run) throw new Error('run_not_found')
   return store.transition(
     runId,
-    { status: 'cancelled', finishedAt: now, error: null, leaseUntil: now },
+    {
+      status: 'cancelled',
+      finishedAt: now,
+      error: null,
+      leaseUntil: now,
+      ...(run.envState === 'open' ? { envState: 'closed', envKeepaliveUntil: null } : {}),
+    },
     [
       event('stage', { stage: run.stage as Stage, status: 'cancelled', message: MESSAGE }),
       event('cancelled', { stage: run.stage as Stage, message: MESSAGE }),

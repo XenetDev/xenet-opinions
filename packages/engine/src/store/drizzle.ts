@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from 'dr
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
-const { runs, runEvents, messages, uploads } = schema
+const { runs, runEvents, messages, uploads, interviews } = schema
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
@@ -174,7 +174,14 @@ export function createDrizzleStore(db: Db): RunStore {
       return db
         .select()
         .from(runs)
-        .where(and(eq(runs.envState, 'open'), isNotNull(runs.envKeepaliveUntil), lte(runs.envKeepaliveUntil, now)))
+        .where(
+          and(
+            eq(runs.status, 'done'),
+            eq(runs.envState, 'open'),
+            isNotNull(runs.envKeepaliveUntil),
+            lte(runs.envKeepaliveUntil, now),
+          ),
+        )
         .orderBy(asc(runs.envKeepaliveUntil))
         .limit(limit)
     },
@@ -191,6 +198,23 @@ export function createDrizzleStore(db: Db): RunStore {
       const rows = await db.select().from(uploads).where(inArray(uploads.id, ids))
       const byId = new Map(rows.map((r) => [r.id, r]))
       return ids.flatMap((id) => byId.get(id) ?? [])
+    },
+    async listPendingInterviews(runId) {
+      return db
+        .select()
+        .from(interviews)
+        .where(and(eq(interviews.runId, runId), eq(interviews.status, 'pending')))
+        .orderBy(asc(interviews.createdAt), asc(interviews.id))
+    },
+    async updateInterview(id, patch) {
+      await db
+        .update(interviews)
+        .set({ status: patch.status, ...(patch.answer !== undefined ? { answer: patch.answer } : {}) })
+        .where(eq(interviews.id, id))
+    },
+    async createInterviews(rows) {
+      if (rows.length === 0) return []
+      return db.insert(interviews).values(rows).returning()
     },
   }
 }

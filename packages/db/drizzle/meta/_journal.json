@@ -29,6 +29,13 @@
       "when": 1792682139433,
       "tag": "0003_swift_wolfpack",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793099930944,
+      "tag": "0004_wet_blacklash",
+      "breakpoints": true
     }
   ]
 }

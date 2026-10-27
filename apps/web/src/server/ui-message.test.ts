@@ -31,7 +31,7 @@ describe('toUIMessages', () => {
     const good = {
       type: 'data-interview',
       id: 'interview:a1',
-      data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' },
+      data: { id: 'i1', questionId: 'q1', agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' },
     }
     const bad = { type: 'data-interview', data: { agentId: 'a1', status: 'nope' } }
     const [message] = toUIMessages([row([good, bad])])

@@ -46,7 +46,7 @@ describe('MessageParts', () => {
 
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
     expect(order).toEqual(['sources', 'timeline', 'graph', 'agents', 'workbench', 'text', 'error'])
-    expect(screen.getAllByTestId('stage-row')).toHaveLength(7)
+    expect(screen.getAllByTestId('stage-row')).toHaveLength(STAGES.length)
     expect(screen.getAllByText(/^\d+ of \d+ personas$/)).toHaveLength(1)
     expect(screen.getByText('5 of 12 personas')).toBeTruthy()
     expect(screen.queryByText('2 of 12 personas')).toBeNull()
@@ -74,11 +74,25 @@ describe('MessageParts', () => {
   it('renders interviews after text, deduped by agent with last winning', () => {
     const parts: Parts = [
       { type: 'text', text: 'Report' },
-      { type: 'data-interview', data: { agentId: 'a', agentName: 'Ada', question: 'Q?', status: 'pending' } },
-      { type: 'data-interview', data: { agentId: 'b', agentName: 'Bo', question: 'Q?', status: 'pending' } },
       {
         type: 'data-interview',
-        data: { agentId: 'a', agentName: 'Ada', question: 'Q?', status: 'done', answer: 'Ada says yes' },
+        data: { id: 'ia', questionId: 'q', agentId: 'a', agentName: 'Ada', question: 'Q?', status: 'pending' },
+      },
+      {
+        type: 'data-interview',
+        data: { id: 'ib', questionId: 'q', agentId: 'b', agentName: 'Bo', question: 'Q?', status: 'pending' },
+      },
+      {
+        type: 'data-interview',
+        data: {
+          id: 'ia',
+          questionId: 'q',
+          agentId: 'a',
+          agentName: 'Ada',
+          question: 'Q?',
+          status: 'done',
+          answer: 'Ada says yes',
+        },
       },
     ]
     const { container } = render(<MessageParts parts={parts} />)

@@ -7,7 +7,7 @@ import { InterviewCard } from './interview-card'
 
 afterEach(cleanup)
 
-const base = { agentId: 'a', agentName: 'Ada Lovelace', question: 'What do you think?' }
+const base = { id: 'i1', questionId: 'q1', agentId: 'a', agentName: 'Ada Lovelace', question: 'What do you think?' }
 
 describe('InterviewCard', () => {
   it('shows name and question while pending', () => {

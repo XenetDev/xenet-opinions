@@ -367,8 +367,11 @@ run('lists open environments past their deadline, oldest first, limited', () =>
     const future = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: t(30) })
     const closed = await mk({ status: 'done', envState: 'closed', envKeepaliveUntil: t(0) })
     const noDeadline = await mk({ status: 'done', envState: 'open', envKeepaliveUntil: null })
+    const paused = await mk({ status: 'running', envState: 'open', envKeepaliveUntil: t(0) })
     const ids = (rows: { id: string }[]) =>
-      rows.map((r) => r.id).filter((id) => [late.id, early.id, future.id, closed.id, noDeadline.id].includes(id))
+      rows
+        .map((r) => r.id)
+        .filter((id) => [late.id, early.id, future.id, closed.id, noDeadline.id, paused.id].includes(id))
     expect(ids(await store.listEnvsToSweep(t(10), 1000))).toEqual([early.id, late.id])
     expect((await store.listEnvsToSweep(t(0), 1000)).map((r) => r.id)).not.toContain(early.id)
   }),
@@ -413,5 +416,41 @@ run('reports queue positions for queued runs only', () =>
     expect((await store.claimNext('w', 60_000, 5))?.id).toBe(r1)
     expect(await store.queuePosition(r1)).toBeNull()
     expect(await store.queuePosition(r2)).toBe(2)
+  }),
+)
+
+run('creates, lists pending in order, and updates interviews', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const chatId = await mkChat()
+    const created = await store.create({ chatId, userId, assistantMessageId: 'a1', config })
+    const other = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a2', config })
+    const t = (s: number) => new Date(Date.UTC(2026, 9, 27, 12, 0, s))
+    const p = crypto.randomUUID()
+    const row = (id: string, createdAt: Date, runId = created.id) => ({
+      id: `${p}_${id}`,
+      chatId,
+      runId,
+      messageId: 'a1',
+      agentId: '0',
+      agentName: 'Maya',
+      question: 'Q?',
+      status: 'pending',
+      questionId: 'q1',
+      createdAt,
+    })
+    const rows = await store.createInterviews([
+      row('b', t(1)),
+      row('a', t(1)),
+      row('c', t(0)),
+      { ...row('x', t(0), other.id), chatId: other.chatId },
+    ])
+    expect(rows).toHaveLength(4)
+    expect(rows[0]).toMatchObject({ answer: null, questionId: 'q1', status: 'pending' })
+    const pending = async () => (await store.listPendingInterviews(created.id)).map((r) => r.id.slice(p.length + 1))
+    expect(await pending()).toEqual(['c', 'a', 'b'])
+    await store.updateInterview(`${p}_a`, { status: 'done', answer: 'Yes' })
+    await store.updateInterview(`${p}_c`, { status: 'failed' })
+    expect(await pending()).toEqual(['b'])
+    expect(await store.createInterviews([])).toEqual([])
   }),
 )

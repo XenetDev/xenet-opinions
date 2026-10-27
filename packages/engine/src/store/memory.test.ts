@@ -304,6 +304,7 @@ it('lists open environments past their deadline, oldest first, limited', async (
   await mk('c3', { status: 'done', envState: 'open', envKeepaliveUntil: t(30) })
   await mk('c4', { status: 'done', envState: 'closed', envKeepaliveUntil: t(0) })
   await mk('c5', { status: 'done', envState: 'open', envKeepaliveUntil: null })
+  await mk('c6', { status: 'running', envState: 'open', envKeepaliveUntil: t(0) })
   expect((await store.listEnvsToSweep(t(10))).map((r) => r.id)).toEqual([early.id, late.id])
   expect((await store.listEnvsToSweep(t(10), 1)).map((r) => r.id)).toEqual([early.id])
   expect((await store.listEnvsToSweep(t(5))).map((r) => r.id)).toEqual([early.id, late.id])
@@ -356,4 +357,32 @@ it('gives runs with identical queuedAt the same position', async () => {
   expect(await store.queuePosition(r0!.id)).toBe(1)
   expect(await store.queuePosition(r1!.id)).toBe(1)
   expect(await store.queuePosition(r2!.id)).toBe(1)
+})
+
+it('creates, lists pending in order, and updates interviews', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  const t = (s: number) => new Date(Date.UTC(2026, 9, 27, 12, 0, s))
+  const row = (id: string, createdAt: Date, runId = run.id) => ({
+    id,
+    chatId: 'c1',
+    runId,
+    messageId: 'm1',
+    agentId: '0',
+    agentName: 'Maya',
+    question: 'Q?',
+    status: 'pending',
+    questionId: 'q1',
+    createdAt,
+  })
+  const created = await store.createInterviews([row('b', t(1)), row('a', t(1)), row('c', t(0)), row('x', t(0), 'r2')])
+  expect(created.map((r) => r.id)).toEqual(['b', 'a', 'c', 'x'])
+  expect(created[0]).toMatchObject({ answer: null, questionId: 'q1' })
+  expect((await store.listPendingInterviews(run.id)).map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  await store.updateInterview('a', { status: 'done', answer: 'Yes' })
+  await store.updateInterview('c', { status: 'failed' })
+  expect((await store.listPendingInterviews(run.id)).map((r) => r.id)).toEqual(['b'])
+  expect(store.interviews.get('a')).toMatchObject({ status: 'done', answer: 'Yes' })
+  expect(store.interviews.get('c')).toMatchObject({ status: 'failed', answer: null })
+  expect(await store.createInterviews([])).toEqual([])
 })

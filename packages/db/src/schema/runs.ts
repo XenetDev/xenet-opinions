@@ -5,7 +5,15 @@ import { bigserial, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex
 import { user } from './auth'
 import { chats } from './chats'
 
-export type Stage = 'ontology' | 'graph_build' | 'sim_create' | 'sim_prepare' | 'sim_run' | 'report' | 'finished'
+export type Stage =
+  | 'ontology'
+  | 'graph_build'
+  | 'sim_create'
+  | 'sim_prepare'
+  | 'sim_run'
+  | 'interviews'
+  | 'report'
+  | 'finished'
 
 export const RUN_STAGES = [
   'ontology',
@@ -13,11 +21,12 @@ export const RUN_STAGES = [
   'sim_create',
   'sim_prepare',
   'sim_run',
+  'interviews',
   'report',
   'finished',
 ] as const satisfies readonly Stage[]
 
-export type RunConfig = { requirement: string; maxRounds: number; uploadIds: string[] }
+export type RunConfig = { requirement: string; maxRounds: number; uploadIds: string[]; pauseForInterviews?: boolean }
 
 export type RunIds = Partial<{
   projectId: string
@@ -44,6 +53,10 @@ export type RunCursors = Partial<{
   feed: RunFeedCursor
   reportEventCount: number
   reportOutline: RunOutlineCursor
+  interviewsStartedAt: string
+  reportRequested: boolean
+  envCheckedAt: string
+  closeWaitStartedAt: string
 }>
 
 export type RunFeedCursor = {

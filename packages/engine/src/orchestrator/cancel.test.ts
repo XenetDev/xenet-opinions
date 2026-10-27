@@ -20,6 +20,17 @@ describe('cancelRun', () => {
     ).toEqual(['stage:sim_run:cancelled', 'cancelled'])
   })
 
+  it('marks an open environment closed when cancelling a paused run', async () => {
+    const { store, run } = await setupRun()
+    await store.update(run.id, {
+      stage: 'interviews',
+      envState: 'open',
+      envKeepaliveUntil: new Date(NOW.getTime() + 60_000),
+    })
+    const cancelled = await cancelRun(store, run.id, NOW)
+    expect(cancelled).toMatchObject({ status: 'cancelled', envState: 'closed', envKeepaliveUntil: null })
+  })
+
   it('cancels a queued run', async () => {
     const { store } = await setupRun()
     const queued = await store.create({

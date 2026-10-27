@@ -1,4 +1,4 @@
-import type { Run, RunEvent, Upload } from '@xo/db'
+import type { Interview, Run, RunEvent, Upload } from '@xo/db'
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
@@ -9,11 +9,13 @@ export function createMemoryStore(): RunStore & {
   events: Map<string, RunEvent[]>
   parts: Map<string, unknown[]>
   uploads: Map<string, Upload>
+  interviews: Map<string, Interview>
 } {
   const runs = new Map<string, Run>()
   const events = new Map<string, RunEvent[]>()
   const parts = new Map<string, unknown[]>()
   const uploads = new Map<string, Upload>()
+  const interviews = new Map<string, Interview>()
   let eventId = 0
   const order = new Map<string, number>()
   let counter = 0
@@ -61,6 +63,7 @@ export function createMemoryStore(): RunStore & {
     events,
     parts,
     uploads,
+    interviews,
     async create(input) {
       for (const r of runs.values()) {
         if (r.chatId === input.chatId && ACTIVE.includes(r.status)) throw new Error('runs_one_active_per_chat')
@@ -168,7 +171,13 @@ export function createMemoryStore(): RunStore & {
     },
     async listEnvsToSweep(now, limit = 50) {
       return [...runs.values()]
-        .filter((r) => r.envState === 'open' && r.envKeepaliveUntil && r.envKeepaliveUntil.getTime() <= now.getTime())
+        .filter(
+          (r) =>
+            r.status === 'done' &&
+            r.envState === 'open' &&
+            r.envKeepaliveUntil &&
+            r.envKeepaliveUntil.getTime() <= now.getTime(),
+        )
         .sort((a, b) => a.envKeepaliveUntil!.getTime() - b.envKeepaliveUntil!.getTime())
         .slice(0, limit)
     },
@@ -180,6 +189,32 @@ export function createMemoryStore(): RunStore & {
     },
     async listUploads(ids) {
       return ids.flatMap((id) => uploads.get(id) ?? [])
+    },
+    async listPendingInterviews(runId) {
+      return [...interviews.values()]
+        .filter((i) => i.runId === runId && i.status === 'pending')
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+    },
+    async updateInterview(id, patch) {
+      const row = interviews.get(id)
+      if (!row) return
+      interviews.set(id, {
+        ...row,
+        status: patch.status,
+        ...(patch.answer !== undefined ? { answer: patch.answer } : {}),
+      })
+    },
+    async createInterviews(rows) {
+      return rows.map((input) => {
+        const row: Interview = {
+          ...input,
+          questionId: input.questionId ?? null,
+          answer: input.answer ?? null,
+          createdAt: input.createdAt ?? new Date(),
+        }
+        interviews.set(row.id, row)
+        return row
+      })
     },
   }
 }

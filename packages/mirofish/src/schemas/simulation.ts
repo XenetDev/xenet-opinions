@@ -57,6 +57,9 @@ export const RunStatus = z
   .loose()
 export type RunStatus = z.infer<typeof RunStatus>
 
+export const SimulationConfig = z.object({}).loose()
+export type SimulationConfig = z.infer<typeof SimulationConfig>
+
 export const Posts = z.object({}).loose()
 export type Posts = z.infer<typeof Posts>
 
