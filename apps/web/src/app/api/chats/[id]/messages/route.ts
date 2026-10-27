@@ -3,6 +3,7 @@ import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
+import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
 import { messageText, parseMessageBody } from '@/server/message-body'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
@@ -25,7 +26,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const text = messageText(body)
   if (!text) return Response.json({ error: 'empty_message' }, { status: 400 })
 
-  if (await runStore.getActiveByChat(chatId)) return Response.json({ error: 'run_active' }, { status: 409 })
+  const active = await runStore.getActiveByChat(chatId)
+  if (active?.stage === 'interviews') {
+    if (body.target !== 'agents') return Response.json({ error: 'run_paused' }, { status: 409 })
+    try {
+      return Response.json(await createInterviewQuestion({ run: active, agentIds: body.agentIds, text }), {
+        status: 202,
+      })
+    } catch (e) {
+      if (e instanceof InterviewWindowError)
+        return Response.json({ error: e.code }, { status: e.code === 'invalid_body' ? 400 : 409 })
+      throw e
+    }
+  }
+  if (active) return Response.json({ error: 'run_active' }, { status: 409 })
   const latest = await runStore.getLatestByChat(chatId)
   if (latest?.status === 'done') {
     try {
@@ -79,6 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       text,
       uploadIds,
       maxRounds: body.runOptions.maxRounds,
+      pauseForInterviews: limits.allowPause && body.runOptions.pauseForInterviews,
     })
   } catch (error) {
     if (error instanceof RunActiveError) return Response.json({ error: 'run_active' }, { status: 409 })
@@ -93,6 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       maxDurationMs: 280_000,
       signal: request.signal,
       queuePosition: () => runStore.queuePosition(started.run.id),
+      pausedAhead: () => runStore.hasPausedRunning(),
     }),
     headers: UI_MESSAGE_STREAM_HEADERS,
   })

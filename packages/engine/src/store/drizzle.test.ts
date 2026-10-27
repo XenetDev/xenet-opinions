@@ -454,3 +454,11 @@ run('creates, lists pending in order, and updates interviews', () =>
     expect(await store.createInterviews([])).toEqual([])
   }),
 )
+
+run('reports a running run paused for interviews', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    await store.update(created.id, { status: 'running', stage: 'interviews' })
+    expect(await store.hasPausedRunning()).toBe(true)
+  }),
+)

@@ -87,6 +87,14 @@ export function createDrizzleStore(db: Db): RunStore {
         .where(and(inArray(runs.status, ['queued', 'running']), lt(runs.queuedAt, run.queuedAt)))
       return 1 + (ahead?.n ?? 0)
     },
+    async hasPausedRunning() {
+      const [row] = await db
+        .select({ id: runs.id })
+        .from(runs)
+        .where(and(eq(runs.status, 'running'), eq(runs.stage, 'interviews')))
+        .limit(1)
+      return row !== undefined
+    },
     async claimNext(owner, leaseMs, maxConcurrent) {
       return db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(7_241_001)`)

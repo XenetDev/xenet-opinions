@@ -111,6 +111,9 @@ export function createMemoryStore(): RunStore & {
           .length
       )
     },
+    async hasPausedRunning() {
+      return [...runs.values()].some((r) => r.status === 'running' && r.stage === 'interviews')
+    },
     async claimNext(owner, leaseMs, maxConcurrent) {
       const now = Date.now()
       const live = [...runs.values()].filter(

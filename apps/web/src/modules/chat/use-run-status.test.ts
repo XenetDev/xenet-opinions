@@ -35,6 +35,19 @@ describe('useRunStatus', () => {
     expect(stub).toHaveBeenCalledTimes(3)
   })
 
+  it('passes through stage, reportRequested and pausedAhead', async () => {
+    const stub = reply({
+      status: 'running',
+      stage: 'interviews',
+      runId: 'r1',
+      reportRequested: true,
+      pausedAhead: false,
+    })
+    const { result } = renderHook(() => useRunStatus('c1', { enabled: true, intervalMs: 1000, fetch: asFetch(stub) }))
+    await act(async () => {})
+    expect(result.current).toMatchObject({ stage: 'interviews', reportRequested: true, pausedAhead: false })
+  })
+
   it('stops polling once the run is done', async () => {
     const stub = vi
       .fn()

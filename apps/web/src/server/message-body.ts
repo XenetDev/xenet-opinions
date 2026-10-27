@@ -12,7 +12,12 @@ const messageBodySchema = z.object({
   uploadIds: z.array(z.string()).max(MAX_FILES).default([]),
   target: z.enum(['report', 'agents']).default('report'),
   agentIds: z.array(z.string().min(1).max(64)).max(MAX_INTERVIEW_AGENTS).default([]),
-  runOptions: z.object({ maxRounds: z.number().int().min(1).max(40).default(3) }).default({ maxRounds: 3 }),
+  runOptions: z
+    .object({
+      maxRounds: z.number().int().min(1).max(40).default(3),
+      pauseForInterviews: z.boolean().default(false),
+    })
+    .default({ maxRounds: 3, pauseForInterviews: false }),
 })
 
 export type MessageBody = z.infer<typeof messageBodySchema>

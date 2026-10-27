@@ -9,7 +9,15 @@ vi.mock('@xo/engine', () => ({ createDrizzleStore: vi.fn(() => store), cancelRun
 
 import { cancelActiveRun, RunActiveError, RunNotActiveError, RunNotFoundError, startRun } from './runs'
 
-const input = { chatId: 'c1', userId: 'u1', message: { id: 'm1', parts: [] }, text: 'hi', uploadIds: [], maxRounds: 3 }
+const input = {
+  chatId: 'c1',
+  userId: 'u1',
+  message: { id: 'm1', parts: [] },
+  text: 'hi',
+  uploadIds: [],
+  maxRounds: 3,
+  pauseForInterviews: false,
+}
 
 beforeEach(() => {
   vi.resetAllMocks()

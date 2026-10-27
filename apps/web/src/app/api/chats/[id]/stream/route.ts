@@ -26,6 +26,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       maxDurationMs: 280_000,
       signal: request.signal,
       queuePosition: () => runStore.queuePosition(run.id),
+      pausedAhead: () => runStore.hasPausedRunning(),
     }),
     headers: UI_MESSAGE_STREAM_HEADERS,
   })

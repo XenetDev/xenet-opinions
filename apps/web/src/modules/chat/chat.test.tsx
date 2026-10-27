@@ -100,7 +100,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40 }
+const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true }
 
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(

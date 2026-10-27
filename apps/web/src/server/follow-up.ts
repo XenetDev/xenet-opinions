@@ -1,6 +1,5 @@
 import { type Chat, type Run, schema } from '@xo/db'
 import {
-  AgentsDataSchema,
   buildChatHistory,
   extendKeepalive,
   type InterviewData,
@@ -23,7 +22,8 @@ import {
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { mirofish as defaultMirofish } from '@/lib/mirofish'
-import { getMessage, listMessages, updateMessageParts } from './chats'
+import { listMessages, updateMessageParts } from './chats'
+import { loadRoster } from './roster'
 import { runStore } from './runs'
 
 const { chats, interviews, messages } = schema
@@ -42,15 +42,6 @@ export class FollowUpError extends Error {
 
 type UserMessage = { id: string; parts: unknown[] }
 type Writer = UIMessageStreamWriter<OpinionsUIMessage>
-
-export async function loadRoster(run: Pick<Run, 'assistantMessageId'>): Promise<Array<{ id: string; name: string }>> {
-  const message = await getMessage(run.assistantMessageId)
-  const part = message?.parts.findLast((p) => (p as { type?: unknown } | null)?.type === 'data-agents') as
-    | { data?: unknown }
-    | undefined
-  const parsed = AgentsDataSchema.safeParse(part?.data)
-  return parsed.success ? parsed.data.profiles.map(({ id, name }) => ({ id, name })) : []
-}
 
 export async function createFollowUpTurn(input: {
   chatId: string

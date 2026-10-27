@@ -121,7 +121,7 @@ export const InterviewWindowDataSchema = z.object({
 })
 export type InterviewWindowData = z.infer<typeof InterviewWindowDataSchema>
 
-export const QueueDataSchema = z.object({ position: z.number().int().min(0) })
+export const QueueDataSchema = z.object({ position: z.number().int().min(0), pausedAhead: z.boolean().optional() })
 export type QueueData = z.infer<typeof QueueDataSchema>
 
 export type OpinionsDataParts = {

@@ -15,14 +15,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const run = await runStore.getLatestByChat(chatId)
   if (!run) return Response.json({ status: 'none' })
 
+  const queuePosition = await runStore.queuePosition(run.id)
   return Response.json({
     runId: run.id,
     status: run.status,
     stage: run.stage,
     assistantMessageId: run.assistantMessageId,
     lastSeq: await runStore.lastSeq(run.id),
-    queuePosition: await runStore.queuePosition(run.id),
+    queuePosition,
     envState: run.envState === 'open' || run.envState === 'closed' ? run.envState : 'none',
     envKeepaliveUntil: run.envKeepaliveUntil ? run.envKeepaliveUntil.toISOString() : null,
+    reportRequested: run.cursors?.reportRequested === true,
+    pausedAhead: queuePosition !== null && (await runStore.hasPausedRunning()),
   })
 }

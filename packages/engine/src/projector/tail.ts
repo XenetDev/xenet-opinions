@@ -35,8 +35,9 @@ export function tailRunAsUIMessageStream(input: {
   maxDurationMs?: number
   signal?: AbortSignal
   queuePosition?: () => Promise<number | null>
+  pausedAhead?: () => Promise<boolean>
 }): ReadableStream<UIMessageChunk> {
-  const { store, runId, messageId, maxDurationMs, signal, queuePosition } = input
+  const { store, runId, messageId, maxDurationMs, signal, queuePosition, pausedAhead } = input
   const pollMs = Math.max(1, input.pollMs ?? 1000)
   const stop = new AbortController()
   const abort = () => stop.abort()
@@ -56,18 +57,25 @@ export function tailRunAsUIMessageStream(input: {
         let afterSeq = 0
         let lastEventAt = Date.now()
         let lastPosition: number | null = null
+        let lastPaused: boolean | undefined
         let seenEvent = false
-        const writeQueue = (position: number) => {
+        const writeQueue = (position: number, paused?: boolean) => {
           lastPosition = position
-          writer.write({ type: 'data-queue', id: 'queue', data: { position } })
+          lastPaused = paused
+          writer.write({
+            type: 'data-queue',
+            id: 'queue',
+            data: paused === undefined ? { position } : { position, pausedAhead: paused },
+          })
         }
         while (!stop.signal.aborted) {
           const events = await store.listEvents(runId, afterSeq)
           if (stop.signal.aborted) return
           if (events.length === 0 && queuePosition && !seenEvent) {
             const position = await queuePosition()
+            const paused = position !== null && pausedAhead ? await pausedAhead() : undefined
             if (stop.signal.aborted) return
-            if (position !== null && position !== lastPosition) writeQueue(position)
+            if (position !== null && (position !== lastPosition || paused !== lastPaused)) writeQueue(position, paused)
           }
           if (events.length > 0) {
             if (queuePosition && !seenEvent && lastPosition !== 0) writeQueue(0)

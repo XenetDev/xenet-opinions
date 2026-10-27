@@ -12,6 +12,8 @@ export type RunStatusState = {
   assistantMessageId?: string
   envState?: 'none' | 'open' | 'closed'
   envKeepaliveUntil?: string | null
+  reportRequested?: boolean
+  pausedAhead?: boolean
 }
 
 const MAX_STALE_POLLS = 6
@@ -60,6 +62,8 @@ export function useRunStatus(
           assistantMessageId: next.assistantMessageId,
           envState: next.envState,
           envKeepaliveUntil: next.envKeepaliveUntil,
+          reportRequested: next.reportRequested,
+          pausedAhead: next.pausedAhead,
         }
         polls++
         if (baseline === undefined)

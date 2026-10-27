@@ -47,6 +47,22 @@ describe('toUIMessages', () => {
     expect(toUIMessages([row([legacy])])[0]?.parts).toEqual([legacy])
   })
 
+  it('whitelists data-interview_window parts and drops invalid ones', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const part = {
+      type: 'data-interview_window',
+      id: 'interview_window',
+      data: { until: null, personaCount: 3, closed: true, reason: 'expired' },
+    }
+    const bad = { type: 'data-interview_window', data: { until: null, personaCount: 3, closed: true, reason: 'nope' } }
+    expect(toUIMessages([row([part, bad])])[0]?.parts).toEqual([part])
+  })
+
+  it('accepts pausedAhead on data-queue parts', () => {
+    const part = { type: 'data-queue', data: { position: 1, pausedAhead: true } }
+    expect(toUIMessages([row([part])])[0]?.parts).toEqual([part])
+  })
+
   it('whitelists data-queue parts', () => {
     const part = { type: 'data-queue', data: { position: 2 } }
     const rows = [{ id: 'a', role: 'assistant', parts: [part, { type: 'data-queue', data: { position: -1 } }] }]

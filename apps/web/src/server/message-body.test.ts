@@ -10,6 +10,15 @@ describe('parseMessageBody follow-up fields', () => {
     expect(body?.agentIds).toEqual([])
   })
 
+  it('defaults pauseForInterviews to false and accepts true', () => {
+    expect(parseMessageBody(base)?.runOptions).toEqual({ maxRounds: 3, pauseForInterviews: false })
+    expect(parseMessageBody({ ...base, runOptions: { pauseForInterviews: true } })?.runOptions).toEqual({
+      maxRounds: 3,
+      pauseForInterviews: true,
+    })
+    expect(parseMessageBody({ ...base, runOptions: { pauseForInterviews: 'yes' } })).toBeNull()
+  })
+
   it('accepts agents target with up to 5 ids', () => {
     const body = parseMessageBody({ ...base, target: 'agents', agentIds: ['a', 'b', 'c', 'd', 'e'] })
     expect(body?.target).toBe('agents')

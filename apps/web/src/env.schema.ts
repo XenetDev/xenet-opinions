@@ -21,6 +21,7 @@ export const envSchema = z
     HEALTH_CHECK_MIROFISH: z.enum(['1', '0']).default('1'),
     DEMO_MODE: z.enum(['1', '0']).default('0'),
     DEMO_PAUSED: z.enum(['1', '0']).default('0'),
+    DEMO_ALLOW_PAUSE: z.enum(['1', '0']).default('1'),
     MAX_RUNS_PER_DAY: z.coerce.number().int().default(2),
     DEMO_MAX_ROUNDS: z.coerce.number().int().min(1).max(40).default(3),
   })

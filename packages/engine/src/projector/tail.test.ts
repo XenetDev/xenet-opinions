@@ -268,6 +268,34 @@ describe('tailRunAsUIMessageStream', () => {
     await reader.cancel()
   })
 
+  it('includes pausedAhead in data-queue and rewrites when it changes', async () => {
+    const { store, runId } = await setup()
+    const flags = [false, true]
+    let calls = 0
+    const pausedAhead = vi.fn(async () => flags[Math.min(calls++, flags.length - 1)]!)
+    const queuePosition = vi.fn(async () => 1)
+    const reader = tailRunAsUIMessageStream({
+      store,
+      runId,
+      messageId: 'm1',
+      pollMs: 5,
+      queuePosition,
+      pausedAhead,
+    }).getReader()
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    expect((await reader.read()).value).toEqual({
+      type: 'data-queue',
+      id: 'queue',
+      data: { position: 1, pausedAhead: false },
+    })
+    expect((await reader.read()).value).toEqual({
+      type: 'data-queue',
+      id: 'queue',
+      data: { position: 1, pausedAhead: true },
+    })
+    await reader.cancel()
+  })
+
   it('never writes data-queue without the option', async () => {
     const { store, runId } = await setup()
     await store.appendEvent(runId, { kind: 'done', partId: null, payload: {} })

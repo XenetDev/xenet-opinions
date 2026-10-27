@@ -386,3 +386,15 @@ it('creates, lists pending in order, and updates interviews', async () => {
   expect(store.interviews.get('c')).toMatchObject({ status: 'failed', answer: null })
   expect(await store.createInterviews([])).toEqual([])
 })
+
+it('reports whether any running run is paused for interviews', async () => {
+  const store = createMemoryStore()
+  const r0 = await store.create(input('c1'))
+  expect(await store.hasPausedRunning()).toBe(false)
+  await store.update(r0.id, { status: 'running', stage: 'sim_run' })
+  expect(await store.hasPausedRunning()).toBe(false)
+  await store.update(r0.id, { stage: 'interviews' })
+  expect(await store.hasPausedRunning()).toBe(true)
+  await store.update(r0.id, { status: 'done' })
+  expect(await store.hasPausedRunning()).toBe(false)
+})
