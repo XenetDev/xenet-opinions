@@ -16,6 +16,13 @@ export class InterviewWindowError extends Error {
   }
 }
 
+const windowOpen = (run: Run, now: Date) =>
+  run.stage === 'interviews' &&
+  run.envState === 'open' &&
+  !run.cursors.reportRequested &&
+  !run.cursors.envCloseRequested &&
+  (run.envKeepaliveUntil?.getTime() ?? 0) > now.getTime()
+
 export async function createInterviewQuestion(input: {
   run: Run
   agentIds: string[]
@@ -59,6 +66,24 @@ export async function createInterviewQuestion(input: {
     }
     return { kind: 'interview', partId: partIdFor('interview', payload), payload }
   })
-  await runStore.transition(run.id, { envKeepaliveUntil: extendInterviewWindow(run, rows.length, now) }, events)
+  let locked = undefined as Run | undefined
+  try {
+    await runStore.transition(
+      run.id,
+      (current) => ({ envKeepaliveUntil: extendInterviewWindow(current, rows.length, now) }),
+      events,
+      undefined,
+      {
+        expect: (current) => {
+          locked = current
+          return windowOpen(current, now)
+        },
+      },
+    )
+  } catch (error) {
+    if (!(error instanceof Error && error.message === 'run_not_active')) throw error
+    for (const row of rows) await runStore.updateInterview(row.id, { status: 'failed' })
+    throw new InterviewWindowError(locked?.cursors.reportRequested ? 'report_requested' : 'window_closed')
+  }
   return { questionId, interviewIds: rows.map((row) => row.id) }
 }

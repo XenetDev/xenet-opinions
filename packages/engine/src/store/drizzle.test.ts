@@ -462,3 +462,29 @@ run('reports a running run paused for interviews', () =>
     expect(await store.hasPausedRunning()).toBe(true)
   }),
 )
+
+run('transition with expect guards on the locked row and can patch from it', () =>
+  withFixture(async ({ store, userId, mkChat }) => {
+    const created = await store.create({ chatId: await mkChat(), userId, assistantMessageId: 'a1', config })
+    const stage = {
+      kind: 'stage',
+      partId: 'stage:ontology',
+      payload: { stage: 'ontology', status: 'running' },
+    } as const
+    await expect(
+      store.transition(created.id, { status: 'done' }, [stage], undefined, { expect: () => false }),
+    ).rejects.toThrow('run_not_active')
+    expect((await store.get(created.id))?.status).toBe('queued')
+    expect(await store.lastSeq(created.id)).toBe(0)
+    await store.update(created.id, { cursors: { lastAgentCount: 3 } })
+    const next = await store.transition(
+      created.id,
+      (locked) => ({ cursors: { lastAgentCount: (locked.cursors.lastAgentCount ?? 0) + 1 } }),
+      [stage],
+      undefined,
+      { expect: (locked) => locked.cursors.lastAgentCount === 3 },
+    )
+    expect(next.cursors.lastAgentCount).toBe(4)
+    expect(await store.lastSeq(created.id)).toBe(1)
+  }),
+)

@@ -67,6 +67,9 @@ const closeWindow = async (run: Run, deps: Deps, reason: CloseReason) => {
     deps.fence,
   )
   await offline.settle()
+  const late = await offlineInterviews(deps.store, run.id)
+  if (late.events.length > 0) await deps.store.transition(run.id, {}, late.events, deps.fence)
+  await late.settle()
   return advance(deps, closed, 'interviews', 'report')
 }
 

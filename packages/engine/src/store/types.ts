@@ -24,7 +24,7 @@ export type InterviewRow = Interview
 
 export type InterviewPatch = { status: string; answer?: string | null }
 
-export type TransitionOpts = { expectStatus?: Run['status'][] }
+export type TransitionOpts = { expectStatus?: Run['status'][]; expect?: (run: Run) => boolean }
 
 export class FenceError extends Error {
   readonly code = 'run_fenced'
@@ -45,7 +45,13 @@ export type RunStore = {
   renewLease(id: string, owner: string, leaseMs: number): Promise<boolean>
   releaseLease(id: string, owner: string): Promise<boolean>
   update(id: string, patch: RunPatch, fence?: Fence): Promise<Run>
-  transition(id: string, patch: RunPatch, events: RunEventInput[], fence?: Fence, opts?: TransitionOpts): Promise<Run>
+  transition(
+    id: string,
+    patch: RunPatch | ((locked: Run) => RunPatch),
+    events: RunEventInput[],
+    fence?: Fence,
+    opts?: TransitionOpts,
+  ): Promise<Run>
   appendEvent(runId: string, event: RunEventInput, fence?: Fence): Promise<RunEvent>
   listEvents(runId: string, afterSeq: number): Promise<RunEvent[]>
   lastSeq(runId: string): Promise<number>

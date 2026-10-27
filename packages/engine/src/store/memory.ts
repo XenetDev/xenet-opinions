@@ -155,9 +155,10 @@ export function createMemoryStore(): RunStore & {
     async transition(id, patch, input, fence, opts) {
       const run = mustGet(id, fence)
       if (opts?.expectStatus && !opts.expectStatus.includes(run.status)) throw new Error('run_not_active')
+      if (opts?.expect && !opts.expect(run)) throw new Error('run_not_active')
       const valid = validate(input)
       appendRows(id, valid)
-      return applyPatch(run, patch)
+      return applyPatch(run, typeof patch === 'function' ? patch(run) : patch)
     },
     async appendEvent(runId, event, fence) {
       mustGet(runId, fence)

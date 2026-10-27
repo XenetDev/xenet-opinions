@@ -398,3 +398,30 @@ it('reports whether any running run is paused for interviews', async () => {
   await store.update(r0.id, { status: 'done' })
   expect(await store.hasPausedRunning()).toBe(false)
 })
+
+it('transition with expect guards on the locked row and can patch from it', async () => {
+  const store = createMemoryStore()
+  const run = await store.create(input('c1'))
+  const stage = { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status: 'running' } } as const
+  await expect(
+    store.transition(run.id, { status: 'done' }, [stage], undefined, { expect: () => false }),
+  ).rejects.toThrow('run_not_active')
+  expect((await store.get(run.id))?.status).toBe('queued')
+  expect(await store.lastSeq(run.id)).toBe(0)
+  const seen: string[] = []
+  const next = await store.transition(
+    run.id,
+    (locked) => ({ cursors: { lastAgentCount: locked.attempt + 7 } }),
+    [stage],
+    undefined,
+    {
+      expect: (locked) => {
+        seen.push(locked.id)
+        return locked.status === 'queued'
+      },
+    },
+  )
+  expect(seen).toEqual([run.id])
+  expect(next.cursors.lastAgentCount).toBe(7)
+  expect(await store.lastSeq(run.id)).toBe(1)
+})

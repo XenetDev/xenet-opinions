@@ -811,6 +811,20 @@ describe('interview window', () => {
     expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
   })
 
+  it('fails a persona question that lands between the pre-close settle and the closing write', async () => {
+    const { deps, run, store, ask, payloads } = await paused()
+    await store.update(run.id, { cursors: { reportRequested: true } })
+    let current = await tick(run, deps)
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
+    await ask(['0'])
+    vi.spyOn(store, 'listPendingInterviews').mockResolvedValueOnce([])
+    current = await tick(current, deps)
+    expect(current).toMatchObject({ stage: 'report', envState: 'closed' })
+    expect(store.interviews.get('q1_0')?.status).toBe('failed')
+    expect(payloads('interview').at(-1)).toMatchObject({ id: 'q1_0', status: 'failed', error: 'Agents are offline' })
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
+  })
+
   it('completes every pending persona after expiry, then closes once', async () => {
     const { deps, run, ask, setClock, events } = await paused()
     await ask(['0', '1'])

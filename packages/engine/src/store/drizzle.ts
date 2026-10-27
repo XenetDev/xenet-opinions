@@ -149,8 +149,9 @@ export function createDrizzleStore(db: Db): RunStore {
       return db.transaction(async (tx) => {
         const current = await lockRun(tx, id, fence)
         if (opts?.expectStatus && !opts.expectStatus.includes(current.status)) throw new Error('run_not_active')
+        if (opts?.expect && !opts.expect(current)) throw new Error('run_not_active')
         await insertEvents(tx, id, valid)
-        return applyPatch(tx, current, patch, fence)
+        return applyPatch(tx, current, typeof patch === 'function' ? patch(current) : patch, fence)
       })
     },
     async appendEvent(runId, event, fence) {

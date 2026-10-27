@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/runs', () => ({ runStore: { getActiveByChat: vi.fn(), update: vi.fn() } }))
+vi.mock('@/server/runs', () => ({ runStore: { getActiveByChat: vi.fn(), transition: vi.fn() } }))
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
@@ -47,7 +47,28 @@ describe('POST /api/chats/[id]/run/report', () => {
     expect(res.status).toBe(202)
     expect(await res.json()).toEqual({ ok: true })
     expect(runStore.getActiveByChat).toHaveBeenCalledWith('c1')
-    expect(runStore.update).toHaveBeenCalledWith('r1', { cursors: { reportRequested: true } })
+    expect(runStore.transition).toHaveBeenCalledWith('r1', { cursors: { reportRequested: true } }, [], undefined, {
+      expect: expect.any(Function),
+    })
+    const { expect: guard } = vi.mocked(runStore.transition).mock.calls[0]![4]!
+    expect(guard!({ stage: 'interviews' } as never)).toBe(true)
+    expect(guard!({ stage: 'report' } as never)).toBe(false)
+  })
+
+  it('returns 409 run_not_paused when the run advanced before the write', async () => {
+    owned()
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', status: 'running', stage: 'interviews' } as never)
+    vi.mocked(runStore.transition).mockRejectedValue(new Error('run_not_active'))
+    const res = await call()
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'run_not_paused' })
+  })
+
+  it('rethrows unexpected store errors', async () => {
+    owned()
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', status: 'running', stage: 'interviews' } as never)
+    vi.mocked(runStore.transition).mockRejectedValue(new Error('boom'))
+    await expect(call()).rejects.toThrow('boom')
   })
 
   it.each([
@@ -59,6 +80,6 @@ describe('POST /api/chats/[id]/run/report', () => {
     const res = await call()
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'run_not_paused' })
-    expect(runStore.update).not.toHaveBeenCalled()
+    expect(runStore.transition).not.toHaveBeenCalled()
   })
 })

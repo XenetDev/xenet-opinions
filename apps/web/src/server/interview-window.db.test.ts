@@ -9,7 +9,7 @@ vi.mock('@/lib/db', async () => {
 vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
 
 import { db } from '@/lib/db'
-import { createInterviewQuestion } from './interview-window'
+import { createInterviewQuestion, InterviewWindowError } from './interview-window'
 
 const userId = `ur_${crypto.randomUUID()}`
 const roster = [
@@ -106,6 +106,53 @@ describe.skipIf(!process.env.DATABASE_URL)('createInterviewQuestion (real db)', 
 
     const [after] = await db.select().from(schema.runs).where(eq(schema.runs.id, run.id))
     expect(after!.envKeepaliveUntil!.getTime()).toBe(now.getTime() + 60_000 + 2 * 5 * 60_000)
+  })
+
+  it('refuses and fails the rows when the run left the window after it was read', async () => {
+    const now = new Date()
+    const run = await seed({
+      startedAt: new Date(now.getTime() - 10 * 60_000),
+      until: new Date(now.getTime() + 60_000),
+    })
+    await db
+      .update(schema.runs)
+      .set({ stage: 'report', envState: 'closed', envKeepaliveUntil: null })
+      .where(eq(schema.runs.id, run.id))
+    const error = await createInterviewQuestion({ run, agentIds: ['1'], text: 'Why?', now }).catch((e) => e)
+    expect(error).toBeInstanceOf(InterviewWindowError)
+    expect(error.code).toBe('window_closed')
+    expect(await db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, run.id))).toEqual([])
+    const [after] = await db.select().from(schema.runs).where(eq(schema.runs.id, run.id))
+    expect(after!.envKeepaliveUntil).toBeNull()
+    const rows = await db.select().from(schema.interviews).where(eq(schema.interviews.runId, run.id))
+    expect(rows.map((r) => r.status)).toEqual(['failed'])
+  })
+
+  it('refuses with report_requested when the report was requested after the run was read', async () => {
+    const now = new Date()
+    const run = await seed({
+      startedAt: new Date(now.getTime() - 10 * 60_000),
+      until: new Date(now.getTime() + 60_000),
+    })
+    await db
+      .update(schema.runs)
+      .set({ cursors: { ...run.cursors, reportRequested: true } })
+      .where(eq(schema.runs.id, run.id))
+    const error = await createInterviewQuestion({ run, agentIds: ['1'], text: 'Why?', now }).catch((e) => e)
+    expect(error.code).toBe('report_requested')
+  })
+
+  it('extends from the locked keepalive, not the stale one', async () => {
+    const now = new Date()
+    const run = await seed({
+      startedAt: new Date(now.getTime() - 10 * 60_000),
+      until: new Date(now.getTime() + 60_000),
+    })
+    const fresher = new Date(now.getTime() + 6 * 60_000)
+    await db.update(schema.runs).set({ envKeepaliveUntil: fresher }).where(eq(schema.runs.id, run.id))
+    await createInterviewQuestion({ run, agentIds: ['1'], text: 'Why?', now })
+    const [after] = await db.select().from(schema.runs).where(eq(schema.runs.id, run.id))
+    expect(after!.envKeepaliveUntil!.getTime()).toBe(fresher.getTime() + 5 * 60_000)
   })
 
   it('caps the window at sixty minutes after it opened', async () => {
