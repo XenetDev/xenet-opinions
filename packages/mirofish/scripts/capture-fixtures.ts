@@ -11,9 +11,12 @@ const projectId = need('PROJECT_ID')
 const simulationId = need('SIMULATION_ID')
 const reportId = need('REPORT_ID')
 const taskId = process.env.TASK_ID
+const headers: Record<string, string> = process.env.MIROFISH_TOKEN
+  ? { 'X-MiroFish-Token': process.env.MIROFISH_TOKEN }
+  : {}
 
 const save = async (file: string, path: string) => {
-  const res = await fetch(`${baseUrl}${path}`)
+  const res = await fetch(`${baseUrl}${path}`, { headers })
   const envelope: unknown = await res.json()
   writeFileSync(new URL(`../src/fixtures/${file}`, import.meta.url), `${JSON.stringify(envelope, null, 2)}\n`)
   console.log(`${file} <- ${path} (HTTP ${res.status})`)

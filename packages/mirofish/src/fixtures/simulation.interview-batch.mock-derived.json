@@ -1,9 +1,0 @@
-{
-  "success": true,
-  "data": {
-    "results": [
-      { "agent_id": 3, "response": "Mock interview response." },
-      { "agent_id": 5, "response": "Mock interview response." }
-    ]
-  }
-}

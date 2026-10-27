@@ -1,9 +1,8 @@
 {
-  "success": true,
   "data": {
-    "response": "Small teams were the most likely to switch, mainly citing the size of the increase.",
-    "tool_calls": [{ "tool": "quick_search", "parameters": { "query": "small team churn" } }],
-    "sources": ["simulation posts", "knowledge graph"],
-    "model": "mirofish-report-agent"
-  }
+    "response": "年轻人群体最有可能 mobilise，特别是学生和通勤者，他们通过社交媒体和抗议活动表达对电动滑板车禁令的不满。学生会已经计划在市政厅前举行抗议，强调他们需要电动滑板车作为出行方式。\n\n> \"学生会将在市政厅前举行抗议，反对电动滑板车禁令，并表示需要交通方式不被剥夺。\"",
+    "sources": [],
+    "tool_calls": []
+  },
+  "success": true
 }

@@ -1,16 +1,28 @@
 {
-  "success": true,
   "data": {
-    "simulation_id": "sim_5b2e9f01c3a8",
-    "runner_status": "completed",
-    "current_round": 40,
-    "total_rounds": 40,
+    "completed_at": "2026-10-27T10:21:52.515376",
+    "current_round": 1,
+    "error": null,
+    "process_pid": 2557,
     "progress_percent": 100,
-    "twitter_running": false,
+    "reddit_actions_count": 5,
+    "reddit_completed": true,
+    "reddit_current_round": 1,
     "reddit_running": false,
-    "total_actions_count": 512,
-    "started_at": "2026-10-19T09:40:00.000",
-    "completed_at": "2026-10-19T10:22:31.000",
-    "error": null
-  }
+    "reddit_simulated_hours": 0,
+    "runner_status": "completed",
+    "simulated_hours": 0,
+    "simulation_id": "sim_a99f4ad0c74c",
+    "started_at": "2026-10-27T10:20:34.178065",
+    "total_actions_count": 10,
+    "total_rounds": 1,
+    "total_simulation_hours": 168,
+    "twitter_actions_count": 5,
+    "twitter_completed": true,
+    "twitter_current_round": 1,
+    "twitter_running": false,
+    "twitter_simulated_hours": 0,
+    "updated_at": "2026-10-27T10:20:40.196007"
+  },
+  "success": true
 }

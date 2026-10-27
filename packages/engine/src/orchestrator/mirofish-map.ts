@@ -157,11 +157,11 @@ const nextOutline = (line: AgentLogLine, outline: ReportOutlineData | undefined)
     }
     case 'section_start':
     case 'section_complete': {
-      if (line.section_index === undefined) return outline
+      if (line.section_index == null) return outline
       const status = line.action === 'section_start' ? 'writing' : 'done'
       return {
         ...outline,
-        sections: upsertSection(outline?.sections ?? [], line.section_index, line.section_title, status),
+        sections: upsertSection(outline?.sections ?? [], line.section_index, line.section_title ?? undefined, status),
       }
     }
     case 'report_complete':
@@ -188,7 +188,7 @@ export const agentLogToEvents = (
     events.push({
       n: startN + events.length,
       action: line.action,
-      ...(line.section_index !== undefined ? { sectionIndex: line.section_index } : {}),
+      ...(line.section_index != null ? { sectionIndex: line.section_index } : {}),
       ...(line.section_title ? { sectionTitle: line.section_title } : {}),
       ...(toolName ? { toolName } : {}),
       summary,

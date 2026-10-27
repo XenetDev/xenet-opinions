@@ -1,0 +1,278 @@
+{
+  "data": {
+    "analysis_summary": "根据文本内容，设计了10个实体类型和6个关系类型，涵盖了市议会、议员、企业、组织及个人，适用于社交媒体舆论模拟。",
+    "chunk_overlap": 50,
+    "chunk_size": 500,
+    "created_at": "2026-10-27T10:18:23.958629",
+    "error": null,
+    "files": [
+      {
+        "filename": "escooter-ban.txt",
+        "size": 1254
+      }
+    ],
+    "graph_build_task_id": "aeafb0ac-f5ce-4477-84bd-771cf6f9b201",
+    "graph_id": "mirofish_875bbfcbcea6454d",
+    "name": "Unnamed Project",
+    "ontology": {
+      "edge_types": [
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that a councillor votes on a proposal.",
+          "name": "VOTES_ON",
+          "source_targets": [
+            {
+              "source": "Councillor",
+              "target": "CityCouncil"
+            }
+          ]
+        },
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that an e-scooter operator provides services.",
+          "name": "OPERATES",
+          "source_targets": [
+            {
+              "source": "EScooterOperator",
+              "target": "CityCouncil"
+            }
+          ]
+        },
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that an organization supports a proposal.",
+          "name": "SUPPORTS",
+          "source_targets": [
+            {
+              "source": "DisabilityAlliance",
+              "target": "CityCouncil"
+            },
+            {
+              "source": "StudentUnion",
+              "target": "CityCouncil"
+            }
+          ]
+        },
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that a business association opposes a proposal.",
+          "name": "OPPOSES",
+          "source_targets": [
+            {
+              "source": "BusinessAssociation",
+              "target": "CityCouncil"
+            }
+          ]
+        },
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that a group or individual protests against a proposal.",
+          "name": "PROTESTS",
+          "source_targets": [
+            {
+              "source": "StudentUnion",
+              "target": "CityCouncil"
+            }
+          ]
+        },
+        {
+          "attributes": [
+            {
+              "description": "Additional details about this ontology type.",
+              "name": "details",
+              "type": "text"
+            }
+          ],
+          "description": "Indicates that a local worker is employed by a business.",
+          "name": "EMPLOYS",
+          "source_targets": [
+            {
+              "source": "LocalWorker",
+              "target": "EScooterOperator"
+            }
+          ]
+        }
+      ],
+      "entity_types": [
+        {
+          "attributes": [
+            {
+              "description": "The full name of the city council.",
+              "name": "full_name",
+              "type": "text"
+            }
+          ],
+          "description": "Local government body responsible for city governance.",
+          "examples": ["Riverton City Council"],
+          "name": "CityCouncil"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The full name of the councillor.",
+              "name": "full_name",
+              "type": "text"
+            },
+            {
+              "description": "The role or title of the councillor.",
+              "name": "role",
+              "type": "text"
+            }
+          ],
+          "description": "Elected member of the city council.",
+          "examples": ["Maria Lopez"],
+          "name": "Councillor"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The name of the e-scooter operator.",
+              "name": "org_name",
+              "type": "text"
+            },
+            {
+              "description": "The area where the e-scooter service is provided.",
+              "name": "service_area",
+              "type": "text"
+            }
+          ],
+          "description": "Company that operates e-scooter sharing services.",
+          "examples": ["Zipp", "Glide"],
+          "name": "EScooterOperator"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The name of the business association.",
+              "name": "org_name",
+              "type": "text"
+            }
+          ],
+          "description": "Group representing local businesses.",
+          "examples": ["Downtown Business Association"],
+          "name": "BusinessAssociation"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The name of the disability alliance.",
+              "name": "org_name",
+              "type": "text"
+            }
+          ],
+          "description": "Organization advocating for disability rights.",
+          "examples": ["Riverton Disability Alliance"],
+          "name": "DisabilityAlliance"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The name of the student union.",
+              "name": "org_name",
+              "type": "text"
+            }
+          ],
+          "description": "Organization representing students at a university.",
+          "examples": ["Riverton Student Union"],
+          "name": "StudentUnion"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The full name of the local worker.",
+              "name": "full_name",
+              "type": "text"
+            },
+            {
+              "description": "The job title of the local worker.",
+              "name": "job_title",
+              "type": "text"
+            }
+          ],
+          "description": "Individual working in the local area, affected by the e-scooter ban.",
+          "examples": ["Hourly worker"],
+          "name": "LocalWorker"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The full name of the student.",
+              "name": "full_name",
+              "type": "text"
+            },
+            {
+              "description": "The major or field of study of the student.",
+              "name": "major",
+              "type": "text"
+            }
+          ],
+          "description": "Individual enrolled in a university or educational institution.",
+          "examples": ["University student"],
+          "name": "Student"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The full name of the person.",
+              "name": "full_name",
+              "type": "text"
+            }
+          ],
+          "description": "Any individual not categorized under specific roles.",
+          "examples": ["John Doe"],
+          "name": "Person"
+        },
+        {
+          "attributes": [
+            {
+              "description": "The name of the organization.",
+              "name": "org_name",
+              "type": "text"
+            }
+          ],
+          "description": "Any organization not categorized under specific types.",
+          "examples": ["Generic Organization"],
+          "name": "Organization"
+        }
+      ]
+    },
+    "project_id": "proj_c48237f498ff",
+    "simulation_requirement": "How will public opinion evolve over the next week if the city bans e-scooters downtown?",
+    "status": "graph_completed",
+    "total_text_length": 1280,
+    "updated_at": "2026-10-27T10:19:43.419679",
+    "zep_batch_id": "50189182-02bc-460e-9580-dc72bf5ce4d7",
+    "zep_batch_operation_id": "717b4a3ff3243a2581664a3008a36bfd4fec2cf89f1eb82f1b16d4c20e7ab9c7"
+  },
+  "success": true
+}

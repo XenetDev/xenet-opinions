@@ -2,9 +2,16 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import { Envelope, PlatformSchema } from './common'
-import { BuildStarted, OntologyResult, Task } from './graph'
+import { BuildStarted, OntologyResult, Project, Task } from './graph'
 import { AgentLogPage, ChatResponse, Report, ReportStarted } from './report'
-import { InterviewBatchResult, PrepareStarted, RunStatus, SimulationState, StartResult } from './simulation'
+import {
+  InterviewBatchResult,
+  PrepareStarted,
+  PrepareStatus,
+  RunStatus,
+  SimulationState,
+  StartResult,
+} from './simulation'
 
 const readFixture = (file: string): unknown =>
   JSON.parse(readFileSync(new URL(`../fixtures/${file}`, import.meta.url), 'utf8'))
@@ -15,16 +22,19 @@ const FIXTURE_TO_SCHEMA: Array<[string, z.ZodType]> = [
   ['graph.build.reused.json', BuildStarted],
   ['graph.task.processing.json', Task],
   ['graph.task.completed.json', Task],
+  ['graph.project.json', Project],
   ['simulation.create.json', SimulationState],
   ['simulation.prepare.started.json', PrepareStarted],
+  ['simulation.prepare-status.ready.json', PrepareStatus],
   ['simulation.start.json', StartResult],
   ['simulation.run-status.running.json', RunStatus],
   ['simulation.run-status.completed.json', RunStatus],
   ['report.generate.json', ReportStarted],
   ['report.get.completed.json', Report],
   ['report.agent-log.json', AgentLogPage],
+  ['report.agent-log.mock.json', AgentLogPage],
   ['report.chat.json', ChatResponse],
-  ['simulation.interview-batch.mock-derived.json', InterviewBatchResult],
+  ['simulation.interview-batch.json', InterviewBatchResult],
 ]
 
 describe('fixtures', () => {

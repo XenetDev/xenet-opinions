@@ -59,7 +59,7 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
           progress: 50,
           progress_detail: { current_stage_name: 'Profiles' },
         })
-        .mockResolvedValue({ task_id: 'ptask_1', status: 'completed', progress: 100 }),
+        .mockResolvedValue({ simulation_id: 'sim_1', status: 'ready', progress: 100, already_prepared: true }),
       profilesRealtime: vi
         .fn()
         .mockResolvedValueOnce({ profiles: [{ agent_id: 0, name: 'Maya' }], total_expected: 2 })
@@ -74,9 +74,17 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       runStatus: vi
         .fn()
         .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2, progress_percent: 50 })
+        .mockResolvedValueOnce({
+          runner_status: 'running',
+          current_round: 2,
+          total_rounds: 2,
+          progress_percent: 100,
+          twitter_completed: true,
+          reddit_completed: true,
+        })
         .mockResolvedValue({ runner_status: 'completed', current_round: 2, total_rounds: 2, progress_percent: 100 }),
       posts: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) =>
-        q.offset ? { posts: [post(q.platform, 2)] } : { posts: [post(q.platform, 1)] },
+        q.offset ? { posts: q.offset === 1 ? [post(q.platform, 2)] : [] } : { posts: [post(q.platform, 1)] },
       ),
       stop: vi.fn(),
       closeEnv: vi.fn(),

@@ -57,6 +57,9 @@ describe('mock MiroFish pipeline', () => {
       (t) => t.status === 'completed',
     )
     expect(status.progress).toBe(100)
+    const ready = await client.simulation.prepareStatus({ simulationId: ids.sim, taskId: started.task_id })
+    expect(ready).toMatchObject({ status: 'ready', already_prepared: true, progress: 100 })
+    expect(ready.task_id).toBeUndefined()
     const profiles = await client.simulation.profilesRealtime(ids.sim)
     expect(profiles.profiles).toHaveLength(12)
     expect(profiles.is_generating).toBe(false)
@@ -66,9 +69,18 @@ describe('mock MiroFish pipeline', () => {
     await client.simulation.start({ simulationId: ids.sim!, maxRounds: 5 })
     const status = await poll(
       () => client.simulation.runStatus(ids.sim!),
-      (s) => s.runner_status === 'completed',
+      (s) => s.twitter_completed === true && s.reddit_completed === true,
     )
+    expect(status.runner_status).toBe('running')
     expect(status.current_round).toBe(5)
+    const early = await fetch(`${mock.url}/api/report/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ simulation_id: ids.sim }),
+    })
+    expect(early.status).toBe(409)
+    await client.simulation.closeEnv(ids.sim!)
+    expect((await client.simulation.runStatus(ids.sim!)).runner_status).toBe('completed')
     const posts = (await client.simulation.posts(ids.sim!, { platform: 'twitter' })) as { posts: unknown[] }
     expect(posts.posts).toHaveLength(10)
     expect(mock.calls['POST /api/simulation/start']).toBe(1)
@@ -214,14 +226,14 @@ describe('mock MiroFish env lifecycle', () => {
         simulationId: sim.simulation_id,
         interviews: [{ agentId: 3, prompt: 'hi' }],
       })
-      expect(ok.results).toHaveLength(1)
+      expect(Object.keys(ok.result?.results ?? {})).toEqual(['twitter_3', 'reddit_3'])
       await client.simulation.closeEnv(sim.simulation_id)
       const err = await client.simulation
         .interviewBatch({ simulationId: sim.simulation_id, interviews: [{ agentId: 3, prompt: 'hi' }] })
         .catch((e: unknown) => e)
       expect(err).toBeInstanceOf(MiroFishError)
       expect((err as MiroFishError).status).toBe(400)
-      expect((err as MiroFishError).message).toContain('simulation environment is closed')
+      expect((err as MiroFishError).message).toContain('模拟环境未运行或已关闭')
       const chat = await client.report.chat({ simulationId: sim.simulation_id, message: 'hi', history: [] })
       expect(chat.response).toBe('Mock report agent reply.')
     } finally {

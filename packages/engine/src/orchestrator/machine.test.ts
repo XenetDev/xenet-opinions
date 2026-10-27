@@ -64,6 +64,7 @@ describe('tick', () => {
       'sim_feed',
       'stage:sim_run:running',
       'sim_feed',
+      'stage:sim_run:running',
       'stage:sim_run:done',
       'stage:report:running',
       'report_outline',
@@ -99,7 +100,11 @@ describe('tick', () => {
       ['reddit', 0],
       ['twitter', 1],
       ['reddit', 1],
+      ['twitter', 2],
+      ['reddit', 2],
     ])
+    expect(mf.simulation.closeEnv).toHaveBeenCalledTimes(1)
+    expect(mf.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
     expect(vi.mocked(mf.report.agentLog).mock.calls.map((c) => c[1])).toEqual([0, 3, 6])
     for (const fn of [
       mf.graph.generateOntology,

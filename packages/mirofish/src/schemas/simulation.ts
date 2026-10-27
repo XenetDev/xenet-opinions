@@ -27,7 +27,11 @@ export const StartResult = z
   .loose()
 export type StartResult = z.infer<typeof StartResult>
 
-export const PrepareStatus = Task.extend({ already_prepared: z.boolean().optional() }).loose()
+export const PrepareStatus = Task.extend({
+  task_id: z.string().optional(),
+  status: z.enum([...Task.shape.status.options, 'ready', 'not_started']),
+  already_prepared: z.boolean().optional(),
+}).loose()
 export type PrepareStatus = z.infer<typeof PrepareStatus>
 
 export const ProfilesRealtime = z
@@ -46,6 +50,8 @@ export const RunStatus = z
     total_rounds: z.number().optional(),
     progress_percent: z.number().optional(),
     total_actions_count: z.number().optional(),
+    twitter_completed: z.boolean().optional(),
+    reddit_completed: z.boolean().optional(),
     error: z.string().nullish(),
   })
   .loose()
@@ -54,19 +60,24 @@ export type RunStatus = z.infer<typeof RunStatus>
 export const Posts = z.object({}).loose()
 export type Posts = z.infer<typeof Posts>
 
+export const InterviewEntry = z
+  .object({
+    agent_id: z.union([z.number(), z.string()]),
+    platform: z.string().optional(),
+    response: z.string().optional(),
+    error: z.string().nullish(),
+  })
+  .loose()
+export type InterviewEntry = z.infer<typeof InterviewEntry>
+
 export const InterviewBatchResult = z
   .object({
-    results: z
-      .array(
-        z
-          .object({
-            agent_id: z.union([z.number(), z.string()]),
-            response: z.string().optional(),
-            error: z.string().nullish(),
-          })
-          .loose(),
-      )
+    interviews_count: z.number().optional(),
+    result: z
+      .object({ interviews_count: z.number().optional(), results: z.record(z.string(), InterviewEntry).optional() })
+      .loose()
       .optional(),
+    timestamp: z.string().optional(),
   })
   .loose()
 export type InterviewBatchResult = z.infer<typeof InterviewBatchResult>

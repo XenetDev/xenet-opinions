@@ -147,7 +147,9 @@ describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
       target: 'agents',
       agentIds: ['2', '1'],
       now: () => now,
-      mirofish: fakeMirofish({ interviewBatch: async () => ({ results: [{ agent_id: 2, response: 'Yes' }] }) }),
+      mirofish: fakeMirofish({
+        interviewBatch: async () => ({ result: { results: { twitter_2: { agent_id: 2, response: 'Yes' } } } }),
+      }),
     })
     await response.text()
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import type { InterviewBatchResult } from '@xo/mirofish'
 import { describe, expect, it } from 'vitest'
 import { interviewsToParts, mirofishAgentId, pendingInterviewParts } from './interviews'
 
@@ -19,11 +21,14 @@ describe('interviewsToParts', () => {
   it('matches numeric ids, fails missing, ignores extras, keeps requested order', () => {
     const parts = interviewsToParts(
       {
-        results: [
-          { agent_id: 99, response: 'extra' },
-          { agent_id: 'abc', response: 'Hello' },
-          { agent_id: 3, response: 'Because' },
-        ],
+        result: {
+          results: {
+            twitter_99: { agent_id: 99, platform: 'twitter', response: 'extra' },
+            twitter_abc: { agent_id: 'abc', platform: 'twitter', response: 'Hello' },
+            twitter_3: { agent_id: 3, platform: 'twitter', response: 'Because' },
+            reddit_3: { agent_id: 3, platform: 'reddit', response: 'Reddit answer' },
+          },
+        },
       },
       requested,
     )
@@ -35,8 +40,22 @@ describe('interviewsToParts', () => {
   })
 
   it('marks errored results as failed', () => {
-    const parts = interviewsToParts({ results: [{ agent_id: 3, error: 'boom' }] }, [requested[0]!])
+    const parts = interviewsToParts({ result: { results: { twitter_3: { agent_id: 3, error: 'boom' } } } }, [
+      requested[0]!,
+    ])
     expect(parts).toEqual([{ agentId: '3', agentName: 'Ada', question: 'Why?', status: 'failed', error: 'No answer' }])
+  })
+
+  it('maps the batch response captured from a real MiroFish run', () => {
+    const fixture = JSON.parse(
+      readFileSync(new URL('../../../mirofish/src/fixtures/simulation.interview-batch.json', import.meta.url), 'utf8'),
+    ) as { data: InterviewBatchResult }
+    const parts = interviewsToParts(fixture.data, [
+      { agentId: '0', agentName: 'A', question: 'q' },
+      { agentId: '5', agentName: 'B', question: 'q' },
+    ])
+    expect(parts.map((p) => p.status)).toEqual(['done', 'done'])
+    expect(parts.every((p) => (p.answer ?? '').length > 0)).toBe(true)
   })
 
   it('fails everything when results are absent', () => {

@@ -16,7 +16,8 @@ const fixture = <T>(name: string): T =>
       data: T
     }
   ).data
-const agentLog = fixture<AgentLogPage>('report.agent-log')
+const agentLog = fixture<AgentLogPage>('report.agent-log.mock')
+const realAgentLog = fixture<AgentLogPage>('report.agent-log')
 const ontology = fixture<OntologyResult>('graph.ontology.generate')
 
 describe('ontologyToPart', () => {
@@ -139,6 +140,14 @@ describe('agentLogToEvents', () => {
     })
   })
 
+  it('maps the agent log captured from a real MiroFish run', () => {
+    const { outline, events, complete } = agentLogToEvents(realAgentLog.logs, 0)
+    expect(complete).toBe(true)
+    expect(outline?.sections.length).toBeGreaterThan(0)
+    expect(outline?.sections.every((s) => s.status === 'done')).toBe(true)
+    expect(events.length).toBeGreaterThan(0)
+  })
+
   it('continues numbering and outline state across pages', () => {
     const logs = agentLog.logs
     const first = agentLogToEvents(logs.slice(0, 4), 0)
@@ -148,6 +157,21 @@ describe('agentLogToEvents', () => {
     expect(second.events[0]?.n).toBe(2)
     expect(second.outline?.sections.map((s) => s.status)).toEqual(['done', 'done'])
     expect(agentLogToEvents([{ action: 'section_content' }], 9, first.outline).outline).toBeUndefined()
+  })
+
+  it('treats null section fields from the real agent log as absent', () => {
+    const { outline, events } = agentLogToEvents(
+      [
+        { action: 'report_start', section_index: null, section_title: null, details: {} },
+        { action: 'section_start', section_index: null, section_title: null },
+      ],
+      0,
+    )
+    expect(outline).toBeUndefined()
+    for (const e of events) {
+      expect(e).not.toHaveProperty('sectionIndex')
+      expect(e).not.toHaveProperty('sectionTitle')
+    }
   })
 
   it('applies the summary rules', () => {

@@ -70,6 +70,10 @@ export const simRun: StageHandler = {
       throw remoteFailure(status.error, 'Simulation failed', `/api/simulation/${simulationId}/run-status`)
     }
     const finished = status.runner_status === 'completed' || status.runner_status === 'stopped'
+    // After the last round MiroFish stays 'running' (env waiting for commands) and refuses reports until it exits.
+    const roundsDone = status.twitter_completed === true && status.reddit_completed === true
+    const closeEnv = roundsDone && status.runner_status === 'running' && !run.cursors.envCloseRequested
+    if (closeEnv) await deps.mirofish.simulation.closeEnv(simulationId)
     const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, finished)
     const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, finished)
     const added = twitter.posts.length + reddit.posts.length
@@ -84,7 +88,13 @@ export const simRun: StageHandler = {
     const next = await deps.store.update(
       run.id,
       {
-        cursors: { feed, postsOffsetTwitter: twitter.offset, postsOffsetReddit: reddit.offset, idlePolls: 0 },
+        cursors: {
+          feed,
+          postsOffsetTwitter: twitter.offset,
+          postsOffsetReddit: reddit.offset,
+          idlePolls: 0,
+          ...(closeEnv ? { envCloseRequested: true } : {}),
+        },
       },
       deps.fence,
     )

@@ -181,5 +181,5 @@ e2e('closes the environment once after the keepalive deadline', { timeout: 90_00
   await new Promise((r) => setTimeout(r, 200))
   ac.abort()
   await loop
-  expect(mock.calls['POST /api/simulation/close-env']).toBe(1)
+  expect(mock.calls['POST /api/simulation/close-env']).toBe(2)
 })

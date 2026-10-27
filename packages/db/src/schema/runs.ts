@@ -37,6 +37,7 @@ export type RunCursors = Partial<{
   postsOffsetReddit: number
   simStarted: boolean
   startAcked: boolean
+  envCloseRequested: boolean
   retries: number
   lastAgentCount: number
   prepareReady: boolean
