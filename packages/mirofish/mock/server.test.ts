@@ -292,6 +292,22 @@ describe('mock MiroFish interviews and config', () => {
     }
   })
 
+  it('records request bodies per route', async () => {
+    const { mock, client, simulationId } = await setup()
+    try {
+      await client.simulation.interviewBatch({
+        simulationId,
+        interviews: [{ agentId: 3, prompt: 'hi' }],
+        platform: 'reddit',
+        timeout: 240,
+      })
+      const [body] = mock.bodies['POST /api/simulation/interview/batch'] as Array<Record<string, unknown>>
+      expect(body).toMatchObject({ simulation_id: simulationId, platform: 'reddit', timeout: 240 })
+    } finally {
+      await mock.close()
+    }
+  })
+
   it('config/realtime returns the real shape with a configurable platform', async () => {
     for (const [platform, expected] of [
       [undefined, 'reddit'],

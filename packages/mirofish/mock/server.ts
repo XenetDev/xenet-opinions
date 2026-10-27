@@ -95,6 +95,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
   const interviewDelayMs = Math.max(0, opts.interviewDelayMs ?? DEFAULT_INTERVIEW_DELAY_MS)
   const store = createStore()
   const calls: Record<string, number> = {}
+  const bodies: Record<string, unknown[]> = {}
   const fails = (entity: Failable, stage: FailStage) => {
     if (opts.failStage === stage) entity.failed = true
     return entity.failed === true
@@ -488,6 +489,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         throw new HttpError(401, 'unauthorized')
       const isForm = matched.route.pattern === '/api/graph/ontology/generate'
       const body = method === 'POST' && !isForm ? await readBody(req) : {}
+      bodies[key] = [...(bodies[key] ?? []), body]
       const data = await matched.route.handler({ params: matched.params, query: url.searchParams, body, req })
       send(res, 200, { success: true, data })
     } catch (err) {
@@ -506,6 +508,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
     url: `http://127.0.0.1:${port}`,
     server,
     calls,
+    bodies,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))

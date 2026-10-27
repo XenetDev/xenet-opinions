@@ -28,10 +28,12 @@ afterEach(async () => {
   cleanup = []
 })
 
-const fixture = async (): Promise<Ctx> => {
+type FixtureOpts = { pause?: boolean; mock?: Parameters<typeof startMockMiroFish>[0] }
+
+const fixture = async (fx: FixtureOpts = {}): Promise<Ctx> => {
   const db = createDb(process.env.DATABASE_URL!)
   const store = createDrizzleStore(db)
-  const mock = await startMockMiroFish({ port: 0, speed: 50 })
+  const mock = await startMockMiroFish({ port: 0, speed: 50, ...fx.mock })
   const dir = await mkdtemp(join(tmpdir(), 'xo-worker-'))
   const storage = createLocalStorage(dir)
   const userId = `ur_${crypto.randomUUID()}`
@@ -75,7 +77,12 @@ const fixture = async (): Promise<Ctx> => {
     chatId,
     userId,
     assistantMessageId: messageId,
-    config: { requirement: 'How will customers react?', maxRounds: 2, uploadIds: [uploadId] },
+    config: {
+      requirement: 'How will customers react?',
+      maxRounds: 2,
+      uploadIds: [uploadId],
+      ...(fx.pause ? { pauseForInterviews: true } : {}),
+    },
   })
   const deps: Deps = {
     store,
@@ -184,3 +191,67 @@ e2e('finishes with the environment closed and still sweeps a legacy open one', {
   await loop
   expect(mock.calls['POST /api/simulation/close-env']).toBe(2)
 })
+
+e2e(
+  'pauses for interviews, answers two personas, then closes and reports on request',
+  { timeout: 90_000 },
+  async () => {
+    const { db, store, mock, deps, runId, messageId } = await fixture({ pause: true, mock: { interviewDelayMs: 0 } })
+    const ac = new AbortController()
+    const loop = runWorkerLoop({ ...deps, ...opts, signal: ac.signal })
+    const kinds = async (kind: string) => (await store.listEvents(runId, 0)).filter((e) => e.kind === kind)
+    const windows = async () =>
+      (await kinds('interview_window')).map((e) => e.payload as { closed: boolean; reason?: string })
+
+    await waitFor(async () => {
+      const run = (await store.get(runId))!
+      return run.stage === 'interviews' && run.envState === 'open' && (await windows()).some((w) => !w.closed)
+    })
+    expect(mock.calls['POST /api/simulation/close-env'] ?? 0).toBe(0)
+
+    const roster = (await kinds('agents')).at(-1)!.payload as { profiles: Array<{ id: string; name: string }> }
+    const [a, b] = roster.profiles
+    const run = (await store.get(runId))!
+    const questionId = `q_${crypto.randomUUID()}`
+    await store.createInterviews(
+      [a!, b!].map((p) => ({
+        id: `iv_${crypto.randomUUID()}`,
+        chatId: run.chatId,
+        runId,
+        messageId,
+        questionId,
+        agentId: p.id,
+        agentName: p.name,
+        question: 'What worries you most?',
+        status: 'pending',
+      })),
+    )
+    await waitFor(async () => {
+      const rows = await db.select().from(schema.interviews).where(eq(schema.interviews.runId, runId))
+      return rows.length === 2 && rows.every((r) => r.status === 'done')
+    })
+    await waitFor(
+      async () =>
+        (await kinds('interview')).filter((e) => (e.payload as { status: string }).status === 'done').length === 2,
+    )
+    expect(mock.calls['POST /api/simulation/interview/batch']).toBe(2)
+    const bodies = mock.bodies['POST /api/simulation/interview/batch'] as Array<Record<string, unknown>>
+    for (const body of bodies) {
+      expect(body.platform).toBeTruthy()
+      expect(body.timeout).toBe(240)
+    }
+    expect((await store.get(runId))!.stage).toBe('interviews')
+
+    await store.update(runId, { cursors: { reportRequested: true } })
+    await waitFor(async () => (await store.get(runId))!.status === 'done')
+    ac.abort()
+    await loop
+
+    const done = (await store.get(runId))!
+    expect(done.envState).toBe('closed')
+    expect(done.envKeepaliveUntil).toBeNull()
+    expect(mock.calls['POST /api/simulation/close-env']).toBe(1)
+    expect((await windows()).at(-1)).toMatchObject({ closed: true, reason: 'report_requested' })
+    expect((await kinds('report_text')).length).toBeGreaterThan(0)
+  },
+)
