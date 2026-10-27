@@ -99,7 +99,7 @@ export const partIdFor = <K extends EventKind>(kind: K, payload: RunEventPayload
     case 'report_text':
       return 'report'
     case 'interview':
-      return interviewPartId((payload as InterviewData).id)
+      return interviewPartId((payload as InterviewData).id ?? (payload as InterviewData).agentId)
     case 'error':
     case 'done':
     case 'cancelled':

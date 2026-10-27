@@ -38,6 +38,15 @@ describe('toUIMessages', () => {
     expect(message?.parts).toEqual([good])
   })
 
+  it('keeps legacy interview parts without id and questionId', () => {
+    const legacy = {
+      type: 'data-interview',
+      id: 'interview:a1',
+      data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'done', answer: 'yes' },
+    }
+    expect(toUIMessages([row([legacy])])[0]?.parts).toEqual([legacy])
+  })
+
   it('whitelists data-queue parts', () => {
     const part = { type: 'data-queue', data: { position: 2 } }
     const rows = [{ id: 'a', role: 'assistant', parts: [part, { type: 'data-queue', data: { position: -1 } }] }]

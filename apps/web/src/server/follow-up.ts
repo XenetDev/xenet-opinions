@@ -180,8 +180,8 @@ export async function runFollowUp(input: {
       await tx.update(messages).set({ parts }).where(eq(messages.id, assistantMessageId))
       await tx.insert(interviews).values(
         results.map((r) => ({
-          id: r.id,
-          questionId: r.questionId,
+          id: r.id ?? generateId(),
+          questionId: r.questionId ?? null,
           chatId: chat.id,
           runId: run.id,
           messageId: assistantMessageId,

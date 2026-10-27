@@ -8,17 +8,16 @@ import {
   INTERVIEW_WINDOW_MS,
 } from '../../follow-up/keepalive'
 import { AgentsDataSchema, type InterviewData, type InterviewWindowData } from '../../parts'
-import { advance, emit, need, running } from '../emit'
+import { advance, emit, event, need, running } from '../emit'
 import { closeEnvAndWait } from '../env'
+import { interviewOf, OFFLINE, offlineInterviews } from '../interview-rows'
 import type { Deps, StageHandler } from '../types'
 
 type Outcome = Pick<InterviewData, 'status' | 'answer' | 'error'>
 type CloseReason = NonNullable<InterviewWindowData['reason']>
 
-const OFFLINE = 'Agents are offline'
-
 const failureMessage = (err: unknown) => {
-  if (err instanceof MiroFishError && (err.code === 'api' || err.code === 'http')) return OFFLINE
+  if (offlineStatus(err)) return OFFLINE
   if (err instanceof MiroFishError && err.code === 'timeout') return 'No answer in time'
   return 'Interview failed'
 }
@@ -29,16 +28,10 @@ const agentsPlatform = async (run: Run, deps: Deps) => {
   return AgentsDataSchema.safeParse(agents?.payload).data?.platform ?? 'reddit'
 }
 
-const requestOf = (row: Interview) => ({
-  id: row.id,
-  questionId: row.questionId ?? row.id,
-  agentId: row.agentId,
-  agentName: row.agentName,
-  question: row.question,
-})
+const offlineStatus = (err: unknown) => err instanceof MiroFishError && (err.code === 'api' || err.code === 'http')
 
 const settle = async (run: Run, deps: Deps, row: Interview, outcome: Outcome) => {
-  await emit(deps, run, 'interview', { ...requestOf(row), ...outcome })
+  await emit(deps, run, 'interview', { ...interviewOf(row), ...outcome })
   await deps.store.updateInterview(row.id, {
     status: outcome.status,
     ...(outcome.answer !== undefined ? { answer: outcome.answer } : {}),
@@ -51,12 +44,12 @@ const interviewOne = async (run: Run, deps: Deps, row: Interview): Promise<Outco
       {
         simulationId: need(run.ids.simulationId, 'simulationId'),
         interviews: [{ agentId: mirofishAgentId(row.agentId), prompt: row.question }],
-        platform: await agentsPlatform(run, deps),
+        platform: run.cursors.agentsPlatform ?? 'reddit',
         timeout: INTERVIEW_MIROFISH_TIMEOUT_S,
       },
       { timeoutMs: INTERVIEW_CLIENT_TIMEOUT_MS },
     )
-    const [part] = interviewsToParts(result, [requestOf(row)])
+    const [part] = interviewsToParts(result, [interviewOf(row)])
     return part?.status === 'done' ? { status: 'done', answer: part.answer } : { status: 'failed', error: part?.error }
   } catch (err) {
     deps.log('interview failed', { runId: run.id, interviewId: row.id, error: err })
@@ -65,16 +58,15 @@ const interviewOne = async (run: Run, deps: Deps, row: Interview): Promise<Outco
 }
 
 const closeWindow = async (run: Run, deps: Deps, reason: CloseReason) => {
-  for (const row of await deps.store.listPendingInterviews(run.id)) {
-    await settle(run, deps, row, { status: 'failed', error: OFFLINE })
-  }
-  await emit(deps, run, 'interview_window', {
-    until: null,
-    personaCount: run.cursors.lastAgentCount ?? 0,
-    closed: true,
-    reason,
-  })
-  const closed = await deps.store.update(run.id, { envState: 'closed', envKeepaliveUntil: null }, deps.fence)
+  const offline = await offlineInterviews(deps.store, run.id)
+  const window = { until: null, personaCount: run.cursors.lastAgentCount ?? 0, closed: true, reason }
+  const closed = await deps.store.transition(
+    run.id,
+    { envState: 'closed', envKeepaliveUntil: null },
+    [...offline.events, event('interview_window', window)],
+    deps.fence,
+  )
+  await offline.settle()
   return advance(deps, closed, 'interviews', 'report')
 }
 
@@ -86,7 +78,11 @@ export const interviews: StageHandler = {
     const until = new Date(now.getTime() + (deps.envKeepaliveMs ?? INTERVIEW_WINDOW_MS))
     const entered = await deps.store.update(
       run.id,
-      { envState: 'open', envKeepaliveUntil: until, cursors: { interviewsStartedAt: now.toISOString() } },
+      {
+        envState: 'open',
+        envKeepaliveUntil: until,
+        cursors: { interviewsStartedAt: now.toISOString(), agentsPlatform: await agentsPlatform(run, deps) },
+      },
       deps.fence,
     )
     await running(deps, entered, 'interviews', { message: 'Personas online' })
@@ -117,8 +113,13 @@ export const interviews: StageHandler = {
       need(run.cursors.envCheckedAt ?? run.cursors.interviewsStartedAt, 'interviewsStartedAt'),
     )
     if (now.getTime() - lastCheck < ENV_CHECK_INTERVAL_MS) return run
-    const status = await deps.mirofish.simulation.runStatus(need(run.ids.simulationId, 'simulationId'))
-    if (status.runner_status === 'running' || status.runner_status === 'paused') {
+    const status = await deps.mirofish.simulation
+      .runStatus(need(run.ids.simulationId, 'simulationId'))
+      .catch((err: unknown) => {
+        if (offlineStatus(err)) return undefined
+        throw err
+      })
+    if (status?.runner_status === 'running' || status?.runner_status === 'paused') {
       return deps.store.update(run.id, { cursors: { envCheckedAt: now.toISOString() } }, deps.fence)
     }
     return closeWindow(run, deps, 'environment_stopped')

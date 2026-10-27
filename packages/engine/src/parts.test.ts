@@ -133,8 +133,9 @@ describe('parts', () => {
     }
     expect(InterviewDataSchema.parse(d)).toEqual(d)
     expect(InterviewDataSchema.safeParse({ ...d, status: 'nope' }).success).toBe(false)
-    expect(InterviewDataSchema.safeParse({ ...d, id: undefined }).success).toBe(false)
-    expect(InterviewDataSchema.safeParse({ ...d, questionId: undefined }).success).toBe(false)
+    const { id: _id, questionId: _questionId, ...legacy } = d
+    expect(InterviewDataSchema.parse(legacy)).toEqual(legacy)
+    expect(InterviewDataSchema.safeParse({ ...d, id: 1 }).success).toBe(false)
     expect(interviewPartId('iv_1')).toBe('interview:iv_1')
   })
 

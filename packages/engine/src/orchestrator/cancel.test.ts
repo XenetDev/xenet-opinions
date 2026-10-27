@@ -27,8 +27,28 @@ describe('cancelRun', () => {
       envState: 'open',
       envKeepaliveUntil: new Date(NOW.getTime() + 60_000),
     })
+    await store.createInterviews([
+      {
+        id: 'iv_1',
+        chatId: 'c1',
+        runId: run.id,
+        messageId: 'm1',
+        agentId: '0',
+        agentName: 'Maya',
+        question: 'Q?',
+        status: 'pending',
+        questionId: 'q1',
+      },
+    ])
     const cancelled = await cancelRun(store, run.id, NOW)
     expect(cancelled).toMatchObject({ status: 'cancelled', envState: 'closed', envKeepaliveUntil: null })
+    expect(store.interviews.get('iv_1')?.status).toBe('failed')
+    const events = await store.listEvents(run.id, 0)
+    expect(events.map((e) => e.kind)).toEqual(['interview', 'stage', 'cancelled'])
+    expect(events[0]).toMatchObject({
+      partId: 'interview:iv_1',
+      payload: { id: 'iv_1', questionId: 'q1', status: 'failed', error: 'Agents are offline' },
+    })
   })
 
   it('cancels a queued run', async () => {

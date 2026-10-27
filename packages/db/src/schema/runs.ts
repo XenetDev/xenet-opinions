@@ -57,6 +57,7 @@ export type RunCursors = Partial<{
   reportRequested: boolean
   envCheckedAt: string
   closeWaitStartedAt: string
+  agentsPlatform: 'twitter' | 'reddit'
 }>
 
 export type RunFeedCursor = {

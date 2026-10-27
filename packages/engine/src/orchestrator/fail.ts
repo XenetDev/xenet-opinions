@@ -3,6 +3,7 @@ import { MiroFishError } from '@xo/mirofish'
 import type { Stage } from '../parts'
 import { event, StageError } from './emit'
 import { cleanupEnv } from './env'
+import { offlineInterviews } from './interview-rows'
 import type { Deps } from './types'
 
 const MAX_MESSAGE = 300
@@ -24,6 +25,7 @@ export async function fail(run: Run, deps: Deps, stage: Stage, err: unknown): Pr
   const code = err instanceof MiroFishError || err instanceof StageError ? err.code : 'internal'
   const message = messageOf(err)
   deps.log('run failed', { runId: run.id, stage, code, message, error: err })
+  const offline = stage === 'interviews' ? await offlineInterviews(deps.store, run.id) : undefined
   const failed = await deps.store.transition(
     run.id,
     {
@@ -32,9 +34,14 @@ export async function fail(run: Run, deps: Deps, stage: Stage, err: unknown): Pr
       error: { stage, code, message },
       ...(run.envState === 'open' ? { envState: 'closed', envKeepaliveUntil: null } : {}),
     },
-    [event('stage', { stage, status: 'failed', message }), event('error', { stage, code, message })],
+    [
+      ...(offline?.events ?? []),
+      event('stage', { stage, status: 'failed', message }),
+      event('error', { stage, code, message }),
+    ],
     deps.fence,
   )
+  await offline?.settle()
   await cleanupEnv({ ...run, stage }, deps)
   return failed
 }

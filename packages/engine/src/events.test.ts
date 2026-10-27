@@ -19,11 +19,11 @@ describe('events', () => {
   it('builds part ids for interview events', () => {
     expect(partIdFor('interview_window', { until: null, personaCount: 1, closed: true })).toBe('interview_window')
     expect(partIdFor('interview', interview)).toBe('interview:iv_1')
+    expect(partIdFor('interview', { ...interview, id: undefined })).toBe('interview:0')
   })
 
   it('validates interview payloads', () => {
     expect(payloadSchemaFor('interview').parse(interview)).toEqual(interview)
-    expect(payloadSchemaFor('interview').safeParse({ ...interview, id: undefined }).success).toBe(false)
     expect(
       payloadSchemaFor('interview_window').parse({ until: null, personaCount: 1, closed: true, reason: 'expired' }),
     ).toEqual({ until: null, personaCount: 1, closed: true, reason: 'expired' })

@@ -38,12 +38,34 @@ describe('keepalive', () => {
     expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(20) }, at(10))).toEqual(at(30))
   })
 
+  it('extends from now when there is no current keepalive', () => {
+    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: null }, at(5))).toEqual(at(15))
+  })
+
   it('caps at 60 minutes after finish', () => {
     expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(55) }, at(50))).toEqual(at(60))
   })
 
   it('never shortens a current deadline that is already beyond the cap', () => {
     expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(120) }, at(10))).toEqual(at(120))
+    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(120) }, at(1))).toEqual(at(120))
+  })
+
+  it('keeps a current deadline at the cap unchanged', () => {
+    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(60) }, at(30))).toEqual(at(60))
+  })
+
+  it('caps relative to now when never finished', () => {
+    expect(extendKeepalive({ finishedAt: null, envKeepaliveUntil: null }, at(5))).toEqual(at(15))
+  })
+
+  it('five extensions never exceed the cap', () => {
+    let current: Date | null = at(20)
+    for (let i = 0; i < 5; i++) {
+      current = extendKeepalive({ finishedAt: t0, envKeepaliveUntil: current }, at(10 + i))
+      expect(current.getTime()).toBeLessThanOrEqual(at(60).getTime())
+    }
+    expect(current).toEqual(at(60))
   })
 })
 
@@ -61,6 +83,10 @@ describe('extendInterviewWindow', () => {
 
   it('caps at 60 minutes after the pause started', () => {
     expect(extendInterviewWindow({ envKeepaliveUntil: at(50), cursors: started }, 5, at(40))).toEqual(at(60))
+  })
+
+  it('never shortens a deadline already past the cap', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: at(70), cursors: started }, 1, at(10))).toEqual(at(70))
   })
 
   it('caps relative to now when the pause start is unknown', () => {

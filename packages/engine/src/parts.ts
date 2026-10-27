@@ -102,8 +102,8 @@ export const ErrorDataSchema = z.object({ stage: StageSchema, code: z.string(), 
 export type ErrorData = z.infer<typeof ErrorDataSchema>
 
 export const InterviewDataSchema = z.object({
-  id: z.string(),
-  questionId: z.string(),
+  id: z.string().optional(),
+  questionId: z.string().optional(),
   agentId: z.string(),
   agentName: z.string(),
   question: z.string(),

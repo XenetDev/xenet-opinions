@@ -21,7 +21,9 @@ export const extendKeepalive = (run: Pick<Run, 'finishedAt' | 'envKeepaliveUntil
 }
 
 export const extendInterviewWindow = (run: Pick<Run, 'envKeepaliveUntil' | 'cursors'>, personas: number, now: Date) => {
-  const base = Math.max((run.envKeepaliveUntil ?? now).getTime(), now.getTime())
+  const current = (run.envKeepaliveUntil ?? now).getTime()
+  const base = Math.max(current, now.getTime())
   const started = run.cursors.interviewsStartedAt ? Date.parse(run.cursors.interviewsStartedAt) : now.getTime()
-  return new Date(Math.min(base + INTERVIEW_EXTEND_PER_PERSONA_MS * personas, started + INTERVIEW_WINDOW_CAP_MS))
+  const extended = Math.min(base + INTERVIEW_EXTEND_PER_PERSONA_MS * personas, started + INTERVIEW_WINDOW_CAP_MS)
+  return new Date(Math.max(current, extended))
 }

@@ -743,8 +743,11 @@ describe('interview window', () => {
 
   it('interviews one pending persona per tick with platform and timeout', async () => {
     const { deps, run, store, ask, payloads } = await paused()
+    expect(run.cursors.agentsPlatform).toBe('reddit')
     await ask(['0'])
+    const listEvents = vi.spyOn(store, 'listEvents')
     const next = await tick(run, deps)
+    expect(listEvents).not.toHaveBeenCalled()
     expect(next.stage).toBe('interviews')
     expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(1)
     expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledWith(
@@ -871,6 +874,53 @@ describe('interview window', () => {
     expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
   })
 
+  it('ends the window when the env check gets an api error', async () => {
+    const { deps, run, store, ask, setClock, payloads } = await paused({
+      simulation: {
+        runStatus: vi
+          .fn()
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 2,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
+          .mockRejectedValue(new MiroFishError({ code: 'api', status: 404, message: 'gone', path: '/run-status' })),
+      },
+    })
+    await ask(['0'])
+    vi.spyOn(store, 'listPendingInterviews').mockResolvedValueOnce([])
+    setClock(30_000)
+    const next = await tick(run, deps)
+    expect(next).toMatchObject({ status: 'running', stage: 'report', envState: 'closed' })
+    expect(payloads('interview_window').at(-1)).toMatchObject({ closed: true, reason: 'environment_stopped' })
+    expect(store.interviews.get('q1_0')?.status).toBe('failed')
+  })
+
+  it('leaves a transient env check error to the retry path', async () => {
+    const { deps, run, setClock } = await paused({
+      simulation: {
+        runStatus: vi
+          .fn()
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 2,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
+          .mockRejectedValue(new MiroFishError({ code: 'network', message: 'ECONNRESET', path: '/run-status' })),
+      },
+    })
+    setClock(30_000)
+    const next = await tick(run, deps)
+    expect(next).toMatchObject({ status: 'running', stage: 'interviews' })
+    expect(next.cursors.retries).toBe(1)
+  })
+
   it('fails with env_stuck when the env does not close in time', async () => {
     const { deps, run, store, setClock } = await paused({
       simulation: {
@@ -896,10 +946,17 @@ describe('interview window', () => {
     expect(deps.mirofish.simulation.stop).toHaveBeenCalledWith('sim_1')
   })
 
-  it('fail() in interviews stops and closes the env', async () => {
-    const { deps, run } = await paused()
+  it('fail() in interviews stops and closes the env and fails pending interviews', async () => {
+    const { deps, run, store, ask, payloads } = await paused()
+    await ask(['0', '1'])
     const failed = await fail(run, deps, 'interviews', new Error('boom'))
     expect(failed).toMatchObject({ status: 'failed', envState: 'closed', envKeepaliveUntil: null })
+    expect(await store.listPendingInterviews(run.id)).toEqual([])
+    expect(store.interviews.get('q1_1')?.status).toBe('failed')
+    expect(payloads('interview')).toEqual([
+      expect.objectContaining({ id: 'q1_0', status: 'failed', error: 'Agents are offline' }),
+      expect.objectContaining({ id: 'q1_1', status: 'failed', error: 'Agents are offline' }),
+    ])
     expect(deps.mirofish.simulation.stop).toHaveBeenCalledWith('sim_1')
     expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
   })
