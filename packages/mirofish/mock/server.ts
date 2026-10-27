@@ -33,6 +33,7 @@ type Ctx = {
 type Route = { method: string; pattern: string; regex: RegExp; names: string[]; handler: (ctx: Ctx) => unknown }
 
 const FAILURE = 'Injected failure'
+const ENV_CLOSED = '模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。'
 const AGENT_LOG_INTERVAL_MS = 500
 const DEFAULT_MAX_ROUNDS = 5
 
@@ -172,15 +173,24 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       }
     const failed = fails(run, 'sim_run')
     const round = run.timeline.done ? run.maxRounds : Math.floor(run.timeline.progress * run.maxRounds)
-    const runner = failed ? 'failed' : run.stopped ? 'stopped' : run.timeline.done ? 'completed' : 'running'
+    const runner = failed
+      ? 'failed'
+      : run.stopped
+        ? 'stopped'
+        : run.timeline.done && sim.envClosed
+          ? 'completed'
+          : 'running'
+    const roundsDone = !failed && run.timeline.done
     return {
       simulation_id: simulationId,
       runner_status: runner,
       current_round: round,
       total_rounds: run.maxRounds,
       progress_percent: Math.floor((round / run.maxRounds) * 100),
-      twitter_running: runner === 'running',
-      reddit_running: runner === 'running',
+      twitter_running: runner === 'running' && !roundsDone,
+      reddit_running: runner === 'running' && !roundsDone,
+      twitter_completed: roundsDone,
+      reddit_completed: roundsDone,
       twitter_actions_count: round * 3,
       reddit_actions_count: round * 2,
       total_actions_count: round * 5,
@@ -286,6 +296,9 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       const taskId = typeof body.task_id === 'string' ? body.task_id : undefined
       const simId = typeof body.simulation_id === 'string' ? body.simulation_id : undefined
       const sim = simId ? need(store.simulations.get(simId), 'simulation') : undefined
+      if (sim?.prepare?.timeline.done && !fails(sim.prepare, 'sim_prepare')) {
+        return { simulation_id: sim.id, status: 'ready', progress: 100, already_prepared: true, prepare_info: {} }
+      }
       const id = taskId ?? sim?.prepare?.id
       const task = need(id ? store.prepareTasks.get(id) : undefined, 'task')
       return prepareView(task.id, task.simulationId)
@@ -343,12 +356,32 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
     }),
     compile('POST', '/api/simulation/interview/batch', ({ body }) => {
       const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
-      if (sim.envClosed) throw new HttpError(400, 'simulation environment is closed')
+      if (sim.envClosed) throw new HttpError(400, ENV_CLOSED)
       const interviews = Array.isArray(body.interviews) ? (body.interviews as Array<{ agent_id?: unknown }>) : []
-      return { results: interviews.map((i) => ({ agent_id: i.agent_id, response: 'Mock interview response.' })) }
+      const results = Object.fromEntries(
+        interviews.flatMap((i) =>
+          (['twitter', 'reddit'] as const).map((platform) => [
+            `${platform}_${String(i.agent_id)}`,
+            { agent_id: i.agent_id, platform, response: 'Mock interview response.' },
+          ]),
+        ),
+      )
+      return {
+        success: true,
+        interviews_count: interviews.length,
+        result: { interviews_count: Object.keys(results).length, results },
+        timestamp: new Date().toISOString(),
+      }
     }),
     compile('POST', '/api/report/generate', ({ body }) => {
       const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      const runner = sim.run ? runView(sim.id).runner_status : undefined
+      if (runner !== undefined && runner !== 'completed' && runner !== 'stopped') {
+        throw new HttpError(
+          409,
+          'Simulation or Zep graph ingestion is still active; wait for a terminal run status before generating a report',
+        )
+      }
       const report = {
         id: hexId('report'),
         simulationId: sim.id,

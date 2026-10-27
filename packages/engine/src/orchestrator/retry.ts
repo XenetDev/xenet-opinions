@@ -4,7 +4,7 @@ import { STAGES, type Stage } from '../parts'
 const RESET: Partial<Record<Stage, { ids: (keyof RunIds)[]; cursors: (keyof RunCursors)[] }>> = {
   graph_build: { ids: ['graphTaskId'], cursors: [] },
   sim_prepare: { ids: ['prepareTaskId'], cursors: ['prepareReady'] },
-  sim_run: { ids: [], cursors: ['simStarted', 'startAcked'] },
+  sim_run: { ids: [], cursors: ['simStarted', 'startAcked', 'envCloseRequested'] },
   report: { ids: ['reportId', 'reportTaskId'], cursors: ['reportEventCount', 'reportOutline', 'agentLogLine'] },
 }
 

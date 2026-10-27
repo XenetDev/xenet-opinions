@@ -17,6 +17,7 @@ const cursors: RunCursors = {
   prepareReady: true,
   simStarted: true,
   startAcked: true,
+  envCloseRequested: true,
   reportEventCount: 3,
   reportOutline: { sections: [] },
   agentLogLine: 9,
@@ -67,10 +68,15 @@ describe('prepareRetry', () => {
       prepareReady: true,
       simStarted: true,
       startAcked: true,
+      envCloseRequested: true,
       retries: 0,
       startAttempts: 0,
       idlePolls: 0,
     })
+  })
+
+  it('drops envCloseRequested on a sim_run retry', () => {
+    expect(prepareRetry(failedAt('sim_run')).cursors).not.toHaveProperty('envCloseRequested')
   })
 
   it('uses run.stage when there is no error', () => {

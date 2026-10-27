@@ -272,7 +272,7 @@ describe('runFollowUp agents', () => {
     const gate = deferred()
     mf.interviewBatch.mockImplementation(async () => {
       await gate.promise
-      return { results: [{ agent_id: 3, response: 'Yes' }] }
+      return { result: { results: { twitter_3: { agent_id: 3, response: 'Yes' } } } }
     })
 
     const reader = chunkReader(await call({ target: 'agents', agentIds: ['3', '6'], mirofish: mf.client }))
@@ -339,7 +339,7 @@ describe('runFollowUp agents', () => {
     const batch = deferred()
     mf.interviewBatch.mockImplementation(async () => {
       await batch.promise
-      return { results: [{ agent_id: 3, response: 'Yes' }] }
+      return { result: { results: { twitter_3: { agent_id: 3, response: 'Yes' } } } }
     })
     const reader = chunkReader(await call({ target: 'agents', agentIds: ['3'], mirofish: mf.client }))
     expect((await reader.take(2)).map((c) => c.type)).toEqual(['start', 'data-interview'])

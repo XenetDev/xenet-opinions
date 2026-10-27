@@ -29,8 +29,8 @@ export const AgentLogLine = z
     elapsed_seconds: z.number().optional(),
     action: z.string(),
     stage: z.string().optional(),
-    section_title: z.string().optional(),
-    section_index: z.number().optional(),
+    section_title: z.string().nullish(),
+    section_index: z.number().nullish(),
     details: z.unknown().optional(),
   })
   .loose()

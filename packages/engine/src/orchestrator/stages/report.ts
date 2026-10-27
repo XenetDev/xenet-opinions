@@ -1,9 +1,13 @@
 import type { Run } from '@xo/db'
+import { MiroFishError } from '@xo/mirofish'
 import { advance, emit, need, remoteFailure, running } from '../emit'
 import { agentLogToEvents } from '../mirofish-map'
 import type { Deps, StageHandler } from '../types'
 
 const MAX_PAGES = 20
+
+const ingestionPending = (err: unknown) =>
+  err instanceof MiroFishError && err.code === 'api' && err.status === 409 && /ingestion/i.test(err.message)
 
 const drain = async (run: Run, deps: Deps, reportId: string, untilEmpty: boolean) => {
   let current = run
@@ -35,7 +39,13 @@ export const report: StageHandler = {
   stage: 'report',
   hasEntered: (run) => Boolean(run.ids.reportId),
   async enter(run, deps) {
-    const started = await deps.mirofish.report.generate({ simulationId: need(run.ids.simulationId, 'simulationId') })
+    let started: Awaited<ReturnType<Deps['mirofish']['report']['generate']>>
+    try {
+      started = await deps.mirofish.report.generate({ simulationId: need(run.ids.simulationId, 'simulationId') })
+    } catch (err) {
+      if (ingestionPending(err)) return run
+      throw err
+    }
     const entered = await deps.store.update(
       run.id,
       {

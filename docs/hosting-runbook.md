@@ -210,7 +210,7 @@ curl -s https://<app-domain>/api/health
 
 Expect HTTP 200 and `{"ok":true,"db":"ok","mirofish":"ok"}`. A 503 names the failing dependency: `db` means check `DATABASE_URL` and the Postgres public proxy; `mirofish` means check `MIROFISH_URL`, `MIROFISH_TOKEN` equality on all three services, and proxy logs.
 
-2. One 1-round run end to end. Open the app, start a chat, upload a small text file as the seed, ask a question, and set rounds to 1. A real run takes roughly 20 to 60 minutes. Watch `railway logs --service worker` and `railway logs --service mirofish`. Afterwards check the LLM and Zep usage dashboards to measure the cost of a 1-round run before sharing the URL.
+2. One 1-round run end to end. Open the app, start a chat, upload a small text file as the seed, ask a question, and set rounds to 1. A 1-round run took about 6 minutes on a local stack with `gpt-4o-mini`; budget more for more rounds or a slower model. Watch `railway logs --service worker` and `railway logs --service mirofish`. Afterwards check the LLM and Zep usage dashboards to measure the cost of a 1-round run before sharing the URL.
 
 3. Kill switch:
 

@@ -6,7 +6,7 @@ const read = (url: string) => readFileSync(fileURLToPath(new URL(url, import.met
 const fixture = <T>(name: string): T => (JSON.parse(read(`../src/fixtures/${name}.json`)) as { data: T }).data
 
 export const ontologyFixture = fixture<Record<string, unknown>>('graph.ontology.generate')
-export const agentLogFixture = fixture<{ logs: Array<Record<string, unknown>> }>('report.agent-log').logs
+export const agentLogFixture = fixture<{ logs: Array<Record<string, unknown>> }>('report.agent-log.mock').logs
 export const reportMarkdown = read('./report.md')
 
 const ENTITY_TYPES = ['Customer', 'Competitor', 'Analyst', 'Channel']

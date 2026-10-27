@@ -1,0 +1,25 @@
+{
+  "data": {
+    "interviews_count": 2,
+    "result": {
+      "interviews_count": 2,
+      "results": {
+        "twitter_0": {
+          "agent_id": 0,
+          "platform": "twitter",
+          "response": "作为Glide的代表，我坚决反对市中心的电动滑板车禁令。我们认为此政策会对当地经济产生负面影响，导致60个就业岗位的流失，并迫使骑行者重新转向汽车出行。这将影响城市交通的灵活性，减少便捷出行的选择。我呼吁大家积极参与讨论，维护电动滑板车的使用权，确保城市出行的多样性与便利性。",
+          "timestamp": 2
+        },
+        "twitter_5": {
+          "agent_id": 5,
+          "platform": "twitter",
+          "response": "作为Riverton Disability Alliance的一员，我们非常支持市中心共享电动滑板车的禁令。我们认为，这项提案不仅能够减少对行人的干扰，还能显著提升残疾人士的出行安全。安全无障碍的环境对我们关注的群体至关重要，我们会继续倡导和支持类似的政策，以确保所有行人的便利与安全。",
+          "timestamp": 2
+        }
+      }
+    },
+    "success": true,
+    "timestamp": "2026-10-27T10:27:49.030891"
+  },
+  "success": true
+}

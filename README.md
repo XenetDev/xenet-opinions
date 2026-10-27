@@ -1,6 +1,6 @@
 # Xenet Opinions
 
-Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions or interview individual personas. Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
+Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions. Persona interviews are currently unavailable after a run completes, because upstream MiroFish writes the report only after the simulation environment shuts down; the decision is recorded in the [Phase 5 follow-ups](docs/superpowers/plans/2026-10-23-phase-5-followups.md). Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
 
 ## Architecture
 
@@ -51,7 +51,7 @@ The `sed` line fills in the four generated secrets. Now open `.env.selfhost`, se
 infra/docker/up.sh
 ```
 
-Open http://localhost:3000 (or the `XO_WEB_PORT` set in `.env.selfhost`), attach a `.txt`, `.md` or `.pdf` (a run needs at least one file), ask a question and pick a number of rounds. `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers. Images that are not available from `ghcr.io/xenetdev/xenet-opinions-*` are built locally on first start: compose first prints a `not found` pull error for each of them, then builds it. The MiroFish image takes several minutes. A real run takes roughly 20 to 60 minutes and spends LLM and Zep credits, so start with one round. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
+Open http://localhost:3000 (or the `XO_WEB_PORT` set in `.env.selfhost`), attach a `.txt`, `.md` or `.pdf` (a run needs at least one file), ask a question and pick a number of rounds. `infra/docker/up.sh ps` shows the services; `web` turns healthy once `/api/health` answers. Images that are not available from `ghcr.io/xenetdev/xenet-opinions-*` are built locally on first start: compose first prints a `not found` pull error for each of them, then builds it. The MiroFish image takes several minutes. A 1-round run on a 1 KB seed file took about 6 minutes with `gpt-4o-mini` (more rounds, agents or a slower model take longer) and spends LLM and Zep credits, so start with one round. If you checked out a release tag, set `XO_IMAGE_TAG` to the same tag so the images match the code; `edge` follows `main`.
 
 To try the bundle without any keys, run `infra/docker/up-mock.sh` instead; it swaps MiroFish for the bundled mock. Images, the environment reference, volumes, backups and updates are in [docs/hosting.md](docs/hosting.md).
 
