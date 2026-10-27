@@ -91,3 +91,7 @@ Branch `feat/interview-window`, images built locally (`up-mock.sh up -d --build`
 - While paused, the timeline reads "Personas online / Running / Personas online" (step label and its detail line repeat).
 - After a run fails, stale notices ("Something went wrong sending your message", "Select at least one persona to interview") stay under it.
 - `docs/hosting.md` corrections: interview latency, and dead-environment detection is "within about 30 seconds of the last answer" (a question in flight is answered or fails first).
+
+## Language (2026-10-27)
+
+MiroFish picks its language from the `Accept-Language` header on each request and falls back to Chinese when the header is missing, so every earlier real run produced Chinese roles, posts, interview answers, report titles and progress messages. The client now sends `Accept-Language` on every call (`MIROFISH_LOCALE`, default `en`; `zh`, `es`, `fr`, `pt`, `ru`, `de` also accepted). Verified on a real ticked 1-round run with `gpt-4o-mini`: progress messages ("Zep processing... 3/3 done", "Generating Agent Profiles"), all 12 persona roles and bios, the simulation posts, a one-persona interview answer and the report title and body were English. Still Chinese: the headings inside the report agent's tool-result summaries ("深度采访报告", "广度搜索结果", "未来预测深度分析"), which are hardcoded in upstream `backend/app/services/zep_tools.py` and not localised; they show only inside the collapsible tool entries of the report workbench. Worth including in the upstream issue.

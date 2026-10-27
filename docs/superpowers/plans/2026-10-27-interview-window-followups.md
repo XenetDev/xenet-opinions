@@ -38,3 +38,7 @@ Deferred findings from the task reviews and the whole-branch review of `feat/int
 
 - `docs/hosting.md`: "interviews already asked finish first" is not true after `envCloseRequested`; "within about 30 seconds" holds only with no question in flight; the recreate-web guidance omits `DEMO_ALLOW_PAUSE`.
 - The Phase 5 follow-ups doc still has the upstream MiroFish issue link placeholder.
+
+## Upstream
+
+- The report agent's tool-result summaries ("深度采访报告", "广度搜索结果", "未来预测深度分析") are hardcoded Chinese in upstream `zep_tools.py` and ignore the locale. They show inside the collapsible tool entries of the report workbench. Report upstream alongside the interview-after-report limitation.
