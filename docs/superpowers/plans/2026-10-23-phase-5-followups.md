@@ -62,3 +62,32 @@ First run against upstream MiroFish (`ghcr.io/xenetdev/xenet-opinions-mirofish:e
 - sim_run (and other polling stages) have no wall-clock deadline; a MiroFish restart mid-run hangs the run until the user cancels. sim_prepare likewise keeps polling with no deadline if MiroFish answers `status: "not_started"` while we hold a `prepareTaskId` (for example after its task store is lost).
 - During this task a compose `up` against this worktree recreated `mirofish`, `worker` and `migrate` at 09:54:52Z from a locally built MiroFish image (built 09:53:45Z) that this session did not start; the stacks share the `xenet-opinions` project name, so concurrent sessions can disturb each other.
 
+
+## Interview window verification (2026-10-27)
+
+Branch `feat/interview-window`, images built locally (`up-mock.sh up -d --build`, then `up.sh up -d --build`), 1.2 KB e-scooter-ban seed, `gpt-4o-mini`.
+
+### Mock stack (`MOCK_SPEED=20`, `MOCK_INTERVIEW_DELAY_MS=3000`)
+- Ticked run: window card "12 personas are online until HH:MM", minute countdown, Generate report and Cancel run; composer switches to "Interview personas". One persona answered 4.3 s after the question (3 s mock delay plus the 2 s poll); two personas trickled at +3.0 s and +8.0 s. Each question extends the window by 5 minutes per persona, capped at 60 minutes from the pause (seen: 12:30 -> 12:35 -> 12:45 -> 12:50 -> 13:10 cap).
+- Reload mid-window, with answers pending, restored the card, countdown, question groups (pending cards "Thinking…") and composer mode (RF5).
+- Generate report: card "Generating report…", window closed `report_requested`, report, done; then `env_state closed`, no sidebar badge, composer "Ask the report", report follow-up answered.
+- Unticked run: no `interviews` stage, no `interview_window` or `interview` events, no card; same stage sequence as before (RF1).
+- RF2: keepalive set to `now()` with two answers pending; both arrived, then one `interview_window {closed, reason: expired}`; card "The interview window ended".
+- RF4: Generate report with three personas pending; all three answers arrived, a new question was refused with "The report is being generated; no more interviews for this run.", then the report.
+- RF3: env stopped through `POST /api/simulation/stop` (server up): detected within 20 s of the stop, card "Personas offline / The simulation environment stopped", no closeEnv, report generated. Mock container stopped with four questions pending: each call failed (HTTP 502) and the cards showed "Agents are offline"; detection 26 to 28 s after the stop. With the container down the report cannot be written (the mock is the whole MiroFish API and keeps simulations in memory): the report stage retried three times on 502 and, after a restart, failed with "simulation not found". Expected for the mock only.
+- Cancel from the card: run `cancelled`, `env_state closed`, card "The run ended".
+
+### Real MiroFish (`up.sh`)
+- Ticked 1-round run: window open 4 min 13 s after submit (ontology 16 s, graph 43 s, personas 47 s, rounds 137 s).
+- Interviews: one persona 4.9 s; two personas 2.2 s and 7.2 s after the question (one call each, `count=1, platform=reddit` in MiroFish's log, all 200, no 504). The running worker sends `timeout: 240` (`INTERVIEW_MIROFISH_TIMEOUT_S`; MiroFish does not log it). Answers are in Chinese, 170 to 300 characters.
+- Generate report: `close-env` within 1 s, window closed 31 s later (close and wait), report 113 s; MiroFish's report agent again logged three "环境未运行" InterviewAgents warnings and completed. Follow-up to the report answered (`report/chat` 200).
+- Call counts for the ticked run: `interview/batch` 3 (one per persona), `close-env` 1, `report/chat` 1.
+- Unticked 1-round run: 3 min 59 s end to end (rounds 27 s, report 111 s), no interview calls, same stage sequence as before the feature.
+
+### Findings
+- Real interview latency is seconds, not minutes. The 6.5-minute figure above was measured on a stale environment from an earlier run. `docs/hosting.md` now gives the measured 2 to 5 s and the 240 s ceiling; the window card copy still says "answers take about 3 minutes per persona" (UI string, left for a follow-up), and the 5-minute extension per persona is generous for real latencies.
+- Mock fidelity: the mock answers `interview/batch` after `stop` (it refuses only after `close-env`); real MiroFish cannot answer with a dead environment.
+- Rows of one question share `created_at`, so their processing order is not the selection order (cosmetic).
+- While paused, the timeline reads "Personas online / Running / Personas online" (step label and its detail line repeat).
+- After a run fails, stale notices ("Something went wrong sending your message", "Select at least one persona to interview") stay under it.
+- `docs/hosting.md` corrections: interview latency, and dead-environment detection is "within about 30 seconds of the last answer" (a question in flight is answered or fails first).

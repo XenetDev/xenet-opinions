@@ -112,10 +112,10 @@ infra/docker/up.sh up -d web
 
 ### Interview window
 
-A run started with "Pause for interviews before the report" stops after the rounds with its personas online. The window lasts `ENV_KEEPALIVE_MS` (20 minutes by default). Each accepted question (up to 5 personas, one MiroFish call per persona, about 3 minutes each with real MiroFish) extends it by 5 minutes per persona, capped at 60 minutes from the start of the pause. Interviews run in the worker, so they survive reloads and closed tabs.
+A run started with "Pause for interviews before the report" stops after the rounds with its personas online. The window lasts `ENV_KEEPALIVE_MS` (20 minutes by default). Each accepted question (up to 5 personas, one MiroFish call per persona; with real MiroFish and `gpt-4o-mini` each answer took 2 to 5 seconds in testing, and a call gives up after 240 seconds) extends it by 5 minutes per persona, capped at 60 minutes from the start of the pause. Interviews run in the worker, so they survive reloads and closed tabs.
 
 - Generate report, or the window expiring, closes the environment and writes the report. Interviews already asked finish first; new questions are refused.
-- Cancelling the run closes the environment. If the environment dies on its own, the worker notices within about 30 seconds, marks pending answers "Agents are offline" and goes on to the report.
+- Cancelling the run closes the environment. If the environment dies on its own, questions still pending fail with "Agents are offline", the worker notices within about 30 seconds of the last answer and goes on to the report.
 - A paused run holds the single worker slot (`MAX_CONCURRENT_RUNS=1`) for the whole window, and queued users see a message that a run is paused for interviews. The hosted demo therefore sets `DEMO_ALLOW_PAUSE=0`; self-hosters get the feature by default.
 
 ### Volumes
