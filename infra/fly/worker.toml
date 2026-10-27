@@ -1,0 +1,14 @@
+app = "xenet-opinions-worker"
+primary_region = "lhr"
+
+[env]
+  MIROFISH_URL = "http://xenet-opinions-proxy.internal:8080"
+  MIROFISH_LOCALE = "en"
+  STORAGE_DRIVER = "s3"
+  ENV_KEEPALIVE_MS = "1200000"
+  ENV_SWEEP_INTERVAL_MS = "60000"
+  MAX_CONCURRENT_RUNS = "1"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
