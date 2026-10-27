@@ -35,12 +35,40 @@ describe('loadChatPage', () => {
       assistantMessageId: 'a1',
       stage: 'ontology',
       status: 'running',
+      cursors: {},
+      envKeepaliveUntil: null,
     })
     const page = await loadChatPage('c1', 'u1')
     expect(page.initialMessages).toEqual([user])
-    expect(page.activeRun).toEqual({ id: 'r1', assistantMessageId: 'a1', stage: 'ontology' })
+    expect(page.activeRun).toEqual({
+      id: 'r1',
+      assistantMessageId: 'a1',
+      stage: 'ontology',
+      reportRequested: false,
+      envKeepaliveUntil: null,
+    })
     expect(page.latestRun).toBeNull()
     expect(mocks.materialiseRun).not.toHaveBeenCalled()
+  })
+
+  it('seeds the interview window state of a paused run', async () => {
+    mocks.toUIMessages.mockReturnValue([user, assistant([])])
+    mocks.getActiveByChat.mockResolvedValue({
+      id: 'r1',
+      assistantMessageId: 'a1',
+      stage: 'interviews',
+      status: 'running',
+      cursors: { reportRequested: true },
+      envKeepaliveUntil: new Date('2026-10-27T10:20:00Z'),
+    })
+    const page = await loadChatPage('c1', 'u1')
+    expect(page.activeRun).toEqual({
+      id: 'r1',
+      assistantMessageId: 'a1',
+      stage: 'interviews',
+      reportRequested: true,
+      envKeepaliveUntil: '2026-10-27T10:20:00.000Z',
+    })
   })
 
   it('materialises a terminal run whose assistant row is empty', async () => {
@@ -104,6 +132,7 @@ describe('loadChatPage', () => {
       status: 'running',
       envState: 'none',
       envKeepaliveUntil: null,
+      cursors: {},
     }
     mocks.getActiveByChat.mockResolvedValue(run)
     mocks.getLatestByChat.mockResolvedValue(run)

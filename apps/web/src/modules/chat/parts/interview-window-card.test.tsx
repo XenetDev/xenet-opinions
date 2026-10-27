@@ -67,6 +67,43 @@ describe('InterviewWindowCard', () => {
     expect(screen.queryByText('Generating report…')).toBeNull()
   })
 
+  it('goes back to the button when the run is no longer paused', async () => {
+    fetchSpy.mockResolvedValue(Response.json({ error: 'run_not_paused' }, { status: 409 }))
+    render(<InterviewWindowCard chatId="c1" data={open()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Generate report' }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Generate report' })).toBeTruthy())
+    expect(screen.queryByText('Generating report…')).toBeNull()
+  })
+
+  it('shows the personas offline when the run ended without closing the window', () => {
+    render(<InterviewWindowCard chatId="c1" data={open()} live={false} onCancel={vi.fn()} />)
+    expect(screen.getByText('Personas offline')).toBeTruthy()
+    expect(screen.getByText('The run ended')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByText(/minutes? left/)).toBeNull()
+  })
+
+  it('offers a keyboard-reachable cancel', () => {
+    const onCancel = vi.fn()
+    render(<InterviewWindowCard chatId="c1" data={open()} onCancel={onCancel} />)
+    const cancel = screen.getByRole('button', { name: 'Cancel run' })
+    cancel.focus()
+    expect(document.activeElement).toBe(cancel)
+    fireEvent.click(cancel)
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the cancel while the report is being requested', () => {
+    render(<InterviewWindowCard chatId="c1" data={open()} reportRequested onCancel={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeTruthy()
+  })
+
+  it('omits the count when it is unknown', () => {
+    render(<InterviewWindowCard chatId="c1" data={{ until: at(20), personaCount: 0, closed: false }} />)
+    expect(screen.getByText(`Personas are online until ${clock(at(20))}`)).toBeTruthy()
+  })
+
   it('shows the report as requested after a reload', () => {
     render(<InterviewWindowCard chatId="c1" data={open()} reportRequested />)
     expect(screen.getByText('Generating report…')).toBeTruthy()
@@ -86,7 +123,7 @@ describe('InterviewWindowCard', () => {
   })
 
   it('has no axe violations open or closed', async () => {
-    const { container, rerender } = render(<InterviewWindowCard chatId="c1" data={open()} />)
+    const { container, rerender } = render(<InterviewWindowCard chatId="c1" data={open()} onCancel={vi.fn()} />)
     expect(await axe(container)).toHaveNoViolations()
     rerender(
       <InterviewWindowCard chatId="c1" data={{ until: null, personaCount: 4, closed: true, reason: 'expired' }} />,

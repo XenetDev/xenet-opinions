@@ -56,7 +56,13 @@ export function Chat({
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
-  activeRun: { id: string; assistantMessageId: string; stage: Stage } | null
+  activeRun: {
+    id: string
+    assistantMessageId: string
+    stage: Stage
+    reportRequested?: boolean
+    envKeepaliveUntil?: string | null
+  } | null
   latestRun: LatestRun | null
   initialText?: string
   limits: Limits
@@ -97,6 +103,8 @@ export function Chat({
           stage: activeRun.stage,
           runId: activeRun.id,
           assistantMessageId: activeRun.assistantMessageId,
+          reportRequested: activeRun.reportRequested,
+          envKeepaliveUntil: activeRun.envKeepaliveUntil,
         }
       : undefined,
   })
@@ -202,6 +210,8 @@ export function Chat({
                       chatId={chatId}
                       windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
                       reportRequested={run.stage === 'interviews' && run.reportRequested}
+                      windowLive={runActive && message.id === run.assistantMessageId}
+                      onCancelRun={interviewMode ? () => void handleStop() : undefined}
                       onRetry={
                         latestFailed && message === lastMessage && message.role === 'assistant'
                           ? () => void handleRetry()

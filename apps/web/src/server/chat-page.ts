@@ -4,7 +4,13 @@ import { listMessages } from '@/server/chats'
 import { runStore } from '@/server/runs'
 import { toUIMessages } from '@/server/ui-message'
 
-export type ActiveRun = { id: string; assistantMessageId: string; stage: Stage }
+export type ActiveRun = {
+  id: string
+  assistantMessageId: string
+  stage: Stage
+  reportRequested: boolean
+  envKeepaliveUntil: string | null
+}
 export type EnvState = 'none' | 'open' | 'closed'
 export type LatestRun = {
   id: string
@@ -35,7 +41,13 @@ export async function loadChatPage(
   if (active) {
     return {
       initialMessages: messages.filter((message) => message.id !== active.assistantMessageId),
-      activeRun: { id: active.id, assistantMessageId: active.assistantMessageId, stage: active.stage as Stage },
+      activeRun: {
+        id: active.id,
+        assistantMessageId: active.assistantMessageId,
+        stage: active.stage as Stage,
+        reportRequested: active.cursors.reportRequested === true,
+        envKeepaliveUntil: active.envKeepaliveUntil?.toISOString() ?? null,
+      },
       latestRun,
     }
   }

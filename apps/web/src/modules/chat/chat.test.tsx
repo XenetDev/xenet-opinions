@@ -8,13 +8,16 @@ import type { RunStatusState } from './use-run-status'
 
 const chat = vi.hoisted(() => ({
   status: 'ready' as string,
+  messages: [] as unknown[],
   stop: vi.fn(),
   resumeStream: vi.fn(),
   sendMessage: vi.fn(),
   options: undefined as undefined | { onError: (error: Error) => void; onFinish?: (arg: unknown) => void },
 }))
-const runState = vi.hoisted(() => ({ current: { status: 'none' } as RunStatusState }))
-const runOpts = vi.hoisted(() => ({ current: undefined as undefined | { enabled: boolean; sendCount?: number } }))
+const runState = vi.hoisted(() => ({ current: { status: 'none' } as RunStatusState, seeded: false }))
+const runOpts = vi.hoisted(() => ({
+  current: undefined as undefined | { enabled: boolean; sendCount?: number; initial?: RunStatusState },
+}))
 const composer = vi.hoisted(() => ({
   props: undefined as undefined | Record<string, unknown>,
   sent: undefined as undefined | Promise<string>,
@@ -25,7 +28,7 @@ vi.mock('@ai-sdk/react', () => ({
   useChat: (options: { onError: (error: Error) => void; onFinish?: (arg: unknown) => void }) => {
     chat.options = options
     return {
-      messages: [],
+      messages: chat.messages,
       sendMessage: chat.sendMessage,
       status: chat.status,
       stop: chat.stop,
@@ -34,9 +37,9 @@ vi.mock('@ai-sdk/react', () => ({
   },
 }))
 vi.mock('./use-run-status', () => ({
-  useRunStatus: (_chatId: string, opts: { enabled: boolean; sendCount?: number }) => {
+  useRunStatus: (_chatId: string, opts: { enabled: boolean; sendCount?: number; initial?: RunStatusState }) => {
     runOpts.current = opts
-    return runState.current
+    return runState.seeded && opts.initial ? opts.initial : runState.current
   },
 }))
 vi.mock('@/modules/sidebar/chat-list-context', () => ({
@@ -95,6 +98,8 @@ const fetchSpy = vi.fn()
 
 beforeEach(() => {
   chat.status = 'ready'
+  chat.messages = []
+  runState.seeded = false
   chat.stop.mockReset()
   chat.resumeStream.mockReset()
   chat.sendMessage.mockReset()
@@ -235,6 +240,56 @@ describe('Chat', () => {
     it('uses interview mode with persona selection and an enabled composer', () => {
       renderChat()
       expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false })
+    })
+
+    const windowMessage = (until: string) => ({
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'data-interview_window', id: 'interview_window', data: { until, personaCount: 3, closed: false } },
+      ],
+    })
+
+    it('cancels the run from the window card', async () => {
+      chat.messages = [windowMessage(inMinutes(20))]
+      fetchSpy.mockResolvedValue(Response.json({ ok: true }))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/cancel', { method: 'POST' }))
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Run cancelled'))
+    })
+
+    it('shows the personas offline when the run failed without closing the window', () => {
+      chat.status = 'ready'
+      chat.messages = [windowMessage(inMinutes(20))]
+      runState.current = { status: 'failed', stage: 'interviews', runId: 'r1', assistantMessageId: 'm1' }
+      renderChat()
+      expect(screen.getByText('Personas offline')).toBeTruthy()
+      expect(screen.getByText('The run ended')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Generate report' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull()
+    })
+
+    it.each([
+      [false, 'interview'],
+      [true, 'run'],
+    ])('seeds the mode from the loaded run (reportRequested %s)', (reportRequested, mode) => {
+      runState.seeded = true
+      const activeRun = {
+        id: 'r1',
+        assistantMessageId: 'm1',
+        stage: 'interviews' as const,
+        reportRequested,
+        envKeepaliveUntil: inMinutes(15),
+      }
+      render(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={null} limits={limits} />)
+      expect(runOpts.current?.initial).toMatchObject({
+        status: 'running',
+        stage: 'interviews',
+        reportRequested,
+        envKeepaliveUntil: activeRun.envKeepaliveUntil,
+      })
+      expect(composer.props).toMatchObject({ mode, selectionEnabled: !reportRequested })
     })
 
     it('leaves interview mode once the report is requested', () => {

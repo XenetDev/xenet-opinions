@@ -42,12 +42,16 @@ export function MessageParts({
   chatId,
   windowUntil,
   reportRequested,
+  windowLive,
+  onCancelRun,
 }: {
   parts: OpinionsUIMessage['parts']
   onRetry?: () => void
   chatId?: string
   windowUntil?: string | null
   reportRequested?: boolean
+  windowLive?: boolean
+  onCancelRun?: () => void
 }) {
   const stages = parts.flatMap((part) => (part.type === 'data-stage' ? [part.data] : []))
   const queue = lastData(parts, 'queue')
@@ -103,17 +107,6 @@ export function MessageParts({
           <SimulationFeed data={feed} />
         </div>
       )}
-      {(outline || reportEvents.length > 0) && (
-        <div data-part="workbench">
-          <ReportWorkbench outline={outline} events={reportEvents} collapsed={hasText} />
-        </div>
-      )}
-      {texts.map((text, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
-        <div key={i} data-part="text">
-          <MessageResponse>{text}</MessageResponse>
-        </div>
-      ))}
       {(interviewWindow || interviewGroups.length > 0) && (
         <div data-part="interviews" className="flex flex-col gap-4">
           {interviewWindow && (
@@ -122,6 +115,8 @@ export function MessageParts({
               chatId={chatId}
               until={windowUntil}
               reportRequested={reportRequested}
+              live={windowLive}
+              onCancel={onCancelRun}
             />
           )}
           {interviewGroups.map(([key, group]) => (
@@ -138,6 +133,17 @@ export function MessageParts({
           ))}
         </div>
       )}
+      {(outline || reportEvents.length > 0) && (
+        <div data-part="workbench">
+          <ReportWorkbench outline={outline} events={reportEvents} collapsed={hasText} />
+        </div>
+      )}
+      {texts.map((text, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
+        <div key={i} data-part="text">
+          <MessageResponse>{text}</MessageResponse>
+        </div>
+      ))}
       {errors.map((error, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: error parts have no id and keep their order
         <div key={i} data-part="error">

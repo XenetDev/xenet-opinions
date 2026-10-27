@@ -72,7 +72,7 @@ describe('MessageParts', () => {
     expect(container.querySelectorAll('[data-part]')).toHaveLength(0)
   })
 
-  it('renders interviews after text, deduped by id with last winning', () => {
+  it('renders interviews before the report, deduped by id with last winning', () => {
     const parts: Parts = [
       { type: 'text', text: 'Report' },
       {
@@ -98,7 +98,7 @@ describe('MessageParts', () => {
     ]
     const { container } = render(<MessageParts parts={parts} />)
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
-    expect(order).toEqual(['text', 'interviews'])
+    expect(order).toEqual(['interviews', 'text'])
     expect(screen.getAllByText('Ada')).toHaveLength(1)
     expect(screen.getByText('Ada says yes')).toBeTruthy()
     expect(screen.getByText('Bo')).toBeTruthy()
@@ -127,11 +127,13 @@ describe('MessageParts', () => {
       interview('i2', 'q1', 'b', 'Bo', 'Price too high?', { status: 'pending' }),
       interview('i3', 'q2', 'a', 'Ada', 'Would you switch?', { status: 'failed', error: 'Agents are offline' }),
       interview('i4', 'q2', 'b', 'Bo', 'Would you switch?', { status: 'done', answer: 'Bo would switch' }),
+      { type: 'data-report_event', data: { n: 1, action: 'planning', summary: 'first' } },
+      { type: 'text', text: 'The report' },
     ]
     const { container } = render(<MessageParts parts={parts} chatId="c1" />)
 
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
-    expect(order).toEqual(['timeline', 'interviews'])
+    expect(order).toEqual(['timeline', 'interviews', 'workbench', 'text'])
     const section = container.querySelector('[data-part="interviews"]') as HTMLElement
     expect(within(section).getByText(/4 personas are online until/)).toBeTruthy()
     expect(within(section).getByRole('button', { name: 'Generate report' })).toBeTruthy()

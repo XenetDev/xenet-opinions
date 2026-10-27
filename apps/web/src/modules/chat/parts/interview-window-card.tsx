@@ -26,15 +26,19 @@ export function InterviewWindowCard({
   chatId,
   until: liveUntil,
   reportRequested = false,
+  live = true,
+  onCancel,
 }: {
   data: InterviewWindowData
   chatId?: string
   until?: string | null
   reportRequested?: boolean
+  live?: boolean
+  onCancel?: () => void
 }) {
   const [now, setNow] = useState(() => Date.now())
   const [requested, setRequested] = useState(false)
-  const open = !data.closed
+  const open = !data.closed && live
   const until = liveUntil ?? data.until
   const generating = open && (requested || reportRequested)
   const routed = useAnnounce(generating ? 'Generating report…' : null)
@@ -48,19 +52,25 @@ export function InterviewWindowCard({
   const requestReport = async () => {
     setRequested(true)
     const response = await fetch(`/api/chats/${chatId}/run/report`, { method: 'POST' }).catch(() => null)
-    if (!response || (!response.ok && response.status !== 409)) setRequested(false)
+    if (!response?.ok) setRequested(false)
   }
 
   if (!open) {
+    const offlineReason = data.closed ? data.reason && REASONS[data.reason] : 'The run ended'
     return (
       <div className="flex flex-col gap-1 rounded-md border p-3" data-testid="interview-window" data-state="closed">
         <p className="text-sm font-medium">Personas offline</p>
-        {data.reason && <p className="text-sm text-muted-foreground">{REASONS[data.reason]}</p>}
+        {offlineReason && <p className="text-sm text-muted-foreground">{offlineReason}</p>}
       </div>
     )
   }
 
-  const personas = data.personaCount === 1 ? '1 persona is' : `${data.personaCount} personas are`
+  const personas =
+    data.personaCount === 0
+      ? 'Personas are'
+      : data.personaCount === 1
+        ? '1 persona is'
+        : `${data.personaCount} personas are`
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3" data-testid="interview-window" data-state="open">
       <p className="text-sm font-medium" suppressHydrationWarning>
@@ -74,18 +84,24 @@ export function InterviewWindowCard({
       <p className="text-sm text-muted-foreground">
         Pick personas from the roster to interview them; answers take about 3 minutes per persona.
       </p>
-      {generating ? (
+      {generating && (
         <p role={routed ? undefined : 'status'} className="text-sm">
           Generating report…
         </p>
-      ) : (
-        chatId && (
-          <div>
+      )}
+      {((!generating && chatId) || onCancel) && (
+        <div className="flex flex-wrap gap-2">
+          {!generating && chatId && (
             <Button type="button" size="sm" onClick={() => void requestReport()}>
               Generate report
             </Button>
-          </div>
-        )
+          )}
+          {onCancel && (
+            <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+              Cancel run
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
