@@ -87,9 +87,7 @@ describe('configToPlatform', () => {
   const cfg = (platform: string) => ({ platform, recency_weight: 0.3 })
 
   it('prefers reddit when both are enabled, else the one enabled from the simulation config', () => {
-    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: cfg('reddit') }))).toBe(
-      'twitter',
-    )
+    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: cfg('reddit') }))).toBe('reddit')
     expect(configToPlatform(realistic({ twitter_config: null, reddit_config: cfg('reddit') }))).toBe('reddit')
     expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: null }))).toBe('twitter')
   })
