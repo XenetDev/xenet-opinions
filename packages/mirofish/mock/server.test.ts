@@ -241,3 +241,72 @@ describe('mock MiroFish env lifecycle', () => {
     }
   })
 })
+
+describe('mock MiroFish interviews and config', () => {
+  const setup = async (options: Parameters<typeof startMockMiroFish>[0] = {}) => {
+    const mock = await startMockMiroFish({ port: 0, speed: 100, interviewDelayMs: 0, ...options })
+    const client = createMiroFishClient({ baseUrl: mock.url })
+    const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
+    const sim = await client.simulation.create({ projectId: project_id })
+    return { mock, client, simulationId: sim.simulation_id }
+  }
+  const post = (url: string, body: unknown) =>
+    fetch(`${url}/api/simulation/interview/batch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('delays each interview by interviewDelayMs', async () => {
+    const { mock, client, simulationId } = await setup({ interviewDelayMs: 120 })
+    try {
+      const interviews = [
+        { agentId: 1, prompt: 'a' },
+        { agentId: 2, prompt: 'b' },
+      ]
+      const started = Date.now()
+      await client.simulation.interviewBatch({ simulationId, interviews })
+      expect(Date.now() - started).toBeGreaterThanOrEqual(230)
+    } finally {
+      await mock.close()
+    }
+  })
+
+  it('honours platform and rejects an invalid platform or timeout', async () => {
+    const { mock, client, simulationId } = await setup()
+    try {
+      const one = await client.simulation.interviewBatch({
+        simulationId,
+        interviews: [{ agentId: 3, prompt: 'hi' }],
+        platform: 'reddit',
+        timeout: 240,
+      })
+      expect(Object.keys(one.result?.results ?? {})).toEqual(['reddit_3'])
+      const interviews = [{ agent_id: 3, prompt: 'hi' }]
+      expect((await post(mock.url, { simulation_id: simulationId, interviews, platform: 'parallel' })).status).toBe(400)
+      for (const timeout of [0, -5, '30']) {
+        expect((await post(mock.url, { simulation_id: simulationId, interviews, timeout })).status).toBe(400)
+      }
+    } finally {
+      await mock.close()
+    }
+  })
+
+  it('config/realtime returns the real shape with a configurable platform', async () => {
+    for (const [platform, expected] of [
+      [undefined, 'reddit'],
+      ['twitter', 'twitter'],
+    ] as const) {
+      const { mock, client, simulationId } = await setup({ platform })
+      try {
+        const res = await client.simulation.configRealtime(simulationId)
+        const config = res.config as Record<string, unknown>
+        expect(res).toMatchObject({ simulation_id: simulationId, file_exists: true, config_generated: true })
+        expect(config[`${expected}_config`]).toEqual({ platform: expected })
+        expect(config[`${expected === 'reddit' ? 'twitter' : 'reddit'}_config`]).toBeNull()
+      } finally {
+        await mock.close()
+      }
+    }
+  })
+})

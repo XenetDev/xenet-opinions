@@ -198,6 +198,30 @@ describe('simulation endpoints', () => {
     expect(first(calls).url.pathname).toBe('/api/simulation/interview/batch')
     expect(body(first(calls))).toEqual({ simulation_id: 's', interviews: [{ agent_id: 3, prompt: 'hi' }] })
   })
+
+  it('interviewBatch sends platform and timeout when given', async () => {
+    const { client, calls } = stubbed({})
+    await client.simulation.interviewBatch({
+      simulationId: 's',
+      interviews: [{ agentId: 3, prompt: 'hi' }],
+      platform: 'twitter',
+      timeout: 240,
+    })
+    expect(body(first(calls))).toMatchObject({ platform: 'twitter', timeout: 240 })
+  })
+
+  it('interviewBatch omits platform and timeout when undefined', async () => {
+    const { client, calls } = stubbed({})
+    await client.simulation.interviewBatch({ simulationId: 's', interviews: [{ agentId: 3, prompt: 'hi' }] })
+    expect(Object.keys(body(first(calls)))).toEqual(['simulation_id', 'interviews'])
+  })
+
+  it('configRealtime is GET /config/realtime', async () => {
+    const { client, calls } = stubbed({ config: { reddit_config: { platform: 'reddit' } } })
+    await client.simulation.configRealtime('s 1')
+    expect(first(calls).init.method).toBe('GET')
+    expect(first(calls).url.pathname).toBe('/api/simulation/s%201/config/realtime')
+  })
 })
 
 describe('report endpoints', () => {

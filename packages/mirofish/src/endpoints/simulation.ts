@@ -83,7 +83,7 @@ export const simulationEndpoints = (http: Http) => ({
   interviewBatch(
     input: {
       simulationId: string
-      interviews: Array<{ agentId: number | string; prompt: string }>
+      interviews: Array<{ agentId: number | string; prompt: string; platform?: Platform }>
       platform?: Platform
       timeout?: number
     },
@@ -93,7 +93,9 @@ export const simulationEndpoints = (http: Http) => ({
       '/api/simulation/interview/batch',
       {
         simulation_id: input.simulationId,
-        interviews: input.interviews.map((i) => ({ agent_id: i.agentId, prompt: i.prompt })),
+        interviews: input.interviews.map((i) => ({ agent_id: i.agentId, prompt: i.prompt, platform: i.platform })),
+        platform: input.platform,
+        timeout: input.timeout,
       },
       InterviewBatchResult,
       { ...init, timeoutMs: init?.timeoutMs ?? INTERVIEW_TIMEOUT_MS },

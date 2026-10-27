@@ -57,7 +57,12 @@ export const RunStatus = z
   .loose()
 export type RunStatus = z.infer<typeof RunStatus>
 
-export const SimulationConfig = z.object({}).loose()
+export const SimulationConfig = z
+  .object({
+    simulation_id: z.string().optional(),
+    config: z.object({ twitter_config: z.unknown(), reddit_config: z.unknown() }).partial().loose().nullish(),
+  })
+  .loose()
 export type SimulationConfig = z.infer<typeof SimulationConfig>
 
 export const Posts = z.object({}).loose()

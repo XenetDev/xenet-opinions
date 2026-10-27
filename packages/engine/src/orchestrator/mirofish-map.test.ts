@@ -74,17 +74,31 @@ describe('profilesToPart', () => {
 })
 
 describe('configToPlatform', () => {
-  it('takes the first platform from the simulation config', () => {
-    expect(configToPlatform({ config: { platform_configs: { twitter: {}, reddit: {} } } })).toBe('twitter')
-    expect(configToPlatform({ platform_configs: [{ platform: 'reddit' }, { platform: 'twitter' }] })).toBe('reddit')
-    expect(configToPlatform({ config: { twitter_config: {}, reddit_config: {} } })).toBe('twitter')
-    expect(configToPlatform({ reddit_config: {} })).toBe('reddit')
+  const realistic = (config: Record<string, unknown>) => ({
+    simulation_id: 'sim_1',
+    file_exists: true,
+    is_generating: false,
+    status: 'ready',
+    generation_stage: 'completed',
+    config_generated: true,
+    config: { simulation_id: 'sim_1', agent_configs: [], ...config },
+    summary: { total_agents: 0 },
+  })
+  const cfg = (platform: string) => ({ platform, recency_weight: 0.3 })
+
+  it('takes the first enabled platform from the simulation config', () => {
+    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: cfg('reddit') }))).toBe(
+      'twitter',
+    )
+    expect(configToPlatform(realistic({ twitter_config: null, reddit_config: cfg('reddit') }))).toBe('reddit')
+    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: null }))).toBe('twitter')
   })
 
   it("falls back to reddit, MiroFish's default", () => {
+    expect(configToPlatform(realistic({ twitter_config: null, reddit_config: null }))).toBe('reddit')
+    expect(configToPlatform({ file_exists: false, config: null })).toBe('reddit')
     expect(configToPlatform({})).toBe('reddit')
     expect(configToPlatform(null)).toBe('reddit')
-    expect(configToPlatform({ platform_configs: { parallel: {} } })).toBe('reddit')
   })
 })
 

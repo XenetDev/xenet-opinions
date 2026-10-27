@@ -79,21 +79,10 @@ export const profilesToPart = (realtime: ProfilesRealtime): AgentsData => {
   return { count: profiles.length, ...(expected !== undefined ? { expected } : {}), profiles }
 }
 
-const isPlatform = (v: unknown): v is Platform => v === 'twitter' || v === 'reddit'
-
 export const configToPlatform = (raw: unknown): Platform => {
-  for (const c of [rec(rec(raw).config), rec(raw)]) {
-    const configs = c.platform_configs
-    const fromConfigs = Array.isArray(configs)
-      ? configs.map((p) => rec(p).platform).find(isPlatform)
-      : Object.keys(rec(configs)).find(isPlatform)
-    if (fromConfigs) return fromConfigs
-    const fromKeys = Object.keys(c)
-      .map((k) => /^(twitter|reddit)_config$/.exec(k)?.[1])
-      .find(isPlatform)
-    if (fromKeys) return fromKeys
-  }
-  return 'reddit'
+  const config = rec(rec(raw).config)
+  const enabled = (['twitter', 'reddit'] as const).find((p) => config[`${p}_config`])
+  return enabled ?? 'reddit'
 }
 
 export const rawPosts = (res: unknown): unknown[] => (Array.isArray(res) ? res : list(rec(res).posts))
