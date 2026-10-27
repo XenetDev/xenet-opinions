@@ -121,6 +121,7 @@ services:
       MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
       DEMO_MODE: ${DEMO_MODE:-0}
       DEMO_PAUSED: ${DEMO_PAUSED:-0}
+      DEMO_ALLOW_PAUSE: ${DEMO_ALLOW_PAUSE:-1}
       MAX_RUNS_PER_DAY: ${MAX_RUNS_PER_DAY:-2}
       DEMO_MAX_ROUNDS: ${DEMO_MAX_ROUNDS:-3}
     healthcheck:

@@ -10,6 +10,7 @@ services:
       PORT: "5001"
       MOCK_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
       MOCK_SPEED: ${MOCK_SPEED:-5}
+      MOCK_INTERVIEW_DELAY_MS: ${MOCK_INTERVIEW_DELAY_MS:-1500}
     networks: [backend]
 
   mirofish-proxy:

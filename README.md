@@ -1,6 +1,10 @@
 # Xenet Opinions
 
-Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions. Persona interviews are currently unavailable after a run completes, because upstream MiroFish writes the report only after the simulation environment shuts down; the decision is recorded in the [Phase 5 follow-ups](docs/superpowers/plans/2026-10-23-phase-5-followups.md). Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
+Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions. Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
+
+## Interviewing personas
+
+Tick "Pause for interviews before the report" when you start a run. After the simulation rounds the personas stay online for 20 minutes. Pick up to 5 of them from the roster and ask a question; the answers arrive one by one, about 3 minutes per persona with real MiroFish, and every question you ask extends the window (5 minutes per persona, up to 60 minutes in total). Press Generate report when you are done, or wait for the window to end; the report is written either way. Runs without the box ticked go straight to the report. Report follow-up questions work after the run as before. Interviews are not possible after the report, because upstream MiroFish writes the report only after the simulation process exits and personas exist only while it runs; the background is in the [Phase 5 follow-ups](docs/superpowers/plans/2026-10-23-phase-5-followups.md) and the [design](docs/superpowers/specs/2026-10-27-interview-window-design.md).
 
 ## Architecture
 
