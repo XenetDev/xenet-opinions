@@ -518,13 +518,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const failStage = process.env.MOCK_FAIL_STAGE as FailStage | undefined
   if (failStage && !FAIL_STAGES.includes(failStage))
     throw new Error(`MOCK_FAIL_STAGE must be one of ${FAIL_STAGES.join(', ')}`)
+  const delayEnv = process.env.MOCK_INTERVIEW_DELAY_MS ? Number(process.env.MOCK_INTERVIEW_DELAY_MS) : Number.NaN
   const mock = await startMockMiroFish({
     port: Number(process.env.PORT ?? 5001),
     host: process.env.HOST ?? '127.0.0.1',
     speed: Number(process.env.MOCK_SPEED ?? 1),
     failStage: failStage || undefined,
     token: process.env.MOCK_TOKEN || undefined,
-    interviewDelayMs: process.env.MOCK_INTERVIEW_DELAY_MS ? Number(process.env.MOCK_INTERVIEW_DELAY_MS) : undefined,
+    interviewDelayMs: Number.isFinite(delayEnv) ? delayEnv : undefined,
   })
   console.log(`Mock MiroFish listening on ${mock.url}`)
 }

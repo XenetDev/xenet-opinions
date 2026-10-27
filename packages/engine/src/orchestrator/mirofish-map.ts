@@ -81,7 +81,7 @@ export const profilesToPart = (realtime: ProfilesRealtime): AgentsData => {
 
 export const configToPlatform = (raw: unknown): Platform => {
   const config = rec(rec(raw).config)
-  const enabled = (['twitter', 'reddit'] as const).find((p) => config[`${p}_config`])
+  const enabled = (['reddit', 'twitter'] as const).find((p) => config[`${p}_config`])
   return enabled ?? 'reddit'
 }
 
