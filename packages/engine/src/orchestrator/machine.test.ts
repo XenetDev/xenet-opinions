@@ -913,8 +913,11 @@ describe('interview window', () => {
     expect(store.interviews.get('q1_0')?.status).toBe('failed')
   })
 
-  it('leaves a transient env check error to the retry path', async () => {
-    const { deps, run, setClock } = await paused({
+  it.each([
+    new MiroFishError({ code: 'network', message: 'ECONNRESET', path: '/run-status' }),
+    new MiroFishError({ code: 'http', status: 502, message: 'bad gateway', path: '/run-status' }),
+  ])('leaves a transient env check error to the retry path (%s)', async (err) => {
+    const { deps, run, setClock, payloads } = await paused({
       simulation: {
         runStatus: vi
           .fn()
@@ -926,13 +929,14 @@ describe('interview window', () => {
             twitter_completed: true,
             reddit_completed: true,
           })
-          .mockRejectedValue(new MiroFishError({ code: 'network', message: 'ECONNRESET', path: '/run-status' })),
+          .mockRejectedValue(err),
       },
     })
     setClock(30_000)
     const next = await tick(run, deps)
-    expect(next).toMatchObject({ status: 'running', stage: 'interviews' })
+    expect(next).toMatchObject({ status: 'running', stage: 'interviews', envState: 'open' })
     expect(next.cursors.retries).toBe(1)
+    expect(payloads('interview_window').at(-1)).toMatchObject({ closed: false })
   })
 
   it('fails with env_stuck when the env does not close in time', async () => {

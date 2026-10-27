@@ -29,6 +29,8 @@ const agentsPlatform = async (run: Run, deps: Deps) => {
 }
 
 const offlineStatus = (err: unknown) => err instanceof MiroFishError && (err.code === 'api' || err.code === 'http')
+const envStopped = (err: unknown) =>
+  err instanceof MiroFishError && (err.code === 'api' || (err.code === 'http' && (err.status ?? 0) < 500))
 
 const settle = async (run: Run, deps: Deps, row: Interview, outcome: Outcome) => {
   await emit(deps, run, 'interview', { ...interviewOf(row), ...outcome })
@@ -119,7 +121,7 @@ export const interviews: StageHandler = {
     const status = await deps.mirofish.simulation
       .runStatus(need(run.ids.simulationId, 'simulationId'))
       .catch((err: unknown) => {
-        if (offlineStatus(err)) return undefined
+        if (envStopped(err)) return undefined
         throw err
       })
     if (status?.runner_status === 'running' || status?.runner_status === 'paused') {

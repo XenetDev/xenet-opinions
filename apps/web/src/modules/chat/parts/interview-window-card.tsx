@@ -82,7 +82,8 @@ export function InterviewWindowCard({
         </p>
       )}
       <p className="text-sm text-muted-foreground">
-        Pick personas from the roster to interview them; answers take about 3 minutes per persona.
+        Pick personas from the roster to interview them. Answers arrive one persona at a time, usually within a minute;
+        a persona that does not answer within 4 minutes is marked failed.
       </p>
       {generating && (
         <p role={routed ? undefined : 'status'} className="text-sm">

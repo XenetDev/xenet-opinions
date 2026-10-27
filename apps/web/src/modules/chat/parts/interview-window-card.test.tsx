@@ -30,7 +30,7 @@ describe('InterviewWindowCard', () => {
     render(<InterviewWindowCard chatId="c1" data={open()} />)
     expect(screen.getByText(`4 personas are online until ${clock(at(20))}`)).toBeTruthy()
     expect(screen.getByText('20 minutes left')).toBeTruthy()
-    expect(screen.getByText(/about 3 minutes per persona/)).toBeTruthy()
+    expect(screen.getByText(/one persona at a time, usually within a minute/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Generate report' })).toBeTruthy()
   })
 
