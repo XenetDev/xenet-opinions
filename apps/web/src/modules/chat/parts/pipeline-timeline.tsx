@@ -45,7 +45,7 @@ export function PipelineTimeline({ stages, onRetry }: { stages: StageData[]; onR
       {STAGES.filter((stage) => stage !== 'interviews' || byStage.has(stage)).map((stage) => {
         const data = byStage.get(stage)
         const status = data?.status ?? 'pending'
-        const title = STAGE_TITLES[stage]
+        const title = stage === 'interviews' && status === 'done' ? 'Personas offline' : STAGE_TITLES[stage]
         const tone = cn(
           'flex w-full items-center gap-2 text-sm',
           (status === 'pending' || status === 'cancelled') && 'text-muted-foreground',

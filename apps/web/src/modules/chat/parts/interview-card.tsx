@@ -3,11 +3,11 @@ import { MessageResponse } from '@/components/ai-elements/message'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-export function InterviewCard({ data }: { data: InterviewData }) {
+export function InterviewCard({ data, showQuestion = true }: { data: InterviewData; showQuestion?: boolean }) {
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3" data-status={data.status}>
       <p className="text-sm font-medium">{data.agentName}</p>
-      <p className="text-sm text-muted-foreground">{data.question}</p>
+      {showQuestion && <p className="text-sm text-muted-foreground">{data.question}</p>}
       {data.status === 'pending' && (
         <div data-testid="interview-pending">
           <Shimmer>Thinking…</Shimmer>

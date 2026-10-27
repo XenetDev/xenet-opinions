@@ -29,11 +29,15 @@ function attach(name = 'a.txt') {
 describe('Composer', () => {
   it('sends text with no files and default rounds', async () => {
     const onSend = vi.fn()
-    render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
+    render(<Composer chatId="c1" mode="run" onSend={onSend} />)
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.click(submit())
     await waitFor(() =>
-      expect(onSend).toHaveBeenCalledWith('hello', { kind: 'run', uploadIds: [], runOptions: { maxRounds: 3 } }),
+      expect(onSend).toHaveBeenCalledWith('hello', {
+        kind: 'run',
+        uploadIds: [],
+        runOptions: { maxRounds: 3, pauseForInterviews: false },
+      }),
     )
   })
 
@@ -43,7 +47,7 @@ describe('Composer', () => {
       vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 })),
     )
     const onSend = vi.fn()
-    render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
+    render(<Composer chatId="c1" mode="run" onSend={onSend} />)
     attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.click(submit())
@@ -58,7 +62,7 @@ describe('Composer', () => {
     )
     vi.stubGlobal('fetch', fetchStub)
     const onSend = vi.fn()
-    render(<Composer chatId="c1" mode="run" envOpen={false} onSend={onSend} />)
+    render(<Composer chatId="c1" mode="run" onSend={onSend} />)
     attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.click(submit())
@@ -71,35 +75,35 @@ describe('Composer', () => {
   })
 
   it('disables textarea, attach and submit when disabled', () => {
-    render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} disabled />)
+    render(<Composer chatId="c1" mode="run" onSend={vi.fn()} disabled />)
     expect(textarea().disabled).toBe(true)
     expect((screen.getByRole('button', { name: /Attach/ }) as HTMLButtonElement).disabled).toBe(true)
     expect(submit().disabled).toBe(true)
   })
 
   it('disables both file inputs when disabled', () => {
-    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} disabled />)
+    const { container } = render(<Composer chatId="c1" mode="run" onSend={vi.fn()} disabled />)
     const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'))
     expect(inputs).toHaveLength(2)
     expect(inputs.every((input) => input.disabled)).toBe(true)
   })
 
   it('leaves both file inputs enabled when not disabled', () => {
-    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
+    const { container } = render(<Composer chatId="c1" mode="run" onSend={vi.fn()} />)
     const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'))
     expect(inputs).toHaveLength(2)
     expect(inputs.some((input) => input.disabled)).toBe(false)
   })
 
   it('shows attach and rounds in run mode only', () => {
-    render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
+    render(<Composer chatId="c1" mode="run" onSend={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Attach/ })).toBeTruthy()
     expect(screen.getByText('Rounds')).toBeTruthy()
     expect(screen.queryByRole('combobox', { name: 'Follow-up target' })).toBeNull()
   })
 
   it('has no axe violations', async () => {
-    const { container } = render(<Composer chatId="c1" mode="run" envOpen={false} onSend={vi.fn()} />)
+    const { container } = render(<Composer chatId="c1" mode="run" onSend={vi.fn()} />)
     expect(await axe(container)).toHaveNoViolations()
   })
 })
@@ -113,40 +117,48 @@ function Picker() {
   )
 }
 
-function FollowUp(props: Partial<ComponentProps<typeof Composer>>) {
+function WithSelection(props: Partial<ComponentProps<typeof Composer>>) {
   return (
     <InterviewSelectionProvider enabled>
       <Picker />
-      <Composer chatId="c1" mode="followUp" envOpen onSend={vi.fn()} {...props} />
+      <Composer chatId="c1" mode="interview" onSend={vi.fn()} {...props} />
     </InterviewSelectionProvider>
   )
 }
 
-const targetTrigger = () => screen.getByRole('combobox', { name: 'Follow-up target' })
-
-function chooseTarget(name: string) {
-  fireEvent.keyDown(targetTrigger(), { key: 'Enter' })
-  fireEvent.click(screen.getByRole('option', { name }))
-}
-
 describe('Composer in follow-up mode', () => {
-  it('hides attach and rounds and asks the report by default', async () => {
+  it('hides attach, rounds and the pause and only asks the report', async () => {
     const onSend = vi.fn()
-    render(<FollowUp onSend={onSend} />)
+    render(<WithSelection mode="followUp" onSend={onSend} />)
     expect(screen.queryByRole('button', { name: /Attach/ })).toBeNull()
     expect(screen.queryByText('Rounds')).toBeNull()
-    expect(targetTrigger().textContent).toBe('Ask the report')
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.getByText('Ask the report')).toBeTruthy()
+    expect(screen.queryByText('Interview personas')).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
     fireEvent.change(textarea(), { target: { value: 'why?' } })
     fireEvent.click(submit())
     await waitFor(() =>
       expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'report', agentIds: [] }),
     )
   })
+})
 
-  it('refuses an interview with no personas selected', async () => {
+describe('Composer in interview mode', () => {
+  it('fixes the target to personas with no attach, rounds or pause', () => {
+    render(<WithSelection />)
+    expect(screen.getByText('Interview personas')).toBeTruthy()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Attach/ })).toBeNull()
+    expect(screen.queryByText('Rounds')).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  it('refuses to send with no personas selected', async () => {
     const onSend = vi.fn()
-    render(<FollowUp onSend={onSend} />)
-    chooseTarget('Interview personas')
+    render(<WithSelection onSend={onSend} />)
     fireEvent.change(textarea(), { target: { value: 'why?' } })
     fireEvent.click(submit())
     await waitFor(() => expect(screen.getByText('Select at least one persona to interview')).toBeTruthy())
@@ -155,8 +167,7 @@ describe('Composer in follow-up mode', () => {
   })
 
   it('clears the persona notice once a persona is picked', async () => {
-    render(<FollowUp />)
-    chooseTarget('Interview personas')
+    render(<WithSelection />)
     fireEvent.change(textarea(), { target: { value: 'why?' } })
     fireEvent.click(submit())
     await waitFor(() => expect(screen.getByText('Select at least one persona to interview')).toBeTruthy())
@@ -166,8 +177,7 @@ describe('Composer in follow-up mode', () => {
 
   it('shows chips for selected personas, sends their ids and clears them after sending', async () => {
     const onSend = vi.fn()
-    render(<FollowUp onSend={onSend} />)
-    chooseTarget('Interview personas')
+    render(<WithSelection onSend={onSend} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
     expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeTruthy()
     fireEvent.change(textarea(), { target: { value: 'why?' } })
@@ -178,31 +188,29 @@ describe('Composer in follow-up mode', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull())
   })
 
+  it('keeps the chips and the text when sending fails', async () => {
+    const onSend = vi.fn(async () => {
+      throw new Error('window_closed')
+    })
+    render(<WithSelection onSend={onSend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    fireEvent.change(textarea(), { target: { value: 'why?' } })
+    fireEvent.click(submit())
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeTruthy()
+    expect(textarea().value).toBe('why?')
+  })
+
   it('removes a persona with its chip button', () => {
-    render(<FollowUp />)
-    chooseTarget('Interview personas')
+    render(<WithSelection />)
     fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove Ada' }))
     expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
   })
 
-  it('disables the interview option when the env is closed', () => {
-    render(<FollowUp envOpen={false} />)
-    fireEvent.keyDown(targetTrigger(), { key: 'Enter' })
-    expect(screen.getByRole('option', { name: 'Interview personas' }).getAttribute('aria-disabled')).toBe('true')
-  })
-
-  it('resets the target to the report when the env closes', () => {
-    const view = render(<FollowUp />)
-    chooseTarget('Interview personas')
-    expect(targetTrigger().textContent).toBe('Interview personas')
-    act(() => view.rerender(<FollowUp envOpen={false} />))
-    expect(targetTrigger().textContent).toBe('Ask the report')
-  })
-
   it('has no axe violations', async () => {
-    const { container } = render(<FollowUp />)
-    chooseTarget('Interview personas')
+    const { container } = render(<WithSelection />)
     fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
     expect(await axe(container)).toHaveNoViolations()
   })

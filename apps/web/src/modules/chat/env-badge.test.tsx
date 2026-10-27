@@ -12,9 +12,9 @@ describe('EnvBadge', () => {
     expect(screen.getByRole('status').textContent).toBe('Agents available for 7 min')
   })
 
-  it('shows offline when closed', () => {
-    render(<EnvBadge state="closed" minutesLeft={null} />)
-    expect(screen.getByRole('status').textContent).toBe('Agents offline')
+  it('renders nothing when closed', () => {
+    const { container } = render(<EnvBadge state="closed" minutesLeft={null} />)
+    expect(container.innerHTML).toBe('')
   })
 
   it('renders nothing without an env', () => {
