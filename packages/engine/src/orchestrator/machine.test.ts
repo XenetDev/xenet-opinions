@@ -295,6 +295,94 @@ describe('tick', () => {
     expect((store.events.get(run.id) ?? []).map(label).slice(-2)).toEqual(['stage:sim_run:failed', 'error'])
   })
 
+  it('treats a prepare status of ready as prepared', async () => {
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          prepareStatus: vi.fn(async () => ({ simulation_id: 'sim_1', status: 'ready' as const, progress: 100 })),
+        },
+      },
+      { stage: 'sim_prepare', ids: { ...ids, prepareTaskId: 'ptask_1' } },
+    )
+    expect((await tick(run, deps)).stage).toBe('sim_run')
+  })
+
+  it('closes the env once after the last round and stays in sim_run through stopping', async () => {
+    const roundsDone = {
+      runner_status: 'running' as const,
+      current_round: 1,
+      total_rounds: 1,
+      twitter_completed: true,
+      reddit_completed: true,
+    }
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi
+            .fn()
+            .mockResolvedValueOnce(roundsDone)
+            .mockResolvedValueOnce(roundsDone)
+            .mockResolvedValue({ ...roundsDone, runner_status: 'stopping' }),
+          posts: vi.fn(async () => ({ posts: [] })),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, startAcked: true } },
+    )
+    let current = run
+    for (let i = 0; i < 3; i++) {
+      current = await tick(current, deps)
+      expect(current.stage).toBe('sim_run')
+      expect(current.status).toBe('running')
+      expect(current.cursors.envCloseRequested).toBe(true)
+    }
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
+    expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
+  })
+
+  it('waits while report generation is refused for pending ingestion, then enters', async () => {
+    const pending = new MiroFishError({
+      code: 'api',
+      status: 409,
+      path: '/api/report/generate',
+      message:
+        'Simulation or Zep graph ingestion is still active; wait for a terminal run status before generating a report',
+    })
+    const { store, deps, run } = await setup(
+      {
+        report: {
+          generate: vi
+            .fn()
+            .mockRejectedValueOnce(pending)
+            .mockResolvedValue({ simulation_id: 'sim_1', report_id: 'rep_1', task_id: 'rtask_1' }),
+        },
+      },
+      { stage: 'report', ids },
+    )
+    const waiting = await tick(run, deps)
+    expect(waiting.stage).toBe('report')
+    expect(waiting.status).toBe('running')
+    expect(waiting.ids.reportId).toBeUndefined()
+    expect(waiting.error).toBeNull()
+    const entered = await tick(waiting, deps)
+    expect(entered.ids.reportId).toBe('rep_1')
+    expect(deps.mirofish.report.generate).toHaveBeenCalledTimes(2)
+    expect((store.events.get(run.id) ?? []).map(label)).not.toContain('error')
+  })
+
+  it('still fails the run on other report generation errors', async () => {
+    const { deps, run } = await setup(
+      {
+        report: {
+          generate: vi.fn(async () => {
+            throw new MiroFishError({ code: 'api', status: 400, path: '/api/report/generate', message: 'bad' })
+          }),
+        },
+      },
+      { stage: 'report', ids },
+    )
+    expect((await tick(run, deps)).status).toBe('failed')
+  })
+
   it('fetches the posts backlog on completion and keeps the newest 50', async () => {
     const page = (platform: 'twitter' | 'reddit', offset: number, n: number) =>
       Array.from({ length: n }, (_, i) => ({

@@ -49,7 +49,8 @@ export const simPrepare: StageHandler = {
       throw remoteFailure(status.error ?? status.message, 'Agent preparation failed', '/api/simulation/prepare/status')
     }
     const agents = await fetchAgents(deps, simulationId)
-    if (status.status === 'completed' || status.already_prepared === true) return finish(run, deps, agents)
+    if (status.status === 'completed' || status.status === 'ready' || status.already_prepared === true)
+      return finish(run, deps, agents)
     const message = stageName(status.progress_detail) ?? status.message ?? undefined
     await running(deps, run, 'sim_prepare', { progress: status.progress, ...(message ? { message } : {}) })
     return emitAgents(run, deps, agents)
