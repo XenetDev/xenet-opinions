@@ -1,6 +1,6 @@
 # Xenet Opinions
 
-Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions or interview individual personas. Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
+Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://github.com/666ghj/MiroFish) simulations. Attach a few documents, ask a question about how people would react, and the chat walks through the whole run as it happens: the knowledge graph, the generated personas, the simulation round by round and the final report. When the run is done you can ask the report agent follow-up questions. Persona interviews are currently unavailable after a run completes, because upstream MiroFish writes the report only after the simulation environment shuts down; the decision is recorded in the [Phase 5 follow-ups](docs/superpowers/plans/2026-10-23-phase-5-followups.md). Runs survive reloads, worker restarts and closed tabs, and can be cancelled or retried from the stage that failed.
 
 ## Architecture
 
