@@ -79,6 +79,12 @@ export const profilesToPart = (realtime: ProfilesRealtime): AgentsData => {
   return { count: profiles.length, ...(expected !== undefined ? { expected } : {}), profiles }
 }
 
+export const configToPlatform = (raw: unknown): Platform => {
+  const config = rec(rec(raw).config)
+  const enabled = (['reddit', 'twitter'] as const).find((p) => config[`${p}_config`])
+  return enabled ?? 'reddit'
+}
+
 export const rawPosts = (res: unknown): unknown[] => (Array.isArray(res) ? res : list(rec(res).posts))
 
 export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>

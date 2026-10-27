@@ -7,21 +7,23 @@ export const DEFAULT_ROUNDS = 3
 
 export const defaultRounds = (maxRounds: number) => Math.min(DEFAULT_ROUNDS, maxRounds)
 
-export type RunOptionsValue = { maxRounds: number }
+export type RunOptionsValue = { maxRounds: number; pauseForInterviews: boolean }
 
 export function RunOptions({
   value,
   onChange,
   disabled,
   maxRounds = 40,
+  allowPause = true,
 }: {
   value: RunOptionsValue
   onChange: (value: RunOptionsValue) => void
   disabled?: boolean
   maxRounds?: number
+  allowPause?: boolean
 }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       <span id="run-options-rounds">Rounds</span>
       <Select
         value={String(value.maxRounds)}
@@ -39,6 +41,18 @@ export function RunOptions({
           ))}
         </SelectContent>
       </Select>
+      {allowPause && (
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            className="size-3.5 accent-primary"
+            checked={value.pauseForInterviews}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...value, pauseForInterviews: event.target.checked })}
+          />
+          Pause for interviews before the report
+        </label>
+      )}
     </div>
   )
 }

@@ -7,7 +7,7 @@ vi.mock('@/server/runs', () => {
   class RunActiveError extends Error {}
   return {
     RunActiveError,
-    runStore: { getActiveByChat: vi.fn(), getLatestByChat: vi.fn(), queuePosition: vi.fn() },
+    runStore: { getActiveByChat: vi.fn(), getLatestByChat: vi.fn(), queuePosition: vi.fn(), hasPausedRunning: vi.fn() },
     countOwnedUploads: vi.fn(),
     runsStartedSince: vi.fn(),
     startRun: vi.fn(),
@@ -23,6 +23,16 @@ vi.mock('@/server/follow-up', () => {
   }
   return { FollowUpError, runFollowUp: vi.fn() }
 })
+vi.mock('@/server/interview-window', () => {
+  class InterviewWindowError extends Error {
+    code: string
+    constructor(code: string) {
+      super(code)
+      this.code = code
+    }
+  }
+  return { InterviewWindowError, createInterviewQuestion: vi.fn() }
+})
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
 vi.mock('@xo/engine', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@xo/engine')>()),
@@ -33,6 +43,7 @@ import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
+import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
 import { POST } from './route'
@@ -59,7 +70,14 @@ const authed = () => {
 }
 
 const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
-  vi.mocked(getLimits).mockReturnValue({ demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, ...over })
+  vi.mocked(getLimits).mockReturnValue({
+    demoMode: false,
+    paused: false,
+    maxRunsPerDay: 2,
+    maxRounds: 40,
+    allowPause: true,
+    ...over,
+  })
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -215,7 +233,13 @@ describe('POST /api/chats/[id]/messages', () => {
     expect(res.headers.get('content-type')).toMatch(/^text\/event-stream/)
     expect(startRun).toHaveBeenCalledTimes(1)
     expect(startRun).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'c1', userId: 'user1', uploadIds: [], maxRounds: 3 }),
+      expect.objectContaining({
+        chatId: 'c1',
+        userId: 'user1',
+        uploadIds: [],
+        maxRounds: 3,
+        pauseForInterviews: false,
+      }),
     )
     expect(tailRunAsUIMessageStream).toHaveBeenCalledWith(
       expect.objectContaining({ runId: 'r2', messageId: 'a1', maxDurationMs: 280_000 }),
@@ -223,6 +247,89 @@ describe('POST /api/chats/[id]/messages', () => {
     const body = await res.text()
     const first = body.split('\n').find((line) => line.startsWith('data:'))
     expect(JSON.parse(first!.slice(5).trim())).toEqual({ type: 'start', messageId: 'a1' })
+  })
+
+  describe('interview window', () => {
+    const paused = { id: 'r1', status: 'running', stage: 'interviews', cursors: {} }
+
+    it('writes interview questions for a paused run and returns 202 json, not a stream', async () => {
+      authed()
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue(paused as never)
+      vi.mocked(createInterviewQuestion).mockResolvedValue({ questionId: 'q1', interviewIds: ['i1', 'i2'] })
+      const res = await call(userMessage('why?'), { target: 'agents', agentIds: ['1', '2'] })
+      expect(res.status).toBe(202)
+      expect(res.headers.get('content-type')).not.toMatch(/event-stream/)
+      expect(await res.json()).toEqual({ questionId: 'q1', interviewIds: ['i1', 'i2'] })
+      expect(createInterviewQuestion).toHaveBeenCalledWith({ run: paused, agentIds: ['1', '2'], text: 'why?' })
+      expect(startRun).not.toHaveBeenCalled()
+      expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    })
+
+    it('refuses other targets with 409 run_paused', async () => {
+      authed()
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue(paused as never)
+      const res = await call(userMessage('hi'))
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'run_paused' })
+      expect(createInterviewQuestion).not.toHaveBeenCalled()
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['invalid_body', 400],
+      ['report_requested', 409],
+      ['window_closed', 409],
+    ])('maps InterviewWindowError %s to %i', async (code, status) => {
+      authed()
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue(paused as never)
+      vi.mocked(createInterviewQuestion).mockRejectedValue(new InterviewWindowError(code as never))
+      const res = await call(userMessage('hi'), { target: 'agents', agentIds: ['1'] })
+      expect(res.status).toBe(status)
+      expect(await res.json()).toEqual({ error: code })
+    })
+
+    it('still returns run_active for an active run in another stage', async () => {
+      authed()
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue({ ...paused, stage: 'sim_run' } as never)
+      const res = await call(userMessage('hi'), { target: 'agents', agentIds: ['1'] })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'run_active' })
+      expect(createInterviewQuestion).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pause option', () => {
+    const start = () => {
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+    }
+
+    it('passes pauseForInterviews through when allowed', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('hi'), { runOptions: { pauseForInterviews: true } })
+      await res.body?.cancel()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ pauseForInterviews: true }))
+    })
+
+    it('forces pauseForInterviews false when DEMO_ALLOW_PAUSE is 0', async () => {
+      authed()
+      limits({ allowPause: false })
+      start()
+      const res = await call(userMessage('hi'), { runOptions: { pauseForInterviews: true } })
+      await res.body?.cancel()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ pauseForInterviews: false }))
+    })
+
+    it('passes a pausedAhead reader to the tail', async () => {
+      authed()
+      start()
+      vi.mocked(runStore.hasPausedRunning).mockResolvedValue(true)
+      const res = await call(userMessage('hi'))
+      await res.body?.cancel()
+      const reader = vi.mocked(tailRunAsUIMessageStream).mock.calls[0]![0].pausedAhead!
+      expect(await reader()).toBe(true)
+    })
   })
 
   describe('demo limits', () => {

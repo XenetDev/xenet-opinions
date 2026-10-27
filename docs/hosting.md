@@ -54,7 +54,7 @@ Networks: `web` sits on `edge` and `internal`; `worker`, `postgres`, `minio` and
 
 ### Real and mock MiroFish
 
-- Real (`up.sh`): upstream MiroFish. A 1-round run on a 1 KB seed file took about 6 minutes with `gpt-4o-mini` (ontology 17 s, graph 63 s, personas 46 s, simulation 81 s, report about 2 minutes); more rounds, agents or a slower model take longer, and every run spends LLM and Zep credits (see [Limits and costs](#limits-and-costs)). MiroFish writes the report only after its simulation environment has shut down, and answers persona interviews only while that environment is running, so the app closes the environment before the report; persona interviews after any run (real or mock, since the mock mirrors this) show "Agents are offline", while questions to the report still work. MiroFish's posts and report come out in Chinese even for an English seed and question.
+- Real (`up.sh`): upstream MiroFish. A 1-round run on a 1 KB seed file took about 6 minutes with `gpt-4o-mini` (ontology 17 s, graph 63 s, personas 46 s, simulation 81 s, report about 2 minutes); more rounds, agents or a slower model take longer, and every run spends LLM and Zep credits (see [Limits and costs](#limits-and-costs)). MiroFish writes the report only after its simulation environment has shut down, and answers persona interviews only while that environment is running, so the app closes the environment before the report; persona interviews therefore happen in an optional window before the report (see [Interview window](#interview-window)), and questions to the report work after the run. MiroFish's posts and report come out in Chinese even for an English seed and question.
 - Mock (`up-mock.sh`): no keys needed. Runs finish in under a minute. `MOCK_SPEED` divides the mock's simulated stage delays (about 16 s plus 1 s per round at `1`); end-to-end time is dominated by the worker's 2 s poll interval, so values above about 5 make little difference. The mock keeps its simulations in memory, so restarting or recreating `mirofish-mock` makes follow-ups on earlier runs fail.
 
 Use one script consistently for a running stack: both share the project name `xenet-opinions`, and each knows only its own MiroFish service.
@@ -79,6 +79,7 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `BETTER_AUTH_URL` | unset | Same as `NEXT_PUBLIC_APP_URL`, with the same default; anonymous sign-in fails when it does not match the browser's origin |
 | `BETTER_AUTH_SECRET` | blank | Required. `openssl rand -base64 32` |
 | `MIROFISH_TOKEN` | blank | Required. `openssl rand -hex 32`; shared by the proxy, web and worker |
+| `MIROFISH_LOCALE` | `en` | Language MiroFish writes personas, posts, interview answers and the report in, sent as `Accept-Language` on every call: `en`, `zh`, `es`, `fr`, `pt`, `ru` or `de`. MiroFish falls back to Chinese when the header is missing or unknown |
 | `POSTGRES_PASSWORD` | blank | Required. `openssl rand -hex 32`; must be URL-safe because it goes into `DATABASE_URL` |
 | `MINIO_ROOT_USER` | `xo-admin` | At least 3 characters. Also the S3 access key |
 | `MINIO_ROOT_PASSWORD` | blank | Required. `openssl rand -hex 24` (MinIO needs at least 8 characters). Also the S3 secret key |
@@ -91,7 +92,9 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `DEMO_PAUSED` | `0` | `1` refuses new runs (follow-ups still work) |
 | `MAX_RUNS_PER_DAY` | `2` | New runs per anonymous user per 24 h; retries of a failed run are free. Demo mode only |
 | `DEMO_MAX_ROUNDS` | `3` | Rounds cap, demo mode only |
-| `ENV_KEEPALIVE_MS` | `1200000` | How long a finished run's simulation stays open for interviews |
+| `DEMO_ALLOW_PAUSE` | `1` | Read by `web`. `0` hides the "Pause for interviews before the report" checkbox and forces the option off |
+| `MOCK_INTERVIEW_DELAY_MS` | `1500` | Mock MiroFish only: delay per interview call, so answers visibly arrive one by one |
+| `ENV_KEEPALIVE_MS` | `1200000` | Length of the interview window (20 minutes) |
 | `ENV_SWEEP_INTERVAL_MS` | `60000` | Sweeper interval; `0` disables it |
 
 ### Demo mode and pause
@@ -107,6 +110,14 @@ With `DEMO_PAUSED=1` new runs are refused (`demo_paused`) and the composer is di
 ```sh
 infra/docker/up.sh up -d web
 ```
+
+### Interview window
+
+A run started with "Pause for interviews before the report" stops after the rounds with its personas online. The window lasts `ENV_KEEPALIVE_MS` (20 minutes by default). Each accepted question (up to 5 personas, one MiroFish call per persona; with real MiroFish and `gpt-4o-mini` each answer took 2 to 5 seconds in testing, and a call gives up after 240 seconds) extends it by 5 minutes per persona, capped at 60 minutes from the start of the pause. Interviews run in the worker, so they survive reloads and closed tabs.
+
+- Generate report, or the window expiring, closes the environment and writes the report. Interviews already asked finish first; new questions are refused.
+- Cancelling the run closes the environment. If the environment dies on its own, questions still pending fail with "Agents are offline", the worker notices within about 30 seconds of the last answer and goes on to the report.
+- A paused run holds the single worker slot (`MAX_CONCURRENT_RUNS=1`) for the whole window, and queued users see a message that a run is paused for interviews. The hosted demo therefore sets `DEMO_ALLOW_PAUSE=0`; self-hosters get the feature by default.
 
 ### Volumes
 
@@ -201,10 +212,11 @@ It listens on `:8080` (plain HTTP); the platform terminates TLS on its public UR
 | `DATABASE_URL` | The managed Postgres URL (private address where the host offers one) |
 | `MIROFISH_URL` | The proxy's private address, for example `http://mirofish-proxy:8080` |
 | `MIROFISH_TOKEN` | Same value as on the proxy and Vercel |
+| `MIROFISH_LOCALE` | `en` (or another language MiroFish supports) |
 | `STORAGE_DRIVER` | `s3` |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | The same bucket settings as Vercel |
 | `MAX_CONCURRENT_RUNS` | `1` |
-| `ENV_KEEPALIVE_MS` | `1200000` (20 minutes) |
+| `ENV_KEEPALIVE_MS` | `1200000` (20 minutes; the interview window length) |
 | `ENV_SWEEP_INTERVAL_MS` | `60000` |
 | `WORKER_POLL_MS` | Optional, default `2000` |
 | `WORKER_ID` | Optional lease owner name, default host and pid; leave unset rather than blank |
@@ -226,10 +238,12 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL` | The public URL |
 | `MIROFISH_URL` | The proxy's public URL |
 | `MIROFISH_TOKEN` | Same value as on the proxy and worker |
+| `MIROFISH_LOCALE` | Same value as on the worker |
 | `STORAGE_DRIVER` | `s3` |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | The bucket's settings |
 | `DEMO_MODE` | `1` |
 | `DEMO_PAUSED` | `0` (`1` to pause) |
+| `DEMO_ALLOW_PAUSE` | `0` |
 | `MAX_RUNS_PER_DAY` | `2` |
 | `DEMO_MAX_ROUNDS` | `3` |
 | `HEALTH_CHECK_MIROFISH` | `1` |

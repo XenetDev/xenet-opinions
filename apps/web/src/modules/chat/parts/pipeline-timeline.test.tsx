@@ -59,6 +59,20 @@ describe('PipelineTimeline', () => {
     expect(screen.getAllByTestId('stage-row')[0]?.getAttribute('data-status')).toBe('done')
   })
 
+  it('shows the interviews row as personas online, then offline once done', () => {
+    const { rerender } = render(<PipelineTimeline stages={[{ stage: 'interviews', status: 'running' }]} />)
+    expect(screen.getAllByTestId('stage-row')).toHaveLength(8)
+    expect(screen.getByText('Personas online')).toBeTruthy()
+    rerender(<PipelineTimeline stages={[{ stage: 'interviews', status: 'done' }]} />)
+    expect(screen.getByText('Personas offline')).toBeTruthy()
+    expect(screen.queryByText('Personas online')).toBeNull()
+  })
+
+  it('has no interviews row for a run without the pause', () => {
+    render(<PipelineTimeline stages={[{ stage: 'report', status: 'done' }]} />)
+    expect(screen.queryByText(/^Personas/)).toBeNull()
+  })
+
   it('uses a button trigger only for rows with a message', () => {
     render(<PipelineTimeline stages={[{ stage: 'ontology', status: 'running', message: 'Echoing' }]} />)
     expect(screen.getAllByRole('button')).toHaveLength(1)

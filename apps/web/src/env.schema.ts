@@ -1,3 +1,4 @@
+import { MIROFISH_LOCALES } from '@xo/mirofish'
 import { z } from 'zod'
 
 export const envSchema = z
@@ -8,6 +9,7 @@ export const envSchema = z
     NEXT_PUBLIC_APP_URL: z.url(),
     MIROFISH_URL: z.url(),
     MIROFISH_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+    MIROFISH_LOCALE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(MIROFISH_LOCALES).default('en')),
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     STORAGE_LOCAL_DIR: z.string().default('.data/uploads'),
     S3_BUCKET: z.string().optional(),
@@ -21,6 +23,7 @@ export const envSchema = z
     HEALTH_CHECK_MIROFISH: z.enum(['1', '0']).default('1'),
     DEMO_MODE: z.enum(['1', '0']).default('0'),
     DEMO_PAUSED: z.enum(['1', '0']).default('0'),
+    DEMO_ALLOW_PAUSE: z.enum(['1', '0']).default('1'),
     MAX_RUNS_PER_DAY: z.coerce.number().int().default(2),
     DEMO_MAX_ROUNDS: z.coerce.number().int().min(1).max(40).default(3),
   })

@@ -3,6 +3,8 @@ import type {
   AgentsData,
   ErrorData,
   GraphData,
+  InterviewData,
+  InterviewWindowData,
   OntologyData,
   ReportEventData,
   ReportOutlineData,
@@ -14,6 +16,9 @@ import {
   AgentsDataSchema,
   ErrorDataSchema,
   GraphDataSchema,
+  InterviewDataSchema,
+  InterviewWindowDataSchema,
+  interviewPartId,
   OntologyDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
@@ -34,6 +39,8 @@ export const EVENT_KINDS = [
   'report_event',
   'sources',
   'report_text',
+  'interview_window',
+  'interview',
   'error',
   'done',
   'cancelled',
@@ -52,6 +59,8 @@ export type RunEventPayloads = {
   report_event: ReportEventData
   sources: SourcesData
   report_text: { markdown: string }
+  interview_window: InterviewWindowData
+  interview: InterviewData
   error: ErrorData
   done: Record<string, never>
   cancelled: CancelledData
@@ -72,6 +81,8 @@ const SCHEMAS = {
   report_event: ReportEventDataSchema,
   sources: SourcesDataSchema,
   report_text: ReportTextDataSchema,
+  interview_window: InterviewWindowDataSchema,
+  interview: InterviewDataSchema,
   error: ErrorDataSchema,
   done: DoneDataSchema,
   cancelled: CancelledDataSchema,
@@ -87,6 +98,8 @@ export const partIdFor = <K extends EventKind>(kind: K, payload: RunEventPayload
       return `report_event:${(payload as ReportEventData).n}`
     case 'report_text':
       return 'report'
+    case 'interview':
+      return interviewPartId((payload as InterviewData).id ?? (payload as InterviewData).agentId)
     case 'error':
     case 'done':
     case 'cancelled':

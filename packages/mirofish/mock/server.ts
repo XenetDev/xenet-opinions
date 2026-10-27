@@ -13,7 +13,15 @@ import {
 } from './fixtures'
 import { createStore, FAIL_STAGES, type Failable, type FailStage, hexId, Timeline } from './state'
 
-export type MockOptions = { port?: number; speed?: number; failStage?: FailStage; token?: string; host?: string }
+export type MockOptions = {
+  port?: number
+  speed?: number
+  failStage?: FailStage
+  token?: string
+  host?: string
+  interviewDelayMs?: number
+  platform?: 'twitter' | 'reddit'
+}
 
 class HttpError extends Error {
   constructor(
@@ -36,6 +44,8 @@ const FAILURE = 'Injected failure'
 const ENV_CLOSED = '模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。'
 const AGENT_LOG_INTERVAL_MS = 500
 const DEFAULT_MAX_ROUNDS = 5
+const DEFAULT_INTERVIEW_DELAY_MS = 1500
+const PLATFORMS = ['twitter', 'reddit'] as const
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -82,8 +92,10 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
   const opts = { ...options }
   const speed = opts.speed && opts.speed > 0 ? opts.speed : 1
   const scale = (ms: number) => ms / speed
+  const interviewDelayMs = Math.max(0, opts.interviewDelayMs ?? DEFAULT_INTERVIEW_DELAY_MS)
   const store = createStore()
   const calls: Record<string, number> = {}
+  const bodies: Record<string, unknown[]> = {}
   const fails = (entity: Failable, stage: FailStage) => {
     if (opts.failStage === stage) entity.failed = true
     return entity.failed === true
@@ -354,15 +366,26 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       sim.envClosed = true
       return { closed: true }
     }),
-    compile('POST', '/api/simulation/interview/batch', ({ body }) => {
+    compile('POST', '/api/simulation/interview/batch', async ({ body }) => {
       const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
+      if (body.platform !== undefined && !PLATFORMS.includes(body.platform as (typeof PLATFORMS)[number]))
+        throw new HttpError(400, 'platform must be twitter or reddit')
+      if (body.timeout !== undefined && !(typeof body.timeout === 'number' && body.timeout > 0))
+        throw new HttpError(400, 'timeout must be a positive number')
       if (sim.envClosed) throw new HttpError(400, ENV_CLOSED)
       const interviews = Array.isArray(body.interviews) ? (body.interviews as Array<{ agent_id?: unknown }>) : []
+      const platforms = body.platform ? [body.platform as (typeof PLATFORMS)[number]] : PLATFORMS
+      await sleep(interviewDelayMs * interviews.length)
       const results = Object.fromEntries(
         interviews.flatMap((i) =>
-          (['twitter', 'reddit'] as const).map((platform) => [
+          platforms.map((platform) => [
             `${platform}_${String(i.agent_id)}`,
-            { agent_id: i.agent_id, platform, response: 'Mock interview response.' },
+            {
+              agent_id: i.agent_id,
+              platform,
+              response: 'Mock interview response.',
+              timestamp: new Date().toISOString(),
+            },
           ]),
         ),
       )
@@ -371,6 +394,35 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         interviews_count: interviews.length,
         result: { interviews_count: Object.keys(results).length, results },
         timestamp: new Date().toISOString(),
+      }
+    }),
+    compile('GET', '/api/simulation/:id/config/realtime', ({ params }) => {
+      const sim = need(store.simulations.get(params.id as string), 'simulation')
+      const platform = opts.platform ?? 'reddit'
+      const platformConfig = (name: (typeof PLATFORMS)[number]) => (name === platform ? { platform: name } : null)
+      return {
+        simulation_id: sim.id,
+        file_exists: true,
+        file_modified_at: new Date().toISOString(),
+        is_generating: false,
+        status: 'ready',
+        error: null,
+        generation_stage: 'completed',
+        profiles_generated: true,
+        config_generated: true,
+        config: {
+          simulation_id: sim.id,
+          project_id: sim.projectId,
+          graph_id: sim.graphId,
+          agent_configs: [],
+          twitter_config: platformConfig('twitter'),
+          reddit_config: platformConfig('reddit'),
+        },
+        summary: {
+          total_agents: 0,
+          has_twitter_config: platform === 'twitter',
+          has_reddit_config: platform === 'reddit',
+        },
       }
     }),
     compile('POST', '/api/report/generate', ({ body }) => {
@@ -437,6 +489,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         throw new HttpError(401, 'unauthorized')
       const isForm = matched.route.pattern === '/api/graph/ontology/generate'
       const body = method === 'POST' && !isForm ? await readBody(req) : {}
+      bodies[key] = [...(bodies[key] ?? []), body]
       const data = await matched.route.handler({ params: matched.params, query: url.searchParams, body, req })
       send(res, 200, { success: true, data })
     } catch (err) {
@@ -455,6 +508,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
     url: `http://127.0.0.1:${port}`,
     server,
     calls,
+    bodies,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))
@@ -467,12 +521,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const failStage = process.env.MOCK_FAIL_STAGE as FailStage | undefined
   if (failStage && !FAIL_STAGES.includes(failStage))
     throw new Error(`MOCK_FAIL_STAGE must be one of ${FAIL_STAGES.join(', ')}`)
+  const delayEnv = process.env.MOCK_INTERVIEW_DELAY_MS ? Number(process.env.MOCK_INTERVIEW_DELAY_MS) : Number.NaN
   const mock = await startMockMiroFish({
     port: Number(process.env.PORT ?? 5001),
     host: process.env.HOST ?? '127.0.0.1',
     speed: Number(process.env.MOCK_SPEED ?? 1),
     failStage: failStage || undefined,
     token: process.env.MOCK_TOKEN || undefined,
+    interviewDelayMs: Number.isFinite(delayEnv) ? delayEnv : undefined,
   })
   console.log(`Mock MiroFish listening on ${mock.url}`)
 }

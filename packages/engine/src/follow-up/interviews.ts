@@ -1,7 +1,13 @@
 import type { InterviewBatchResult } from '@xo/mirofish'
 import type { InterviewData } from '../parts'
 
-export type RequestedInterview = { agentId: string; agentName: string; question: string }
+export type RequestedInterview = {
+  id: string
+  questionId: string
+  agentId: string
+  agentName: string
+  question: string
+}
 
 export const mirofishAgentId = (id: string): number | string => (/^\d+$/.test(id) ? Number(id) : id)
 

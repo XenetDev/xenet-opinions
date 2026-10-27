@@ -3,6 +3,7 @@ import type { AgentLogPage, OntologyResult } from '@xo/mirofish'
 import { describe, expect, it } from 'vitest'
 import {
   agentLogToEvents,
+  configToPlatform,
   graphDataToPart,
   ontologyToPart,
   postsToFeed,
@@ -69,6 +70,33 @@ describe('profilesToPart', () => {
       topics: ['pricing'],
     })
     expect(part.profiles[1]).toMatchObject({ id: '1', name: 'Agent 2', topics: [] })
+  })
+})
+
+describe('configToPlatform', () => {
+  const realistic = (config: Record<string, unknown>) => ({
+    simulation_id: 'sim_1',
+    file_exists: true,
+    is_generating: false,
+    status: 'ready',
+    generation_stage: 'completed',
+    config_generated: true,
+    config: { simulation_id: 'sim_1', agent_configs: [], ...config },
+    summary: { total_agents: 0 },
+  })
+  const cfg = (platform: string) => ({ platform, recency_weight: 0.3 })
+
+  it('prefers reddit when both are enabled, else the one enabled from the simulation config', () => {
+    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: cfg('reddit') }))).toBe('reddit')
+    expect(configToPlatform(realistic({ twitter_config: null, reddit_config: cfg('reddit') }))).toBe('reddit')
+    expect(configToPlatform(realistic({ twitter_config: cfg('twitter'), reddit_config: null }))).toBe('twitter')
+  })
+
+  it("falls back to reddit, MiroFish's default", () => {
+    expect(configToPlatform(realistic({ twitter_config: null, reddit_config: null }))).toBe('reddit')
+    expect(configToPlatform({ file_exists: false, config: null })).toBe('reddit')
+    expect(configToPlatform({})).toBe('reddit')
+    expect(configToPlatform(null)).toBe('reddit')
   })
 })
 

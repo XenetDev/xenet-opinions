@@ -32,31 +32,33 @@ export function Composer({
   chatId,
   initialText,
   mode,
-  envOpen,
   onSend,
   disabled = false,
   status,
   onStop,
   maxRounds = 40,
+  allowPause = true,
 }: {
   chatId: string
   initialText?: string
-  mode: 'run' | 'followUp'
-  envOpen: boolean
+  mode: 'run' | 'followUp' | 'interview'
   onSend: (text: string, submit: ComposerSubmit) => void | Promise<void>
   disabled?: boolean
   status?: ChatStatus
   onStop?: () => void
   maxRounds?: number
+  allowPause?: boolean
 }) {
   const { files, add, remove, uploadAll, reset } = useUploads(chatId)
-  const [runOptions, setRunOptions] = useState<RunOptionsValue>({ maxRounds: defaultRounds(maxRounds) })
-  const [target, setTarget] = useState<FollowUpTarget>('report')
+  const [runOptions, setRunOptions] = useState<RunOptionsValue>({
+    maxRounds: defaultRounds(maxRounds),
+    pauseForInterviews: false,
+  })
   const [notice, setNotice] = useState<string | null>(null)
   const selection = useInterviewSelection()
-  if (!envOpen && target !== 'report') setTarget('report')
-  const followUp = mode === 'followUp'
-  const personas = followUp && target === 'agents' ? (selection?.selected ?? []) : []
+  const followUp = mode !== 'run'
+  const target: FollowUpTarget = mode === 'interview' ? 'agents' : 'report'
+  const personas = target === 'agents' ? (selection?.selected ?? []) : []
   if (notice === NO_PERSONAS && personas.length > 0) setNotice(null)
   const routed = useAnnounce(notice)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -86,7 +88,11 @@ export function Composer({
           }
           setNotice(null)
           const uploadIds = await uploadAll()
-          await onSend(text, { kind: 'run', uploadIds, runOptions })
+          await onSend(text, {
+            kind: 'run',
+            uploadIds,
+            runOptions: { ...runOptions, pauseForInterviews: allowPause && runOptions.pauseForInterviews },
+          })
           reset()
         }}
       >
@@ -149,14 +155,7 @@ export function Composer({
         <PromptInputFooter>
           <PromptInputTools>
             {followUp ? (
-              <TargetSelector
-                value={target}
-                onChange={(next) => {
-                  setTarget(next)
-                  setNotice(null)
-                }}
-                agentsDisabled={!envOpen}
-              />
+              <TargetSelector value={target} />
             ) : (
               <>
                 <input
@@ -176,7 +175,13 @@ export function Composer({
                   <PaperclipIcon className="size-4" />
                   <span>Attach</span>
                 </PromptInputButton>
-                <RunOptions value={runOptions} onChange={setRunOptions} disabled={disabled} maxRounds={maxRounds} />
+                <RunOptions
+                  value={runOptions}
+                  onChange={setRunOptions}
+                  disabled={disabled}
+                  maxRounds={maxRounds}
+                  allowPause={allowPause}
+                />
               </>
             )}
           </PromptInputTools>

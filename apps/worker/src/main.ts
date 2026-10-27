@@ -53,7 +53,11 @@ async function main() {
   try {
     await runWorkerLoop({
       store: createDrizzleStore(db),
-      mirofish: createMiroFishClient({ baseUrl: env.MIROFISH_URL, token: env.MIROFISH_TOKEN }),
+      mirofish: createMiroFishClient({
+        baseUrl: env.MIROFISH_URL,
+        token: env.MIROFISH_TOKEN,
+        locale: env.MIROFISH_LOCALE,
+      }),
       storage: createStorageFromEnv({ ...env, STORAGE_LOCAL_DIR: localDir }),
       now: () => new Date(),
       envKeepaliveMs: env.ENV_KEEPALIVE_MS,

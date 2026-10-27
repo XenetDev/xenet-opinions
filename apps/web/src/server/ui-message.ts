@@ -4,6 +4,7 @@ import {
   ErrorDataSchema,
   GraphDataSchema,
   InterviewDataSchema,
+  InterviewWindowDataSchema,
   OntologyDataSchema,
   type OpinionsUIMessage,
   QueueDataSchema,
@@ -34,6 +35,7 @@ const dataSchemas: Record<string, z.ZodType> = {
   'data-sources': SourcesDataSchema,
   'data-error': ErrorDataSchema,
   'data-interview': InterviewDataSchema,
+  'data-interview_window': InterviewWindowDataSchema,
   'data-queue': QueueDataSchema,
 }
 

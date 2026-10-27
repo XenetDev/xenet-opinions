@@ -163,12 +163,28 @@ describe.skipIf(!process.env.DATABASE_URL)('runFollowUp (real db)', () => {
       {
         type: 'data-interview',
         id: 'interview:2',
-        data: { agentId: '2', agentName: 'Bo', question: 'Why?', status: 'done', answer: 'Yes' },
+        data: {
+          id: expect.any(String),
+          questionId: expect.any(String),
+          agentId: '2',
+          agentName: 'Bo',
+          question: 'Why?',
+          status: 'done',
+          answer: 'Yes',
+        },
       },
       {
         type: 'data-interview',
         id: 'interview:1',
-        data: { agentId: '1', agentName: 'Ada', question: 'Why?', status: 'failed', error: 'No answer' },
+        data: {
+          id: expect.any(String),
+          questionId: expect.any(String),
+          agentId: '1',
+          agentName: 'Ada',
+          question: 'Why?',
+          status: 'failed',
+          error: 'No answer',
+        },
       },
     ])
     const interviews = await db.select().from(schema.interviews).where(eq(schema.interviews.chatId, chatId))

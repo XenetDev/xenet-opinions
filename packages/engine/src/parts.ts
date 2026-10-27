@@ -1,7 +1,16 @@
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
 
-export const STAGES = ['ontology', 'graph_build', 'sim_create', 'sim_prepare', 'sim_run', 'report', 'finished'] as const
+export const STAGES = [
+  'ontology',
+  'graph_build',
+  'sim_create',
+  'sim_prepare',
+  'sim_run',
+  'interviews',
+  'report',
+  'finished',
+] as const
 export type Stage = (typeof STAGES)[number]
 
 const StageSchema = z.enum(STAGES)
@@ -46,6 +55,7 @@ export const AgentsDataSchema = z.object({
       topics: z.array(z.string()),
     }),
   ),
+  platform: z.enum(['twitter', 'reddit']).optional(),
 })
 export type AgentsData = z.infer<typeof AgentsDataSchema>
 
@@ -92,6 +102,8 @@ export const ErrorDataSchema = z.object({ stage: StageSchema, code: z.string(), 
 export type ErrorData = z.infer<typeof ErrorDataSchema>
 
 export const InterviewDataSchema = z.object({
+  id: z.string().optional(),
+  questionId: z.string().optional(),
   agentId: z.string(),
   agentName: z.string(),
   question: z.string(),
@@ -101,7 +113,15 @@ export const InterviewDataSchema = z.object({
 })
 export type InterviewData = z.infer<typeof InterviewDataSchema>
 
-export const QueueDataSchema = z.object({ position: z.number().int().min(0) })
+export const InterviewWindowDataSchema = z.object({
+  until: z.string().nullable(),
+  personaCount: z.number().int(),
+  closed: z.boolean(),
+  reason: z.enum(['report_requested', 'expired', 'environment_stopped']).optional(),
+})
+export type InterviewWindowData = z.infer<typeof InterviewWindowDataSchema>
+
+export const QueueDataSchema = z.object({ position: z.number().int().min(0), pausedAhead: z.boolean().optional() })
 export type QueueData = z.infer<typeof QueueDataSchema>
 
 export type OpinionsDataParts = {
@@ -115,11 +135,12 @@ export type OpinionsDataParts = {
   sources: SourcesData
   error: ErrorData
   interview: InterviewData
+  interview_window: InterviewWindowData
   queue: QueueData
 }
 
 export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>
 
 export const stagePartId = (stage: Stage) => `stage:${stage}` as const
-export const interviewPartId = (agentId: string) => `interview:${agentId}` as const
+export const interviewPartId = (id: string) => `interview:${id}` as const
 export { MAX_INTERVIEW_AGENTS } from './follow-up/keepalive'

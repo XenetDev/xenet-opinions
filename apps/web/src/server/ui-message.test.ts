@@ -31,11 +31,36 @@ describe('toUIMessages', () => {
     const good = {
       type: 'data-interview',
       id: 'interview:a1',
-      data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' },
+      data: { id: 'i1', questionId: 'q1', agentId: 'a1', agentName: 'A', question: 'q', status: 'pending' },
     }
     const bad = { type: 'data-interview', data: { agentId: 'a1', status: 'nope' } }
     const [message] = toUIMessages([row([good, bad])])
     expect(message?.parts).toEqual([good])
+  })
+
+  it('keeps legacy interview parts without id and questionId', () => {
+    const legacy = {
+      type: 'data-interview',
+      id: 'interview:a1',
+      data: { agentId: 'a1', agentName: 'A', question: 'q', status: 'done', answer: 'yes' },
+    }
+    expect(toUIMessages([row([legacy])])[0]?.parts).toEqual([legacy])
+  })
+
+  it('whitelists data-interview_window parts and drops invalid ones', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const part = {
+      type: 'data-interview_window',
+      id: 'interview_window',
+      data: { until: null, personaCount: 3, closed: true, reason: 'expired' },
+    }
+    const bad = { type: 'data-interview_window', data: { until: null, personaCount: 3, closed: true, reason: 'nope' } }
+    expect(toUIMessages([row([part, bad])])[0]?.parts).toEqual([part])
+  })
+
+  it('accepts pausedAhead on data-queue parts', () => {
+    const part = { type: 'data-queue', data: { position: 1, pausedAhead: true } }
+    expect(toUIMessages([row([part])])[0]?.parts).toEqual([part])
   })
 
   it('whitelists data-queue parts', () => {

@@ -1,6 +1,7 @@
 import type { Run } from '@xo/db'
 import { MiroFishError, type Platform } from '@xo/mirofish'
 import { advance, emit, need, remoteFailure, running } from '../emit'
+import { closeEnvAndWait } from '../env'
 import { fail, isRetriable, messageOf } from '../fail'
 import { postsToFeed, rawPosts, runStatusToFeed } from '../mirofish-map'
 import type { Deps, StageHandler } from '../types'
@@ -72,16 +73,18 @@ export const simRun: StageHandler = {
     const finished = status.runner_status === 'completed' || status.runner_status === 'stopped'
     // After the last round MiroFish stays 'running' (env waiting for commands) and refuses reports until it exits.
     const roundsDone = status.twitter_completed === true && status.reddit_completed === true
-    const closeEnv = roundsDone && status.runner_status === 'running' && !run.cursors.envCloseRequested
-    if (closeEnv) await deps.mirofish.simulation.closeEnv(simulationId)
-    const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, finished)
-    const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, finished)
+    const waiting = roundsDone && status.runner_status === 'running'
+    const pause = waiting && run.config.pauseForInterviews === true && !run.cursors.envCloseRequested
+    if (!finished && !pause && (waiting || run.cursors.envCloseRequested)) await closeEnvAndWait(run, deps, status)
+    const backlog = finished || pause
+    const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, backlog)
+    const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, backlog)
     const added = twitter.posts.length + reddit.posts.length
     const totalRounds = status.total_rounds || run.config.maxRounds
     const prev = run.cursors.feed
     const feed = runStatusToFeed(prev, { ...status, total_rounds: totalRounds }, [...twitter.posts, ...reddit.posts])
     if (!prev || feed.round !== prev.round || added > 0) await emit(deps, run, 'sim_feed', feed)
-    if (!finished) {
+    if (!backlog) {
       const progress = status.progress_percent ?? Math.round((feed.round / totalRounds) * 100)
       await running(deps, run, 'sim_run', { progress, message: `Round ${feed.round}/${totalRounds}` })
     }
@@ -93,11 +96,11 @@ export const simRun: StageHandler = {
           postsOffsetTwitter: twitter.offset,
           postsOffsetReddit: reddit.offset,
           idlePolls: 0,
-          ...(closeEnv ? { envCloseRequested: true } : {}),
         },
       },
       deps.fence,
     )
+    if (pause) return advance(deps, next, 'sim_run', 'interviews')
     return finished ? advance(deps, next, 'sim_run', 'report') : next
   },
 }

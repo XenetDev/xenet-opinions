@@ -81,6 +81,7 @@ export async function startRun(input: {
   text: string
   uploadIds: string[]
   maxRounds: number
+  pauseForInterviews: boolean
 }): Promise<{ run: Run; assistantMessageId: string }> {
   const assistantMessageId = generateId()
   try {
@@ -104,7 +105,12 @@ export async function startRun(input: {
           userId: input.userId,
           assistantMessageId,
           status: 'queued',
-          config: { requirement: input.text, maxRounds: input.maxRounds, uploadIds: input.uploadIds },
+          config: {
+            requirement: input.text,
+            maxRounds: input.maxRounds,
+            uploadIds: input.uploadIds,
+            pauseForInterviews: input.pauseForInterviews,
+          },
         })
         .returning()
       await tx

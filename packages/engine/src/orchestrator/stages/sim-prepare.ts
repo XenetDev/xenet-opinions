@@ -1,20 +1,31 @@
 import type { Run } from '@xo/db'
 import type { AgentsData } from '../../parts'
 import { advance, emit, need, remoteFailure, running } from '../emit'
-import { profilesToPart } from '../mirofish-map'
+import { configToPlatform, profilesToPart } from '../mirofish-map'
 import type { Deps, StageHandler } from '../types'
 
 const fetchAgents = async (deps: Deps, simulationId: string) =>
   profilesToPart(await deps.mirofish.simulation.profilesRealtime(simulationId))
 
-const emitAgents = async (run: Run, deps: Deps, agents: AgentsData) => {
-  if (agents.count === (run.cursors.lastAgentCount ?? 0)) return run
+const fetchPlatform = async (run: Run, deps: Deps, simulationId: string) => {
+  try {
+    return configToPlatform(await deps.mirofish.simulation.configRealtime(simulationId))
+  } catch (error) {
+    deps.log('simulation config unavailable, assuming reddit', { runId: run.id, simulationId, error })
+    return 'reddit' as const
+  }
+}
+
+const emitAgents = async (run: Run, deps: Deps, agents: AgentsData, force = false) => {
+  if (!force && agents.count === (run.cursors.lastAgentCount ?? 0)) return run
   await emit(deps, run, 'agents', agents)
   return deps.store.update(run.id, { cursors: { lastAgentCount: agents.count } }, deps.fence)
 }
 
-const finish = async (run: Run, deps: Deps, agents: AgentsData) =>
-  advance(deps, await emitAgents(run, deps, agents), 'sim_prepare', 'sim_run')
+const finish = async (run: Run, deps: Deps, agents: AgentsData) => {
+  const platform = await fetchPlatform(run, deps, need(run.ids.simulationId, 'simulationId'))
+  return advance(deps, await emitAgents(run, deps, { ...agents, platform }, true), 'sim_prepare', 'sim_run')
+}
 
 const stageName = (detail: unknown) => {
   const name = (detail as { current_stage_name?: unknown } | null | undefined)?.current_stage_name

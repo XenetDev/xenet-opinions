@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CLOSE_WAIT_DEADLINE_MS,
+  ENV_CHECK_INTERVAL_MS,
   ENV_INTERVIEW_EXTEND_MS,
   ENV_KEEPALIVE_CAP_MS,
-  ENV_KEEPALIVE_MS,
+  extendInterviewWindow,
   extendKeepalive,
-  keepaliveAfterFinish,
+  INTERVIEW_CLIENT_TIMEOUT_MS,
+  INTERVIEW_EXTEND_PER_PERSONA_MS,
+  INTERVIEW_MIROFISH_TIMEOUT_S,
+  INTERVIEW_WINDOW_CAP_MS,
+  INTERVIEW_WINDOW_MS,
 } from './keepalive'
 
 const MIN = 60_000
@@ -13,14 +19,15 @@ const at = (min: number) => new Date(t0.getTime() + min * MIN)
 
 describe('keepalive', () => {
   it('uses the documented constants', () => {
-    expect(ENV_KEEPALIVE_MS).toBe(20 * MIN)
     expect(ENV_INTERVIEW_EXTEND_MS).toBe(10 * MIN)
     expect(ENV_KEEPALIVE_CAP_MS).toBe(60 * MIN)
-  })
-
-  it('keeps the env alive 20 minutes after finish', () => {
-    expect(keepaliveAfterFinish(t0)).toEqual(at(20))
-    expect(keepaliveAfterFinish(t0, 5 * MIN)).toEqual(at(5))
+    expect(INTERVIEW_WINDOW_MS).toBe(20 * MIN)
+    expect(INTERVIEW_EXTEND_PER_PERSONA_MS).toBe(5 * MIN)
+    expect(INTERVIEW_WINDOW_CAP_MS).toBe(60 * MIN)
+    expect(ENV_CHECK_INTERVAL_MS).toBe(30_000)
+    expect(CLOSE_WAIT_DEADLINE_MS).toBe(3 * MIN)
+    expect(INTERVIEW_MIROFISH_TIMEOUT_S).toBe(240)
+    expect(INTERVIEW_CLIENT_TIMEOUT_MS).toBe(270_000)
   })
 
   it('extends from now when the current keepalive is in the past', () => {
@@ -41,9 +48,7 @@ describe('keepalive', () => {
 
   it('never shortens a current deadline that is already beyond the cap', () => {
     expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(120) }, at(10))).toEqual(at(120))
-    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: keepaliveAfterFinish(t0, 120 * MIN) }, at(1))).toEqual(
-      at(120),
-    )
+    expect(extendKeepalive({ finishedAt: t0, envKeepaliveUntil: at(120) }, at(1))).toEqual(at(120))
   })
 
   it('keeps a current deadline at the cap unchanged', () => {
@@ -55,11 +60,36 @@ describe('keepalive', () => {
   })
 
   it('five extensions never exceed the cap', () => {
-    let current: Date | null = keepaliveAfterFinish(t0)
+    let current: Date | null = at(20)
     for (let i = 0; i < 5; i++) {
       current = extendKeepalive({ finishedAt: t0, envKeepaliveUntil: current }, at(10 + i))
       expect(current.getTime()).toBeLessThanOrEqual(at(60).getTime())
     }
     expect(current).toEqual(at(60))
+  })
+})
+
+describe('extendInterviewWindow', () => {
+  const started = { interviewsStartedAt: t0.toISOString() }
+
+  it('adds five minutes per persona to the current deadline', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: at(20), cursors: started }, 2, at(5))).toEqual(at(30))
+  })
+
+  it('extends from now when the deadline has passed or is missing', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: at(20), cursors: started }, 1, at(25))).toEqual(at(30))
+    expect(extendInterviewWindow({ envKeepaliveUntil: null, cursors: started }, 1, at(25))).toEqual(at(30))
+  })
+
+  it('caps at 60 minutes after the pause started', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: at(50), cursors: started }, 5, at(40))).toEqual(at(60))
+  })
+
+  it('never shortens a deadline already past the cap', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: at(70), cursors: started }, 1, at(10))).toEqual(at(70))
+  })
+
+  it('caps relative to now when the pause start is unknown', () => {
+    expect(extendInterviewWindow({ envKeepaliveUntil: null, cursors: {} }, 1, at(5))).toEqual(at(10))
   })
 })

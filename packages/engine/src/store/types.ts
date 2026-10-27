@@ -1,4 +1,4 @@
-import type { Run, RunConfig, RunEvent, Upload } from '@xo/db'
+import type { Interview, NewInterview, Run, RunConfig, RunEvent, Upload } from '@xo/db'
 import type { RunEventInput } from '../events'
 
 export type RunPatch = Partial<
@@ -20,7 +20,11 @@ export type RunPatch = Partial<
 
 export type Fence = { owner: string }
 
-export type TransitionOpts = { expectStatus?: Run['status'][] }
+export type InterviewRow = Interview
+
+export type InterviewPatch = { status: string; answer?: string | null }
+
+export type TransitionOpts = { expectStatus?: Run['status'][]; expect?: (run: Run) => boolean }
 
 export class FenceError extends Error {
   readonly code = 'run_fenced'
@@ -36,11 +40,18 @@ export type RunStore = {
   getActiveByChat(chatId: string): Promise<Run | null>
   getLatestByChat(chatId: string): Promise<Run | null>
   queuePosition(runId: string): Promise<number | null>
+  hasPausedRunning(): Promise<boolean>
   claimNext(owner: string, leaseMs: number, maxConcurrent: number): Promise<Run | null>
   renewLease(id: string, owner: string, leaseMs: number): Promise<boolean>
   releaseLease(id: string, owner: string): Promise<boolean>
   update(id: string, patch: RunPatch, fence?: Fence): Promise<Run>
-  transition(id: string, patch: RunPatch, events: RunEventInput[], fence?: Fence, opts?: TransitionOpts): Promise<Run>
+  transition(
+    id: string,
+    patch: RunPatch | ((locked: Run) => RunPatch),
+    events: RunEventInput[],
+    fence?: Fence,
+    opts?: TransitionOpts,
+  ): Promise<Run>
   appendEvent(runId: string, event: RunEventInput, fence?: Fence): Promise<RunEvent>
   listEvents(runId: string, afterSeq: number): Promise<RunEvent[]>
   lastSeq(runId: string): Promise<number>
@@ -48,4 +59,7 @@ export type RunStore = {
   listEnvsToSweep(now: Date, limit?: number): Promise<Run[]>
   closeEnv(id: string): Promise<boolean>
   listUploads(ids: string[]): Promise<Upload[]>
+  listPendingInterviews(runId: string): Promise<InterviewRow[]>
+  updateInterview(id: string, patch: InterviewPatch): Promise<void>
+  createInterviews(rows: NewInterview[]): Promise<InterviewRow[]>
 }

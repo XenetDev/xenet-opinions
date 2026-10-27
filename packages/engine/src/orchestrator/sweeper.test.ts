@@ -51,6 +51,19 @@ describe('sweepEnvs', () => {
     expect((await store.get(run.id))?.envState).toBe('closed')
   })
 
+  it('leaves a running run with an expired keepalive to its stage', async () => {
+    const { store, deps, run } = await setupRun()
+    await store.update(run.id, {
+      stage: 'interviews',
+      envState: 'open',
+      envKeepaliveUntil: expired,
+      ids: { simulationId: 'sim_1' },
+    })
+    expect(await sweepEnvs(deps)).toEqual([])
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    expect((await store.get(run.id))?.envState).toBe('open')
+  })
+
   it('leaves unexpired environments open', async () => {
     const { store, deps, run } = await setupRun()
     await finish(store, run.id, { envKeepaliveUntil: new Date(NOW.getTime() + 60_000) })

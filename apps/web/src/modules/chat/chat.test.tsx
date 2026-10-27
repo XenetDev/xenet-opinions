@@ -8,21 +8,27 @@ import type { RunStatusState } from './use-run-status'
 
 const chat = vi.hoisted(() => ({
   status: 'ready' as string,
+  messages: [] as unknown[],
   stop: vi.fn(),
   resumeStream: vi.fn(),
   sendMessage: vi.fn(),
   options: undefined as undefined | { onError: (error: Error) => void; onFinish?: (arg: unknown) => void },
 }))
-const runState = vi.hoisted(() => ({ current: { status: 'none' } as RunStatusState }))
-const runOpts = vi.hoisted(() => ({ current: undefined as undefined | { enabled: boolean; sendCount?: number } }))
-const composer = vi.hoisted(() => ({ props: undefined as undefined | Record<string, unknown> }))
+const runState = vi.hoisted(() => ({ current: { status: 'none' } as RunStatusState, seeded: false }))
+const runOpts = vi.hoisted(() => ({
+  current: undefined as undefined | { enabled: boolean; sendCount?: number; initial?: RunStatusState },
+}))
+const composer = vi.hoisted(() => ({
+  props: undefined as undefined | Record<string, unknown>,
+  sent: undefined as undefined | Promise<string>,
+}))
 const upsertChat = vi.hoisted(() => vi.fn())
 
 vi.mock('@ai-sdk/react', () => ({
   useChat: (options: { onError: (error: Error) => void; onFinish?: (arg: unknown) => void }) => {
     chat.options = options
     return {
-      messages: [],
+      messages: chat.messages,
       sendMessage: chat.sendMessage,
       status: chat.status,
       stop: chat.stop,
@@ -31,9 +37,9 @@ vi.mock('@ai-sdk/react', () => ({
   },
 }))
 vi.mock('./use-run-status', () => ({
-  useRunStatus: (_chatId: string, opts: { enabled: boolean; sendCount?: number }) => {
+  useRunStatus: (_chatId: string, opts: { enabled: boolean; sendCount?: number; initial?: RunStatusState }) => {
     runOpts.current = opts
-    return runState.current
+    return runState.seeded && opts.initial ? opts.initial : runState.current
   },
 }))
 vi.mock('@/modules/sidebar/chat-list-context', () => ({
@@ -51,18 +57,24 @@ vi.mock('@/components/ai-elements/conversation', () => ({
 vi.mock('./composer/composer', async () => {
   const { useInterviewSelection } = await import('./interview-selection')
   return {
-    Composer: (props: { onStop: () => void; onSend: (text: string, submit: unknown) => void }) => {
+    Composer: (props: { onStop: () => void; onSend: (text: string, submit: unknown) => unknown }) => {
       composer.props = { ...props, selectionEnabled: useInterviewSelection()?.enabled }
+      const send = (submit: unknown) => {
+        composer.sent = Promise.resolve(props.onSend('why?', submit)).then(
+          () => 'sent',
+          (error: Error) => error.message,
+        )
+      }
       return (
         <>
           <button type="button" onClick={props.onStop}>
             Stop
           </button>
-          <button
-            type="button"
-            onClick={() => props.onSend('why?', { kind: 'followUp', target: 'agents', agentIds: ['p1'] })}
-          >
+          <button type="button" onClick={() => send({ kind: 'followUp', target: 'report', agentIds: [] })}>
             Send follow-up
+          </button>
+          <button type="button" onClick={() => send({ kind: 'followUp', target: 'agents', agentIds: ['p1', 'p2'] })}>
+            Send interview
           </button>
         </>
       )
@@ -86,6 +98,8 @@ const fetchSpy = vi.fn()
 
 beforeEach(() => {
   chat.status = 'ready'
+  chat.messages = []
+  runState.seeded = false
   chat.stop.mockReset()
   chat.resumeStream.mockReset()
   chat.sendMessage.mockReset()
@@ -100,7 +114,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40 }
+const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true }
 
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(
@@ -180,67 +194,157 @@ describe('Chat', () => {
 
   it('uses run mode until a run is done', () => {
     renderChat()
-    expect(composer.props).toMatchObject({ mode: 'run', envOpen: false })
+    expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, allowPause: true })
   })
 
-  it('switches to follow-up mode for a loaded done run and shows the env badge', () => {
+  it('switches to follow-up mode for a done run with no env badge', () => {
     renderChat(doneRun('open', inMinutes(10)))
-    expect(composer.props).toMatchObject({ mode: 'followUp', envOpen: true })
-    expect(screen.getByRole('status').textContent).toBe('Agents available for 10 min')
+    expect(composer.props).toMatchObject({ mode: 'followUp', selectionEnabled: false })
+    expect(screen.queryByText(/Agents/)).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('')
   })
 
-  it('switches to follow-up mode with the env from the poll when a new run finishes live', () => {
-    runState.current = { status: 'done', runId: 'r1', envState: 'open', envKeepaliveUntil: inMinutes(10) }
+  it('switches to follow-up mode when a new run finishes live, without a badge or persona selection', () => {
+    runState.current = { status: 'done', runId: 'r1', envState: 'closed', envKeepaliveUntil: null }
     renderChat()
-    expect(composer.props).toMatchObject({ mode: 'followUp', envOpen: true, selectionEnabled: true })
+    expect(composer.props).toMatchObject({ mode: 'followUp', selectionEnabled: false })
+    expect(screen.queryByText(/Agents/)).toBeNull()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('opens the env when the run active at page load finishes live', () => {
-    const activeRun = { id: 'r1', assistantMessageId: 'm1', stage: 'sim_run' as const }
-    const latestRun = {
-      id: 'r1',
-      status: 'running',
-      assistantMessageId: 'm1',
-      envState: 'none' as const,
-      envKeepaliveUntil: null,
-    }
-    runState.current = { status: 'running', stage: 'sim_run', runId: 'r1', assistantMessageId: 'm1' }
-    const view = render(
-      <Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} limits={limits} />,
-    )
-    expect(composer.props).toMatchObject({ mode: 'run', envOpen: false, selectionEnabled: false })
-    runState.current = {
-      status: 'done',
-      runId: 'r1',
-      assistantMessageId: 'm1',
-      envState: 'open',
-      envKeepaliveUntil: inMinutes(10),
-    }
-    view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={latestRun} limits={limits} />)
-    expect(screen.getByRole('status').textContent).toBe('Agents available for 10 min')
-    expect(composer.props).toMatchObject({ mode: 'followUp', envOpen: true, selectionEnabled: true })
-    expect(fetchSpy).not.toHaveBeenCalled()
-  })
-
-  it('sends a follow-up without polling the run or touching the sidebar', async () => {
-    renderChat(doneRun('open', inMinutes(10)))
+  it('sends a follow-up to the report without polling the run or touching the sidebar', async () => {
+    renderChat(doneRun('closed'))
     fireEvent.click(screen.getByRole('button', { name: 'Send follow-up' }))
     await waitFor(() =>
-      expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { target: 'agents', agentIds: ['p1'] } }),
+      expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { target: 'report', agentIds: [] } }),
     )
     expect(upsertChat).not.toHaveBeenCalled()
     expect(runOpts.current).toMatchObject({ enabled: false, sendCount: 0 })
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('refreshes the env status when a follow-up finishes', async () => {
-    fetchSpy.mockResolvedValue(Response.json({ status: 'done', envState: 'closed', envKeepaliveUntil: null }))
-    renderChat(doneRun('open', inMinutes(10)))
-    await act(async () => chat.options!.onFinish?.({}))
-    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Agents offline'))
-    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run', expect.anything())
-    expect(composer.props).toMatchObject({ envOpen: false })
+  describe('during the interview window', () => {
+    const paused: RunStatusState = {
+      status: 'running',
+      stage: 'interviews',
+      runId: 'r1',
+      assistantMessageId: 'm1',
+      reportRequested: false,
+    }
+
+    beforeEach(() => {
+      chat.status = 'streaming'
+      runState.current = paused
+    })
+
+    it('uses interview mode with persona selection and an enabled composer', () => {
+      renderChat()
+      expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false })
+    })
+
+    const windowMessage = (until: string) => ({
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        { type: 'data-interview_window', id: 'interview_window', data: { until, personaCount: 3, closed: false } },
+      ],
+    })
+
+    it('cancels the run from the window card', async () => {
+      chat.messages = [windowMessage(inMinutes(20))]
+      fetchSpy.mockResolvedValue(Response.json({ ok: true }))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/cancel', { method: 'POST' }))
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Run cancelled'))
+    })
+
+    it('shows the personas offline when the run failed without closing the window', () => {
+      chat.status = 'ready'
+      chat.messages = [windowMessage(inMinutes(20))]
+      runState.current = { status: 'failed', stage: 'interviews', runId: 'r1', assistantMessageId: 'm1' }
+      renderChat()
+      expect(screen.getByText('Personas offline')).toBeTruthy()
+      expect(screen.getByText('The run ended')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Generate report' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull()
+    })
+
+    it.each([
+      [false, 'interview'],
+      [true, 'run'],
+    ])('seeds the mode from the loaded run (reportRequested %s)', (reportRequested, mode) => {
+      runState.seeded = true
+      const activeRun = {
+        id: 'r1',
+        assistantMessageId: 'm1',
+        stage: 'interviews' as const,
+        reportRequested,
+        envKeepaliveUntil: inMinutes(15),
+      }
+      render(<Chat chatId="c1" initialMessages={[]} activeRun={activeRun} latestRun={null} limits={limits} />)
+      expect(runOpts.current?.initial).toMatchObject({
+        status: 'running',
+        stage: 'interviews',
+        reportRequested,
+        envKeepaliveUntil: activeRun.envKeepaliveUntil,
+      })
+      expect(composer.props).toMatchObject({ mode, selectionEnabled: !reportRequested })
+    })
+
+    it('leaves interview mode once the report is requested', () => {
+      runState.current = { ...paused, reportRequested: true }
+      renderChat()
+      expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true })
+    })
+
+    it('posts the question as plain JSON, then reattaches once, never through sendMessage', async () => {
+      fetchSpy.mockResolvedValue(Response.json({ questionId: 'q1', interviewIds: ['i1', 'i2'] }, { status: 202 }))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
+      await waitFor(() => expect(chat.resumeStream).toHaveBeenCalledTimes(1))
+      expect(await composer.sent).toBe('sent')
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/chats/c1/messages')
+      expect(init.method).toBe('POST')
+      const body = JSON.parse(init.body as string)
+      expect(body).toMatchObject({
+        id: 'c1',
+        target: 'agents',
+        agentIds: ['p1', 'p2'],
+        message: { role: 'user', parts: [{ type: 'text', text: 'why?' }] },
+      })
+      expect(body.message.id).toEqual(expect.any(String))
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+      expect(upsertChat).not.toHaveBeenCalled()
+      expect(screen.getByRole('status').textContent).toBe('')
+    })
+
+    it.each([
+      ['window_closed', 409, 'The interview window has closed. The report is being generated.'],
+      ['report_requested', 409, 'The report is being generated; no more interviews for this run.'],
+      ['run_paused', 409, 'Pick personas to interview, or generate the report.'],
+      ['invalid_body', 400, 'Something went wrong sending your message'],
+    ])('maps a %s refusal to a notice and keeps the draft', async (code, status, text) => {
+      fetchSpy.mockResolvedValue(Response.json({ error: code }, { status }))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe(text))
+      expect(await composer.sent).not.toBe('sent')
+      expect(chat.resumeStream).not.toHaveBeenCalled()
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+    })
+
+    it('shows the generic notice when the request fails to reach the server', async () => {
+      fetchSpy.mockRejectedValue(new TypeError('fetch failed'))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
+      await waitFor(() =>
+        expect(screen.getByRole('status').textContent).toBe('Something went wrong sending your message'),
+      )
+      expect(chat.resumeStream).not.toHaveBeenCalled()
+    })
   })
 
   it('disables the composer while a follow-up streams', () => {
@@ -250,11 +354,9 @@ describe('Chat', () => {
   })
 
   it.each([
-    ['env_closed', 'The personas for this conversation are offline now. You can still ask the report.'],
     ['follow_up_failed', 'The report agent did not answer. Try again.'],
     ['follow_up_unavailable', 'Follow-ups are not available for this run.'],
   ])('maps the %s error to a notice', async (code, text) => {
-    fetchSpy.mockResolvedValue(Response.json({ status: 'done', envState: 'none', envKeepaliveUntil: null }))
     renderChat(doneRun('none'))
     await act(async () => chat.options!.onError(new Error(JSON.stringify({ error: code }))))
     expect(screen.getByRole('status').textContent).toBe(text)
@@ -289,15 +391,6 @@ describe('Chat', () => {
   it('keeps follow-ups enabled while paused', () => {
     renderChat(doneRun('none'), { paused: true })
     expect(composer.props?.disabled).toBe(false)
-  })
-
-  it('keeps a single status region with a notice and an open env badge together', async () => {
-    renderChat(doneRun('open', inMinutes(10)))
-    await act(async () => chat.options!.onError(new Error(JSON.stringify({ error: 'follow_up_failed' }))))
-    expect(screen.getByText('Agents available for 10 min')).toBeTruthy()
-    const statuses = screen.getAllByRole('status')
-    expect(statuses).toHaveLength(1)
-    expect(statuses[0]!.textContent).toBe('The report agent did not answer. Try again.')
   })
 
   it('keeps the status region mounted with no notice', () => {

@@ -264,7 +264,14 @@ describe('runFollowUp agents', () => {
   const interview = (agentId: string, extra: Record<string, unknown>) => ({
     type: 'data-interview',
     id: `interview:${agentId}`,
-    data: { agentId, agentName: `Agent ${agentId}`, question: 'Why?', ...extra },
+    data: {
+      id: expect.any(String),
+      questionId: expect.any(String),
+      agentId,
+      agentName: `Agent ${agentId}`,
+      question: 'Why?',
+      ...extra,
+    },
   })
 
   it('streams pending cards before calling MiroFish, then the persisted results', async () => {

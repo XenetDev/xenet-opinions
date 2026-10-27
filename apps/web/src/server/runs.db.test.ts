@@ -28,6 +28,7 @@ const input = (chatId: string) => ({
   text: 'hi',
   uploadIds: [],
   maxRounds: 2,
+  pauseForInterviews: false,
 })
 
 describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
@@ -67,6 +68,13 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
     await startRun({ ...input(chatId), text: 'second' })
     const [again] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
     expect(again!.title).toBe('x'.repeat(60))
+  })
+
+  it('stores pauseForInterviews in the run config', async () => {
+    const paused = await startRun({ ...input(await mkChat()), pauseForInterviews: true })
+    expect(paused.run.config.pauseForInterviews).toBe(true)
+    const plain = await startRun(input(await mkChat()))
+    expect(plain.run.config.pauseForInterviews).toBe(false)
   })
 
   it('lets exactly one of two concurrent starts win', async () => {

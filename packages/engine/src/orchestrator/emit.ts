@@ -29,3 +29,12 @@ export const need = <T>(value: T | undefined | null, what: string): T => {
 
 export const remoteFailure = (message: string | null | undefined, fallback: string, path: string) =>
   new MiroFishError({ code: 'api', message: message || fallback, path })
+
+export class StageError extends Error {
+  readonly code: string
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = 'StageError'
+    this.code = code
+  }
+}

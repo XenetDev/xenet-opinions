@@ -11,6 +11,7 @@ const STAGE_TITLES: Record<Stage, string> = {
   sim_create: 'Creating the simulation',
   sim_prepare: 'Generating personas',
   sim_run: 'Running the simulation',
+  interviews: 'Personas online',
   report: 'Writing the report',
   finished: 'Done',
 }
@@ -41,10 +42,10 @@ export function PipelineTimeline({ stages, onRetry }: { stages: StageData[]; onR
 
   return (
     <div className="flex flex-col gap-3">
-      {STAGES.map((stage) => {
+      {STAGES.filter((stage) => stage !== 'interviews' || byStage.has(stage)).map((stage) => {
         const data = byStage.get(stage)
         const status = data?.status ?? 'pending'
-        const title = STAGE_TITLES[stage]
+        const title = stage === 'interviews' && status === 'done' ? 'Personas offline' : STAGE_TITLES[stage]
         const tone = cn(
           'flex w-full items-center gap-2 text-sm',
           (status === 'pending' || status === 'cancelled') && 'text-muted-foreground',

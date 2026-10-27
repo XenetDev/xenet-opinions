@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
-import { DefaultChatTransport } from 'ai'
+import { DefaultChatTransport, generateId } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
@@ -10,11 +10,9 @@ import { Message, MessageContent } from '@/components/ai-elements/message'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 import type { Limits } from '@/server/limits'
 import { Composer } from './composer/composer'
-import { EnvBadge } from './env-badge'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
-import { type EnvState, useEnvStatus } from './use-env-status'
 import { useRunStatus } from './use-run-status'
 
 const CANCEL_NOTICES: Record<string, string> = {
@@ -24,11 +22,18 @@ const CANCEL_NOTICES: Record<string, string> = {
 
 const SEND_NOTICES: Record<string, string> = {
   run_active: 'A run is already in progress for this chat.',
-  env_closed: 'The personas for this conversation are offline now. You can still ask the report.',
   follow_up_failed: 'The report agent did not answer. Try again.',
   follow_up_unavailable: 'Follow-ups are not available for this run.',
   demo_paused: 'The demo is paused right now. Try again later.',
 }
+
+const INTERVIEW_NOTICES: Record<string, string> = {
+  window_closed: 'The interview window has closed. The report is being generated.',
+  report_requested: 'The report is being generated; no more interviews for this run.',
+  run_paused: 'Pick personas to interview, or generate the report.',
+}
+
+const SEND_FAILED = 'Something went wrong sending your message'
 
 const quotaNotice = (runs: number) =>
   `You've used today's ${runs === 1 ? '' : `${runs === 2 ? 'two' : runs} `}run${runs === 1 ? '' : 's'}. Come back tomorrow.`
@@ -37,7 +42,7 @@ type LatestRun = {
   id: string
   status: string
   assistantMessageId: string
-  envState: EnvState
+  envState: 'none' | 'open' | 'closed'
   envKeepaliveUntil: string | null
 }
 
@@ -51,7 +56,13 @@ export function Chat({
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
-  activeRun: { id: string; assistantMessageId: string; stage: Stage } | null
+  activeRun: {
+    id: string
+    assistantMessageId: string
+    stage: Stage
+    reportRequested?: boolean
+    envKeepaliveUntil?: string | null
+  } | null
   latestRun: LatestRun | null
   initialText?: string
   limits: Limits
@@ -63,13 +74,8 @@ export function Chat({
   const [notice, setNotice] = useState<string | null>(null)
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
-  const [envRefreshKey, setEnvRefreshKey] = useState(0)
-  const followUpRef = useRef(false)
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
-    onFinish: () => {
-      if (followUpRef.current) setEnvRefreshKey((key) => key + 1)
-    },
     onError: (error) => {
       const notices: Record<string, string> = {
         ...SEND_NOTICES,
@@ -77,12 +83,8 @@ export function Chat({
         rounds_exceeded: `The demo allows up to ${limits.maxRounds} rounds.`,
       }
       const match = Object.entries(notices).find(([code]) => error.message.includes(code))
-      if (match) {
-        setNotice(match[1])
-        if (match[0] === 'env_closed') setEnvRefreshKey((key) => key + 1)
-      } else if (!runActiveRef.current) {
-        setNotice('Something went wrong sending your message')
-      }
+      if (match) setNotice(match[1])
+      else if (!runActiveRef.current) setNotice(SEND_FAILED)
     },
     messages: initialMessages,
     resume: !!activeRun,
@@ -101,26 +103,18 @@ export function Chat({
           stage: activeRun.stage,
           runId: activeRun.id,
           assistantMessageId: activeRun.assistantMessageId,
+          reportRequested: activeRun.reportRequested,
+          envKeepaliveUntil: activeRun.envKeepaliveUntil,
         }
       : undefined,
   })
   const resumeGuard = useRef(!!activeRun)
   const runActive = run.status === 'queued' || run.status === 'running'
   const followUpMode = run.status === 'done' || (run.status === 'none' && latestRun?.status === 'done')
-  const env = useEnvStatus(chatId, {
-    seed:
-      run.status === 'done' && run.envState
-        ? { envState: run.envState, envKeepaliveUntil: run.envKeepaliveUntil ?? null }
-        : latestRun && { envState: latestRun.envState, envKeepaliveUntil: latestRun.envKeepaliveUntil },
-    refreshKey: envRefreshKey,
-  })
+  const interviewMode = run.status === 'running' && run.stage === 'interviews' && !run.reportRequested
 
   const wasActive = useRef(runActive)
   const lastPoll = useRef(run)
-
-  useEffect(() => {
-    followUpRef.current = followUpMode
-  }, [followUpMode])
 
   useEffect(() => {
     if (status === 'streaming') resumeGuard.current = false
@@ -171,6 +165,25 @@ export function Chat({
     setNotice(CANCEL_NOTICES[code] ?? 'Something went wrong cancelling the run')
   }
 
+  const sendInterview = async (text: string, agentIds: string[]) => {
+    const response = await fetch(`/api/chats/${chatId}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: chatId,
+        message: { id: generateId(), role: 'user', parts: [{ type: 'text', text }] },
+        target: 'agents',
+        agentIds,
+      }),
+    }).catch(() => null)
+    if (!response?.ok) {
+      const code = await errorOf(response, 'send_failed')
+      setNotice(INTERVIEW_NOTICES[code] ?? SEND_FAILED)
+      throw new Error(code)
+    }
+    void resumeStream()
+  }
+
   const handleRetry = async () => {
     setNotice(null)
     const response = await fetch(`/api/chats/${chatId}/run/retry`, { method: 'POST' }).catch(() => null)
@@ -186,7 +199,7 @@ export function Chat({
   return (
     <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl flex-col p-4">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
-        <InterviewSelectionProvider enabled={followUpMode && env.state === 'open'}>
+        <InterviewSelectionProvider enabled={interviewMode}>
           <Conversation className="min-h-0 flex-1">
             <ConversationContent>
               {messages.map((message) => (
@@ -194,6 +207,11 @@ export function Chat({
                   <MessageContent>
                     <MessageParts
                       parts={message.parts}
+                      chatId={chatId}
+                      windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
+                      reportRequested={run.stage === 'interviews' && run.reportRequested}
+                      windowLive={runActive && message.id === run.assistantMessageId}
+                      onCancelRun={interviewMode ? () => void handleStop() : undefined}
                       onRetry={
                         latestFailed && message === lastMessage && message.role === 'assistant'
                           ? () => void handleRetry()
@@ -206,20 +224,26 @@ export function Chat({
             </ConversationContent>
             <ConversationScrollButton />
           </Conversation>
-          {followUpMode && <EnvBadge state={env.state} minutesLeft={env.minutesLeft} />}
           {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
           {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
           <Composer
             maxRounds={limits.maxRounds}
             chatId={chatId}
             initialText={initialText}
-            mode={followUpMode ? 'followUp' : 'run'}
-            envOpen={env.state === 'open'}
-            status={status}
+            allowPause={limits.allowPause}
+            mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
+            status={interviewMode ? undefined : status}
             onStop={() => void handleStop()}
-            disabled={status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode)}
+            disabled={
+              !interviewMode &&
+              (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
+            }
             onSend={async (text, submit) => {
               setNotice(null)
+              if (submit.kind === 'followUp' && submit.target === 'agents') {
+                await sendInterview(text, submit.agentIds)
+                return
+              }
               if (submit.kind === 'followUp') {
                 void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                 return

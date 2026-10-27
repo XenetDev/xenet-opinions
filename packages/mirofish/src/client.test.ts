@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { createHttp, MiroFishError } from './index'
+import { createHttp, MiroFishError, type MiroFishLocale } from './index'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
-const make = (fetch: typeof globalThis.fetch, extra: { token?: string } = {}) =>
+const make = (fetch: typeof globalThis.fetch, extra: { token?: string; locale?: MiroFishLocale } = {}) =>
   createHttp({ baseUrl: 'http://mf.test', fetch, ...extra })
 
 const caught = async (p: Promise<unknown>) => {
@@ -129,6 +129,18 @@ describe('createHttp', () => {
     expect(seen[0]!.get('Accept')).toBe('application/json')
     expect(seen[1]!.has('X-MiroFish-Token')).toBe(false)
     expect(seen[1]!.get('Accept')).toBe('application/json')
+  })
+
+  it('sends Accept-Language en by default and the configured locale otherwise', async () => {
+    const seen: Headers[] = []
+    const stub: typeof fetch = async (_url, init) => {
+      seen.push(new Headers(init?.headers))
+      return json({ success: true, data: null })
+    }
+    await make(stub).getJson('/x', z.null())
+    await make(stub, { locale: 'de' }).postJson('/x', {}, z.null())
+    expect(seen[0]!.get('Accept-Language')).toBe('en')
+    expect(seen[1]!.get('Accept-Language')).toBe('de')
   })
 
   it('serialises query params and drops undefined', async () => {

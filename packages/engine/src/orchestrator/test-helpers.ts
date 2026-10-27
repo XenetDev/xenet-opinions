@@ -1,4 +1,4 @@
-import type { Run, RunCursors, RunIds } from '@xo/db'
+import type { Run, RunConfig, RunCursors, RunIds } from '@xo/db'
 import type { MiroFishClient } from '@xo/mirofish'
 import { vi } from 'vitest'
 import { createMemoryStore } from '../store/memory'
@@ -86,9 +86,19 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       posts: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) =>
         q.offset ? { posts: q.offset === 1 ? [post(q.platform, 2)] : [] } : { posts: [post(q.platform, 1)] },
       ),
+      configRealtime: vi.fn(async () => ({ config: { platform_configs: { reddit: {}, twitter: {} } } })),
       stop: vi.fn(),
       closeEnv: vi.fn(),
-      interviewBatch: vi.fn(),
+      interviewBatch: vi.fn(async (input: { interviews: Array<{ agentId: number | string }> }) => ({
+        result: {
+          results: Object.fromEntries(
+            input.interviews.map((i) => [
+              `reddit_${i.agentId}`,
+              { agent_id: i.agentId, platform: 'reddit', response: `Answer from ${i.agentId}` },
+            ]),
+          ),
+        },
+      })),
       ...o.simulation,
     },
     report: {
@@ -130,7 +140,20 @@ export const drive = async (run: Run, deps: Deps, cap = 50) => {
   return run
 }
 
-export const setupRun = async (o: Overrides = {}, at?: { stage: Run['stage']; ids?: RunIds; cursors?: RunCursors }) => {
+export const driveUntil = async (run: Run, deps: Deps, done: (run: Run) => boolean, cap = 50) => {
+  let steps = 0
+  while (run.status === 'running' && !done(run)) {
+    if (++steps > cap) throw new Error('step cap exceeded')
+    run = await tick(run, deps)
+  }
+  return run
+}
+
+export const setupRun = async (
+  o: Overrides = {},
+  at?: { stage: Run['stage']; ids?: RunIds; cursors?: RunCursors },
+  config: Partial<RunConfig> = {},
+) => {
   const store = createMemoryStore()
   store.uploads.set('up_1', {
     id: 'up_1',
@@ -146,7 +169,7 @@ export const setupRun = async (o: Overrides = {}, at?: { stage: Run['stage']; id
     chatId: 'c1',
     userId: 'u1',
     assistantMessageId: 'm1',
-    config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'] },
+    config: { requirement: 'React?', maxRounds: 2, uploadIds: ['up_1'], ...config },
   })
   let run = (await store.claimNext('w1', 60_000, 1)) as Run
   if (at) run = await store.update(run.id, { stage: at.stage, ids: at.ids ?? {}, cursors: at.cursors ?? {} })

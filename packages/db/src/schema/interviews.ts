@@ -14,6 +14,7 @@ export const interviews = pgTable(
       .notNull()
       .references(() => runs.id, { onDelete: 'cascade' }),
     messageId: text('message_id').notNull(),
+    questionId: text('question_id'),
     agentId: text('agent_id').notNull(),
     agentName: text('agent_name').notNull(),
     question: text('question').notNull(),

@@ -79,6 +79,31 @@ describe('prepareRetry', () => {
     expect(prepareRetry(failedAt('sim_run')).cursors).not.toHaveProperty('envCloseRequested')
   })
 
+  it('re-enters a run that failed in interviews at report with the report requested', () => {
+    const run = failedAt('interviews', {
+      cursors: { ...cursors, interviewsStartedAt: 'x', closeWaitStartedAt: 'y', envCheckedAt: 'z' },
+    })
+    const next = prepareRetry(run)
+    expect(next.stage).toBe('report')
+    expect(next.cursors.reportRequested).toBe(true)
+    expect(next.cursors).not.toHaveProperty('envCloseRequested')
+    expect(next.cursors).not.toHaveProperty('closeWaitStartedAt')
+    expect(next.ids).not.toHaveProperty('reportId')
+    expect(HANDLERS.report.hasEntered({ ...run, ...next, status: 'queued', error: null })).toBe(false)
+  })
+
+  it('re-enters an env_stuck failure at report', () => {
+    const run = { ...failedAt('sim_run'), error: { stage: 'sim_run', code: 'env_stuck', message: 'stuck' } } as Run
+    const next = prepareRetry(run)
+    expect(next.stage).toBe('report')
+    expect(next.cursors.reportRequested).toBe(true)
+    expect(next.cursors).not.toHaveProperty('envCloseRequested')
+  })
+
+  it('does not request the report for other stages', () => {
+    expect(prepareRetry(failedAt('sim_run')).cursors).not.toHaveProperty('reportRequested')
+  })
+
   it('uses run.stage when there is no error', () => {
     expect(prepareRetry({ ...failedAt('sim_run'), error: null }).stage).toBe('sim_run')
   })

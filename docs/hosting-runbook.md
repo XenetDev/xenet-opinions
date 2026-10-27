@@ -102,6 +102,7 @@ railway add --service worker \
   --variables 'DATABASE_URL=${{Postgres.DATABASE_URL}}' \
   --variables "MIROFISH_URL=http://mirofish-proxy.railway.internal:8080" \
   --variables "MIROFISH_TOKEN=$MIROFISH_TOKEN" \
+  --variables "MIROFISH_LOCALE=en" \
   --variables "STORAGE_DRIVER=s3" \
   --variables "S3_BUCKET=$S3_BUCKET" \
   --variables "S3_REGION=$S3_REGION" \
@@ -176,6 +177,7 @@ add BETTER_AUTH_URL "https://<app-domain>"
 add NEXT_PUBLIC_APP_URL "https://<app-domain>"
 add MIROFISH_URL "$PROXY_URL"
 add MIROFISH_TOKEN "$MIROFISH_TOKEN" s
+add MIROFISH_LOCALE en
 add STORAGE_DRIVER s3
 add S3_BUCKET "$S3_BUCKET"
 add S3_REGION "$S3_REGION"
@@ -185,6 +187,7 @@ add S3_SECRET_ACCESS_KEY "$S3_SECRET_ACCESS_KEY" s
 add S3_FORCE_PATH_STYLE "$S3_FORCE_PATH_STYLE"
 add DEMO_MODE 1
 add DEMO_PAUSED 0
+add DEMO_ALLOW_PAUSE 0
 add MAX_RUNS_PER_DAY 2
 add DEMO_MAX_ROUNDS 3
 add HEALTH_CHECK_MIROFISH 1

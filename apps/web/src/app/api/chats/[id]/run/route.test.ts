@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/runs', () => ({ runStore: { getLatestByChat: vi.fn(), lastSeq: vi.fn(), queuePosition: vi.fn() } }))
+vi.mock('@/server/runs', () => ({
+  runStore: { getLatestByChat: vi.fn(), lastSeq: vi.fn(), queuePosition: vi.fn(), hasPausedRunning: vi.fn() },
+}))
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
@@ -67,8 +69,11 @@ describe('GET /api/chats/[id]/run', () => {
       envState: 'open',
       envKeepaliveUntil: '2026-10-21T10:00:00.000Z',
       queuePosition: null,
+      reportRequested: false,
+      pausedAhead: false,
     })
     expect(runStore.lastSeq).toHaveBeenCalledWith('r1')
+    expect(runStore.hasPausedRunning).not.toHaveBeenCalled()
   })
 
   it('narrows unknown env state to none and null deadline', async () => {
@@ -103,5 +108,41 @@ describe('GET /api/chats/[id]/run', () => {
     vi.mocked(runStore.queuePosition).mockResolvedValue(2)
     expect((await (await call()).json()).queuePosition).toBe(2)
     expect(runStore.queuePosition).toHaveBeenCalledWith('r1')
+  })
+
+  it('reports pausedAhead for a queued run behind a paused run', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'queued',
+      stage: 'ontology',
+      assistantMessageId: 'a1',
+      cursors: {},
+      envState: 'none',
+      envKeepaliveUntil: null,
+    } as never)
+    vi.mocked(runStore.lastSeq).mockResolvedValue(0)
+    vi.mocked(runStore.queuePosition).mockResolvedValue(2)
+    vi.mocked(runStore.hasPausedRunning).mockResolvedValue(true)
+    expect((await (await call()).json()).pausedAhead).toBe(true)
+  })
+
+  it('reports stage interviews and reportRequested from cursors', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'running',
+      stage: 'interviews',
+      assistantMessageId: 'a1',
+      cursors: { reportRequested: true },
+      envState: 'open',
+      envKeepaliveUntil: null,
+    } as never)
+    vi.mocked(runStore.lastSeq).mockResolvedValue(9)
+    vi.mocked(runStore.queuePosition).mockResolvedValue(null)
+    const json = await (await call()).json()
+    expect(json).toMatchObject({ stage: 'interviews', reportRequested: true, pausedAhead: false })
   })
 })

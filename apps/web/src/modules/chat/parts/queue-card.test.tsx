@@ -12,6 +12,12 @@ describe('QueueCard', () => {
     render(<QueueCard data={{ position: 3 }} />)
     expect(screen.getByText('You are #3 in the queue')).toBeTruthy()
   })
+  it('explains a paused run ahead in the queue', () => {
+    render(<QueueCard data={{ position: 1, pausedAhead: true }} />)
+    expect(
+      screen.getByText('You are #1 in the queue. A run is paused for interviews; yours starts when it finishes.'),
+    ).toBeTruthy()
+  })
   it('has no axe violations', async () => {
     const { container } = render(<QueueCard data={{ position: 3 }} />)
     expect(await axe(container)).toHaveNoViolations()

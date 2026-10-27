@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { interviewsToParts, mirofishAgentId, pendingInterviewParts } from './interviews'
 
 const requested = [
-  { agentId: '3', agentName: 'Ada', question: 'Why?' },
-  { agentId: 'abc', agentName: 'Bo', question: 'How?' },
-  { agentId: '7', agentName: 'Cy', question: 'When?' },
+  { id: 'i1', questionId: 'q', agentId: '3', agentName: 'Ada', question: 'Why?' },
+  { id: 'i2', questionId: 'q', agentId: 'abc', agentName: 'Bo', question: 'How?' },
+  { id: 'i3', questionId: 'q', agentId: '7', agentName: 'Cy', question: 'When?' },
 ]
 
 describe('mirofishAgentId', () => {
@@ -33,9 +33,9 @@ describe('interviewsToParts', () => {
       requested,
     )
     expect(parts).toEqual([
-      { agentId: '3', agentName: 'Ada', question: 'Why?', status: 'done', answer: 'Because' },
-      { agentId: 'abc', agentName: 'Bo', question: 'How?', status: 'done', answer: 'Hello' },
-      { agentId: '7', agentName: 'Cy', question: 'When?', status: 'failed', error: 'No answer' },
+      { ...requested[0], status: 'done', answer: 'Because' },
+      { ...requested[1], status: 'done', answer: 'Hello' },
+      { ...requested[2], status: 'failed', error: 'No answer' },
     ])
   })
 
@@ -43,7 +43,7 @@ describe('interviewsToParts', () => {
     const parts = interviewsToParts({ result: { results: { twitter_3: { agent_id: 3, error: 'boom' } } } }, [
       requested[0]!,
     ])
-    expect(parts).toEqual([{ agentId: '3', agentName: 'Ada', question: 'Why?', status: 'failed', error: 'No answer' }])
+    expect(parts).toEqual([{ ...requested[0], status: 'failed', error: 'No answer' }])
   })
 
   it('maps the batch response captured from a real MiroFish run', () => {
@@ -51,8 +51,8 @@ describe('interviewsToParts', () => {
       readFileSync(new URL('../../../mirofish/src/fixtures/simulation.interview-batch.json', import.meta.url), 'utf8'),
     ) as { data: InterviewBatchResult }
     const parts = interviewsToParts(fixture.data, [
-      { agentId: '0', agentName: 'A', question: 'q' },
-      { agentId: '5', agentName: 'B', question: 'q' },
+      { id: 'i0', questionId: 'q', agentId: '0', agentName: 'A', question: 'q' },
+      { id: 'i5', questionId: 'q', agentId: '5', agentName: 'B', question: 'q' },
     ])
     expect(parts.map((p) => p.status)).toEqual(['done', 'done'])
     expect(parts.every((p) => (p.answer ?? '').length > 0)).toBe(true)

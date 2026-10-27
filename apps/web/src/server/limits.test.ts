@@ -4,11 +4,23 @@ vi.mock('@/env', () => ({ env: {} }))
 
 import { limitsFromEnv } from './limits'
 
-const base = { DEMO_MODE: '0', DEMO_PAUSED: '0', MAX_RUNS_PER_DAY: 2, DEMO_MAX_ROUNDS: 3 } as const
+const base = {
+  DEMO_MODE: '0',
+  DEMO_PAUSED: '0',
+  DEMO_ALLOW_PAUSE: '1',
+  MAX_RUNS_PER_DAY: 2,
+  DEMO_MAX_ROUNDS: 3,
+} as const
 
 describe('limitsFromEnv', () => {
   it('leaves rounds at 40 outside demo mode', () => {
-    expect(limitsFromEnv(base)).toEqual({ demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40 })
+    expect(limitsFromEnv(base)).toEqual({
+      demoMode: false,
+      paused: false,
+      maxRunsPerDay: 2,
+      maxRounds: 40,
+      allowPause: true,
+    })
   })
 
   it('applies the demo cap and pause flag', () => {
@@ -17,6 +29,11 @@ describe('limitsFromEnv', () => {
       paused: true,
       maxRunsPerDay: 2,
       maxRounds: 5,
+      allowPause: true,
     })
+  })
+
+  it('disallows pausing when DEMO_ALLOW_PAUSE is 0', () => {
+    expect(limitsFromEnv({ ...base, DEMO_ALLOW_PAUSE: '0' }).allowPause).toBe(false)
   })
 })
