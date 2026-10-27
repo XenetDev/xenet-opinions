@@ -1,3 +1,4 @@
+import { MIROFISH_LOCALES } from '@xo/mirofish'
 import { z } from 'zod'
 
 export const envSchema = z
@@ -8,6 +9,7 @@ export const envSchema = z
     NEXT_PUBLIC_APP_URL: z.url(),
     MIROFISH_URL: z.url(),
     MIROFISH_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+    MIROFISH_LOCALE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(MIROFISH_LOCALES).default('en')),
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     STORAGE_LOCAL_DIR: z.string().default('.data/uploads'),
     S3_BUCKET: z.string().optional(),

@@ -1,4 +1,5 @@
 import { hostname } from 'node:os'
+import { MIROFISH_LOCALES } from '@xo/mirofish'
 import { z } from 'zod'
 
 const optional = z
@@ -10,6 +11,7 @@ export const workerEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   MIROFISH_URL: z.string().min(1),
   MIROFISH_TOKEN: optional,
+  MIROFISH_LOCALE: z.preprocess((v) => v || undefined, z.enum(MIROFISH_LOCALES).default('en')),
   STORAGE_DRIVER: z.string().min(1).default('local'),
   STORAGE_LOCAL_DIR: z.string().min(1).default('.data/uploads'),
   S3_BUCKET: optional,

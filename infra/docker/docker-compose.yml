@@ -91,6 +91,7 @@ services:
       DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
       MIROFISH_URL: http://mirofish-proxy:8080
       MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      MIROFISH_LOCALE: ${MIROFISH_LOCALE:-en}
       ENV_KEEPALIVE_MS: ${ENV_KEEPALIVE_MS:-1200000}
       ENV_SWEEP_INTERVAL_MS: ${ENV_SWEEP_INTERVAL_MS:-60000}
     depends_on:
@@ -119,6 +120,7 @@ services:
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${XO_WEB_PORT:-3000}}
       MIROFISH_URL: http://mirofish-proxy:8080
       MIROFISH_TOKEN: ${MIROFISH_TOKEN:?set MIROFISH_TOKEN in .env.selfhost}
+      MIROFISH_LOCALE: ${MIROFISH_LOCALE:-en}
       DEMO_MODE: ${DEMO_MODE:-0}
       DEMO_PAUSED: ${DEMO_PAUSED:-0}
       DEMO_ALLOW_PAUSE: ${DEMO_ALLOW_PAUSE:-1}

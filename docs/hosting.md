@@ -79,6 +79,7 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `BETTER_AUTH_URL` | unset | Same as `NEXT_PUBLIC_APP_URL`, with the same default; anonymous sign-in fails when it does not match the browser's origin |
 | `BETTER_AUTH_SECRET` | blank | Required. `openssl rand -base64 32` |
 | `MIROFISH_TOKEN` | blank | Required. `openssl rand -hex 32`; shared by the proxy, web and worker |
+| `MIROFISH_LOCALE` | `en` | Language MiroFish writes personas, posts, interview answers and the report in, sent as `Accept-Language` on every call: `en`, `zh`, `es`, `fr`, `pt`, `ru` or `de`. MiroFish falls back to Chinese when the header is missing or unknown |
 | `POSTGRES_PASSWORD` | blank | Required. `openssl rand -hex 32`; must be URL-safe because it goes into `DATABASE_URL` |
 | `MINIO_ROOT_USER` | `xo-admin` | At least 3 characters. Also the S3 access key |
 | `MINIO_ROOT_PASSWORD` | blank | Required. `openssl rand -hex 24` (MinIO needs at least 8 characters). Also the S3 secret key |
@@ -211,6 +212,7 @@ It listens on `:8080` (plain HTTP); the platform terminates TLS on its public UR
 | `DATABASE_URL` | The managed Postgres URL (private address where the host offers one) |
 | `MIROFISH_URL` | The proxy's private address, for example `http://mirofish-proxy:8080` |
 | `MIROFISH_TOKEN` | Same value as on the proxy and Vercel |
+| `MIROFISH_LOCALE` | `en` (or another language MiroFish supports) |
 | `STORAGE_DRIVER` | `s3` |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | The same bucket settings as Vercel |
 | `MAX_CONCURRENT_RUNS` | `1` |
@@ -236,6 +238,7 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL` | The public URL |
 | `MIROFISH_URL` | The proxy's public URL |
 | `MIROFISH_TOKEN` | Same value as on the proxy and worker |
+| `MIROFISH_LOCALE` | Same value as on the worker |
 | `STORAGE_DRIVER` | `s3` |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE` | The bucket's settings |
 | `DEMO_MODE` | `1` |

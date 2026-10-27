@@ -17,6 +17,13 @@ describe('parseEnv', () => {
   it('rejects a missing DATABASE_URL', () => expect(() => parseEnv({ ...valid, DATABASE_URL: undefined })).toThrow())
   it('accepts missing MIROFISH_TOKEN', () =>
     expect(parseEnv({ ...valid, MIROFISH_TOKEN: undefined }).MIROFISH_TOKEN).toBeUndefined())
+
+  it('defaults MIROFISH_LOCALE to en, accepts a supported locale and rejects others', () => {
+    expect(parseEnv(valid).MIROFISH_LOCALE).toBe('en')
+    expect(parseEnv({ ...valid, MIROFISH_LOCALE: '' }).MIROFISH_LOCALE).toBe('en')
+    expect(parseEnv({ ...valid, MIROFISH_LOCALE: 'de' }).MIROFISH_LOCALE).toBe('de')
+    expect(() => parseEnv({ ...valid, MIROFISH_LOCALE: 'jp' })).toThrow()
+  })
   it('rejects an unknown STORAGE_DRIVER', () => expect(() => parseEnv({ ...valid, STORAGE_DRIVER: 'ftp' })).toThrow())
   it('defaults STORAGE_DRIVER to local', () => expect(parseEnv(valid).STORAGE_DRIVER).toBe('local'))
   it('parses S3_FORCE_PATH_STYLE', () => {

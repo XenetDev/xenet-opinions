@@ -2,9 +2,13 @@ import type { z } from 'zod'
 import { MiroFishError } from './errors'
 import { Envelope } from './schemas/common'
 
+export const MIROFISH_LOCALES = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'de'] as const
+export type MiroFishLocale = (typeof MIROFISH_LOCALES)[number]
+
 export type MiroFishClientOptions = {
   baseUrl: string
   token?: string
+  locale?: MiroFishLocale
   fetch?: typeof fetch
   defaultTimeoutMs?: number
 }
@@ -43,7 +47,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     init: RequestInitOptions | undefined,
     payload?: { body: BodyInit; contentType?: string },
   ): Promise<T> => {
-    const headers: Record<string, string> = { Accept: 'application/json' }
+    const headers: Record<string, string> = { Accept: 'application/json', 'Accept-Language': opts.locale ?? 'en' }
     if (opts.token) headers['X-MiroFish-Token'] = opts.token
     if (payload?.contentType) headers['Content-Type'] = payload.contentType
 

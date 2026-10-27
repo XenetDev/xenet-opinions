@@ -13,8 +13,8 @@ export const createMiroFishClient = (opts: MiroFishClientOptions) => createMiroF
 
 export type MiroFishClient = ReturnType<typeof createMiroFishClient>
 
-export type { Http, MiroFishClientOptions, RequestInitOptions } from './client'
-export { createHttp } from './client'
+export type { Http, MiroFishClientOptions, MiroFishLocale, RequestInitOptions } from './client'
+export { createHttp, MIROFISH_LOCALES } from './client'
 export { MiroFishError } from './errors'
 export type { Platform } from './schemas/common'
 export { Envelope, PlatformSchema } from './schemas/common'
