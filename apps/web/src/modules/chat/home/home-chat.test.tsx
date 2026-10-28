@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Limits } from '@/server/limits'
 import { axe } from '@/test/axe'
 
 const router = { push: vi.fn(), refresh: vi.fn() }
-vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => '/' }))
+const location = vi.hoisted(() => ({ pathname: '/' }))
+vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => location.pathname }))
 
 import { ChatListProvider, useChatList } from '@/modules/chat/chat-list-context'
 import { HomeChat } from './home-chat'
@@ -21,8 +22,10 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   router.push.mockReset()
   router.refresh.mockReset()
+  location.pathname = '/'
 })
 
 const LIMITS: Limits = {
@@ -41,7 +44,11 @@ function Titles() {
 }
 
 function renderHome(limits: Partial<Limits> = {}, signIn?: { max: number }) {
-  return render(
+  return render(homeTree(limits, signIn))
+}
+
+function homeTree(limits: Partial<Limits> = {}, signIn?: { max: number }) {
+  return (
     <TooltipProvider>
       <ChatListProvider chats={[]}>
         <Titles />
@@ -51,7 +58,7 @@ function renderHome(limits: Partial<Limits> = {}, signIn?: { max: number }) {
           {...(signIn ? { signIn } : {})}
         />
       </ChatListProvider>
-    </TooltipProvider>,
+    </TooltipProvider>
   )
 }
 
@@ -59,14 +66,28 @@ type Handler = (url: string, init?: RequestInit) => Response
 function stubFetch(handlers: Record<string, Handler>) {
   const calls: string[] = []
   const fetchStub = vi.fn(async (url: string, init?: RequestInit) => {
-    calls.push(`${init?.method ?? 'GET'} ${url}`)
-    const handler = handlers[url]
+    const route = url.replace(/^\/api\/chats\/[^/]+\//, '/api/chats/:id/')
+    if (route === '/api/chats/:id/run') return Response.json({ status: 'queued' })
+    calls.push(`${init?.method ?? 'GET'} ${route}`)
+    const handler = handlers[route]
     if (!handler) throw new Error(`unexpected ${url}`)
     return handler(url, init)
   })
   vi.stubGlobal('fetch', fetchStub)
   return { calls, fetchStub }
 }
+
+const STREAM = () =>
+  new Response(
+    new ReadableStream({
+      start: (controller) =>
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`)),
+    }),
+    { headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' } },
+  )
+const spyPushState = () => vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+const uploadChatId = (fetchStub: ReturnType<typeof stubFetch>['fetchStub']) =>
+  (fetchStub.mock.calls.find(([url]) => url === '/api/uploads')![1]!.body as FormData).get('chatId')
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
 const UPLOAD = { '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }) }
@@ -86,47 +107,61 @@ describe('HomeChat', () => {
     expect(calls).toEqual([])
   })
 
-  it('creates the chat, posts the run and navigates on send', async () => {
-    const cancel = vi.fn()
-    const { calls, fetchStub } = stubFetch({
-      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
-      ...UPLOAD,
-      '/api/chats/new/messages': () => new Response(new ReadableStream({ cancel }), { status: 200 }),
-    })
+  it('sends in place with a browser id and swaps the URL, without creating the chat first', async () => {
+    const pushState = spyPushState()
+    const { calls, fetchStub } = stubFetch({ ...UPLOAD, '/api/chats/:id/messages': STREAM })
     renderHome()
     fireEvent.click(screen.getByRole('button', { name: STARTER }))
     attach()
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c/new'))
-    expect(router.refresh).toHaveBeenCalled()
-    expect(calls).toEqual(['POST /api/chats', 'POST /api/uploads', 'POST /api/chats/new/messages'])
-    const body = JSON.parse(String(fetchStub.mock.calls[2]?.[1]?.body))
+    await waitFor(() => expect(pushState).toHaveBeenCalledTimes(1))
+    const id = String(uploadChatId(fetchStub))
+    expect(pushState).toHaveBeenCalledWith(null, '', `/c/${id}`)
+    expect(router.push).not.toHaveBeenCalled()
+    expect(router.refresh).not.toHaveBeenCalled()
+    expect(calls).toEqual(['POST /api/uploads', 'POST /api/chats/:id/messages'])
+    const [url, init] = fetchStub.mock.calls.find(([url]) => url.endsWith('/messages'))!
+    expect(url).toBe(`/api/chats/${id}/messages`)
+    const body = JSON.parse(String(init?.body))
     expect(body).toMatchObject({
-      id: 'new',
+      id,
       message: { role: 'user', parts: [{ type: 'text', text: STARTER }] },
       uploadIds: ['u1'],
       runOptions: { maxRounds: 3, pauseForInterviews: false },
     })
     expect(typeof body.message.id).toBe('string')
-    expect(screen.getByTestId('titles').textContent).toBe(`new:${STARTER.slice(0, 60)}:queued`)
-    expect(cancel).toHaveBeenCalled()
+    expect(screen.getByTestId('titles').textContent).toBe(`${id}:${STARTER.slice(0, 60)}:queued`)
+    expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
   })
 
-  it('creates the chat when a file is attached, before uploading it', async () => {
-    const { calls } = stubFetch({
-      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
-      '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
-      '/api/chats/new/messages': () => new Response('stream', { status: 200 }),
-    })
-    renderHome()
-    fireEvent.change(screen.getByTestId('file-input'), {
-      target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
-    })
-    await waitFor(() => expect(calls).toEqual(['POST /api/chats']))
+  it('shows a fresh home on Back and asks the server for the thread on Forward', async () => {
+    const pushState = spyPushState()
+    const { fetchStub } = stubFetch({ ...UPLOAD, '/api/chats/:id/messages': STREAM })
+    const view = renderHome()
+    attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c/new'))
-    expect(calls).toEqual(['POST /api/chats', 'POST /api/uploads', 'POST /api/chats/new/messages'])
+    await waitFor(() => expect(pushState).toHaveBeenCalledTimes(1))
+    const id = String(uploadChatId(fetchStub))
+    location.pathname = `/c/${id}`
+    view.rerender(homeTree())
+    expect(screen.getByText('hello')).toBeTruthy()
+    expect(router.refresh).not.toHaveBeenCalled()
+    location.pathname = '/'
+    view.rerender(homeTree())
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
+    expect(screen.queryByText('hello')).toBeNull()
+    location.pathname = `/c/${id}`
+    view.rerender(homeTree())
+    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('makes no network call when a file is attached', async () => {
+    const { calls } = stubFetch({})
+    renderHome()
+    attach()
+    await act(async () => {})
+    expect(calls).toEqual([])
   })
 
   it.each([
@@ -135,10 +170,10 @@ describe('HomeChat', () => {
     [409, 'demo_paused', 'The demo is paused right now. Try again later.'],
     [409, 'run_active', 'A run is already in progress for this chat.'],
   ])('stays home with the notice and the attached file on a %s %s', async (status, error, notice) => {
+    const pushState = spyPushState()
     stubFetch({
-      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
       '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
-      '/api/chats/new/messages': () => Response.json({ error }, { status }),
+      '/api/chats/:id/messages': () => Response.json({ error }, { status }),
     })
     renderHome()
     fireEvent.change(screen.getByTestId('file-input'), {
@@ -147,7 +182,8 @@ describe('HomeChat', () => {
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))
-    expect(router.push).not.toHaveBeenCalled()
+    expect(pushState).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
     expect(textarea().value).toBe('hello')
     expect(screen.getByTestId('pending-file').textContent).toContain('brief.txt')
     expect(screen.getByTestId('titles').textContent).toBe('')
@@ -158,9 +194,8 @@ describe('HomeChat', () => {
     [false, "You've used today's run. Come back tomorrow."],
   ])('words the anonymous quota notice by sign-in availability (%s)', async (available, notice) => {
     stubFetch({
-      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
       ...UPLOAD,
-      '/api/chats/new/messages': () => Response.json({ error: 'quota_exceeded' }, { status: 429 }),
+      '/api/chats/:id/messages': () => Response.json({ error: 'quota_exceeded' }, { status: 429 }),
     })
     renderHome({ anonymous: true, maxRunsPerDay: 1, demoMode: true }, available ? { max: 3 } : undefined)
     attach()
@@ -169,13 +204,13 @@ describe('HomeChat', () => {
     await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))
   })
 
-  it('reuses the created chat when a send is retried', async () => {
+  it('reuses the browser id when a send is retried', async () => {
+    const pushState = spyPushState()
     let first = true
-    const { calls } = stubFetch({
-      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+    const { calls, fetchStub } = stubFetch({
       ...UPLOAD,
-      '/api/chats/new/messages': () => {
-        const response = first ? Response.json({ error: 'run_active' }, { status: 409 }) : new Response('ok')
+      '/api/chats/:id/messages': () => {
+        const response = first ? Response.json({ error: 'run_active' }, { status: 409 }) : STREAM()
         first = false
         return response
       },
@@ -184,13 +219,17 @@ describe('HomeChat', () => {
     attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(2))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false),
     )
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c/new'))
-    expect(calls.filter((call) => call === 'POST /api/chats')).toHaveLength(1)
+    await waitFor(() => expect(pushState).toHaveBeenCalledTimes(1))
+    const urls = fetchStub.mock.calls.map(([url]) => url).filter((url) => url.endsWith('/messages'))
+    expect(urls).toHaveLength(2)
+    expect(urls[1]).toBe(urls[0])
+    expect(urls[0]).toBe(`/api/chats/${uploadChatId(fetchStub)}/messages`)
+    expect(calls).not.toContain('POST /api/chats')
   })
 
   it('disables the composer while the demo is paused', () => {

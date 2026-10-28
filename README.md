@@ -38,6 +38,7 @@ Every visitor starts with an anonymous session. Sign in from the header or the u
 - **web** (`apps/web`, Next.js) serves the chat, stores messages and runs in Postgres, and streams run progress by tailing the `run_events` table. It calls MiroFish directly only for follow-up questions, interviews and the health check.
 - **worker** (`apps/worker`) claims queued runs from Postgres and drives them through MiroFish stage by stage, recording every step.
 - **Uploads** go to S3 or any S3-compatible store (MinIO in the Docker bundle, the local disk in development), shared by web and worker.
+- **Conversation ids** are generated in the browser and the conversation is created on first use, so a new conversation never waits on the server.
 - **MiroFish** runs unmodified behind a Caddy proxy that checks a shared token. Nothing in this repository imports MiroFish code; the only contact is HTTP through the proxy, and MiroFish's own port is never published.
 
 ## Run it

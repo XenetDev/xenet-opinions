@@ -12,6 +12,7 @@ import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
 import type { SignInUpsell } from './composer/usage-bar'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
+import { type RecentChat, Welcome } from './home/welcome'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
@@ -50,6 +51,8 @@ const isRunFailure = (messages: OpinionsUIMessage[], text: string) =>
     )
 
 export function Chat({
+  mode = 'existing',
+  recent = [],
   chatId,
   initialMessages,
   activeRun,
@@ -59,6 +62,8 @@ export function Chat({
   usage: initialUsage = null,
   signIn,
 }: {
+  mode?: 'new' | 'existing'
+  recent?: RecentChat[]
   chatId: string
   initialMessages: OpinionsUIMessage[]
   activeRun: {
@@ -85,11 +90,28 @@ export function Chat({
   const [usage, setUsage] = useState(initialUsage)
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
+  const [draft, setDraft] = useState('')
+  const composerRef = useRef<HTMLDivElement>(null)
+  const committedRef = useRef(mode === 'existing')
+  const firstSend = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null)
   const replayFirstResume = useRef(!!activeRun).current
-  const transport = useMemo(() => runTransport(chatId, { replayFirstResume }), [chatId, replayFirstResume])
-  const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
+  const transport = useMemo(() => {
+    const base = runTransport(chatId, { replayFirstResume })
+    return {
+      ...base,
+      sendMessages: async (options: Parameters<typeof base.sendMessages>[0]) => {
+        const stream = await base.sendMessages(options)
+        firstSend.current?.resolve()
+        firstSend.current = null
+        return stream
+      },
+    }
+  }, [chatId, replayFirstResume])
+  const { messages, sendMessage, setMessages, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
     onError: (error) => {
+      firstSend.current?.reject(error)
+      firstSend.current = null
       const match = Object.entries(sendNotices(limits, !!signIn)).find(([code]) => error.message.includes(code))
       if (match) setNotice(match[1])
       else if (!runActiveRef.current && !runFailedRef.current && !isRunFailure(messagesRef.current, error.message))
@@ -224,28 +246,38 @@ export function Chat({
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
-          <Thread
-            className="min-h-0 flex-1"
-            messages={messages}
-            startedAt={startedAt}
-            renderAssistant={(message) => {
-              const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
-              const asked = question && messageText(question)
-              return (
-                <MessageParts
-                  parts={message.parts}
-                  chatId={chatId}
-                  title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
-                  windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
-                  reportRequested={run.stage === 'interviews' && run.reportRequested}
-                  windowLive={runActive && message.id === run.assistantMessageId}
-                  onCancelRun={interviewMode ? () => void handleStop() : undefined}
-                  onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
-                />
-              )
-            }}
-          />
-          <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+          {mode === 'new' && messages.length === 0 ? (
+            <Welcome
+              recent={recent}
+              onUseStarter={(prompt) => {
+                setDraft(prompt)
+                composerRef.current?.querySelector('textarea')?.focus()
+              }}
+            />
+          ) : (
+            <Thread
+              className="min-h-0 flex-1"
+              messages={messages}
+              startedAt={startedAt}
+              renderAssistant={(message) => {
+                const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
+                const asked = question && messageText(question)
+                return (
+                  <MessageParts
+                    parts={message.parts}
+                    chatId={chatId}
+                    title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
+                    windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
+                    reportRequested={run.stage === 'interviews' && run.reportRequested}
+                    windowLive={runActive && message.id === run.assistantMessageId}
+                    onCancelRun={interviewMode ? () => void handleStop() : undefined}
+                    onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
+                  />
+                )
+              }}
+            />
+          )}
+          <div ref={composerRef} className="mx-auto w-full max-w-3xl px-4 pb-4">
             {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
             {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
             <Composer
@@ -254,6 +286,7 @@ export function Chat({
               allowPause={limits.allowPause}
               usage={usage}
               {...(signIn ? { signIn } : {})}
+              {...(mode === 'new' && { value: draft, onValueChange: setDraft })}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
               busy={runActive && !interviewMode}
@@ -270,6 +303,31 @@ export function Chat({
                 }
                 if (submit.kind === 'followUp') {
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
+                  return
+                }
+                if (!committedRef.current) {
+                  const started = new Promise<void>((resolve, reject) => {
+                    firstSend.current = { resolve, reject }
+                  })
+                  void sendMessage(
+                    { text },
+                    { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } },
+                  ).then(() => {
+                    firstSend.current?.resolve()
+                    firstSend.current = null
+                  })
+                  try {
+                    await started
+                  } catch (error) {
+                    setMessages([])
+                    throw error
+                  }
+                  committedRef.current = true
+                  window.history.pushState(null, '', `/c/${chatId}`)
+                  setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
+                  upsertChat({ id: chatId, title: text.slice(0, 60), runStatus: 'queued' })
+                  setSendCount((count) => count + 1)
+                  setWatching(true)
                   return
                 }
                 setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
