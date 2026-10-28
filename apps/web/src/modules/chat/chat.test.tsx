@@ -254,7 +254,33 @@ describe('Chat', () => {
       />,
     )
     await waitFor(() => expect(container.querySelector('[data-part="console"]')).toBeTruthy())
-    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/stream', expect.anything())
+    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/stream?after=0', expect.anything())
+  })
+
+  it('does not replay a run the live stream just finished while the poll still says running', async () => {
+    chat.real = true
+    const chunks = [
+      { type: 'start', messageId: 'a1' },
+      { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'running' } },
+      { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'failed', message: 'Boom' } },
+      { type: 'error', errorText: 'Boom' },
+      { type: 'finish' },
+    ]
+    fetchSpy.mockImplementation(async (url: string) =>
+      url === '/api/chats/c1/messages'
+        ? new Response(`${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('')}data: [DONE]\n\n`, {
+            headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' },
+          })
+        : new Response(null, { status: 204 }),
+    )
+    const { container } = renderChat()
+    runState.current = { status: 'running', stage: 'ontology', runId: 'r1', assistantMessageId: 'a1' }
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(container.querySelector('[data-part="console"]')).toBeTruthy())
+    await act(async () => {})
+    const streams = fetchSpy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes('/stream'))
+    expect(streams).toEqual(['/api/chats/c1/stream'])
+    expect(container.querySelectorAll('[data-part="console"]')).toHaveLength(1)
   })
 
   it('shows only the failed console, no notice, when a replayed run ends in error', async () => {

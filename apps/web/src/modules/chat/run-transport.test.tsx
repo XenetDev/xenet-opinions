@@ -108,6 +108,17 @@ describe('runTransport', () => {
     expect(urls()).toEqual(['/api/chats/c1/stream'])
   })
 
+  it('asks for a replay from seq 0 on the first resume only when told to', async () => {
+    const transport = runTransport('c1', { replayFirstResume: true })
+    fetchSpy.mockImplementation(async () => sse([{ type: 'start', messageId: 'a1' }, { type: 'finish' }]))
+    const drain = async (stream: ReadableStream<unknown> | null) => {
+      for await (const _ of stream as unknown as AsyncIterable<unknown>);
+    }
+    await drain(await transport.reconnectToStream({ chatId: 'c1' }))
+    await drain(await transport.reconnectToStream({ chatId: 'c1' }))
+    expect(urls()).toEqual(['/api/chats/c1/stream?after=0', '/api/chats/c1/stream'])
+  })
+
   it('stops continuing when the run has ended', async () => {
     fetchSpy
       .mockResolvedValueOnce(sse([{ type: 'start', messageId: 'a1' }, stage('running'), cursor(3)]))

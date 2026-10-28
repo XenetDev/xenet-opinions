@@ -19,7 +19,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const chat = await getOwnedChat(chatId, user.id)
   if (!chat) return Response.json({ error: 'not_found' }, { status: 404 })
 
-  const run = (await runStore.getActiveByChat(chatId)) ?? (await runStore.getLatestByChat(chatId))
+  const run =
+    (await runStore.getActiveByChat(chatId)) ?? (after === null ? null : await runStore.getLatestByChat(chatId))
   if (!run) return new Response(null, { status: 204 })
 
   return createUIMessageStreamResponse({

@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
 import type { Usage } from '@/server/usage-from'
@@ -85,6 +85,8 @@ export function Chat({
   const [usage, setUsage] = useState(initialUsage)
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
+  const replayFirstResume = useRef(!!activeRun).current
+  const transport = useMemo(() => runTransport(chatId, { replayFirstResume }), [chatId, replayFirstResume])
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
     onError: (error) => {
@@ -95,7 +97,7 @@ export function Chat({
     },
     messages: initialMessages,
     resume: !!activeRun,
-    transport: runTransport(chatId),
+    transport,
   })
   const run = useRunStatus(chatId, {
     enabled: watching,

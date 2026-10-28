@@ -42,19 +42,24 @@ describe('GET /api/chats/[id]/stream', () => {
     expect(runStore.getActiveByChat).not.toHaveBeenCalled()
   })
 
-  it('returns 204 with an empty body when the chat has no run', async () => {
+  it('returns 204 with an empty body when no run is active and there is no cursor', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({
+      id: 'r1',
+      status: 'done',
+      assistantMessageId: 'a1',
+    } as never)
     const res = await call()
     expect(res.status).toBe(204)
     expect(await res.text()).toBe('')
     expect(res.headers.get('content-type')).toBeNull()
     expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    expect(runStore.getLatestByChat).not.toHaveBeenCalled()
   })
 
-  it('replays the latest run from seq 0 when it ended before the client resumed', async () => {
+  it('replays the latest run from seq 0 for after=0 when it ended before the client resumed', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
@@ -64,7 +69,7 @@ describe('GET /api/chats/[id]/stream', () => {
       assistantMessageId: 'a1',
     } as never)
     vi.mocked(tailRunAsUIMessageStream).mockImplementation(() => createUIMessageStream({ execute: () => {} }))
-    const res = await call()
+    const res = await call(new Request('http://localhost/api/chats/c1/stream?after=0'))
     expect(res.status).toBe(200)
     expect(runStore.getLatestByChat).toHaveBeenCalledWith('c1')
     expect(tailRunAsUIMessageStream).toHaveBeenCalledWith(
