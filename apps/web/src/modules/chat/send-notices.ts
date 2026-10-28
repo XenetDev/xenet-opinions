@@ -1,7 +1,6 @@
 import type { Limits } from '@/server/limits'
 
 export const SEND_FAILED = 'Something went wrong sending your message'
-export const FILES_REQUIRED = 'Attach at least one document (.pdf, .md or .txt) to start a run.'
 
 const quotaNotice = (runs: number) =>
   `You've used today's ${runs === 1 ? '' : `${runs === 2 ? 'two' : runs} `}run${runs === 1 ? '' : 's'}. Come back tomorrow.`

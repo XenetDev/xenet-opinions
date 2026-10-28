@@ -53,13 +53,16 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/c/c1',
 }))
+const promptOnly = { kind: 'run', uploadIds: [], runOptions: { maxRounds: 1, pauseForInterviews: false } }
+const LONG_PROMPT = Array.from({ length: 40 }, (_, index) => `word${index}`).join(' ')
+
 vi.mock('./composer/composer', async () => {
   const { useInterviewSelection } = await import('./interview-selection')
   return {
     Composer: (props: { onStop: () => void; onSend: (text: string, submit: unknown) => unknown }) => {
       composer.props = { ...props, selectionEnabled: useInterviewSelection()?.enabled }
-      const send = (submit: unknown) => {
-        composer.sent = Promise.resolve(props.onSend('why?', submit)).then(
+      const send = (submit: unknown, text = 'why?') => {
+        composer.sent = Promise.resolve(props.onSend(text, submit)).then(
           () => 'sent',
           (error: Error) => error.message,
         )
@@ -82,6 +85,18 @@ vi.mock('./composer/composer', async () => {
             }
           >
             Send run
+          </button>
+          <button type="button" onClick={() => send(promptOnly)}>
+            Send prompt-only run
+          </button>
+          <button type="button" onClick={() => send(promptOnly, 'and if prices fall?')}>
+            Send another prompt-only run
+          </button>
+          <button type="button" onClick={() => send(promptOnly, LONG_PROMPT)}>
+            Send long prompt-only run
+          </button>
+          <button type="button" onClick={() => send({ ...promptOnly, uploadIds: ['u1'] }, 'short')}>
+            Send short run with a file
           </button>
         </>
       )
@@ -672,6 +687,111 @@ describe('Chat', () => {
     expect(seen.at(-1)).toEqual({ chatId: 'c1', running: false })
   })
 
+  describe('a prompt-only run', () => {
+    const card = () => screen.queryByTestId('context-card')
+    const runOptions = { maxRounds: 1, pauseForInterviews: false }
+
+    it('asks for context first and sends nothing', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      expect(await composer.sent).toBe('sent')
+      expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy()
+      expect(card()).toBeTruthy()
+      expect(screen.getByText('Needs you')).toBeTruthy()
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+      expect(upsertChat).not.toHaveBeenCalled()
+      expect(runOpts.current).toMatchObject({ enabled: false, sendCount: 0 })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+
+    it('starts with the filled fields as the seed', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      fireEvent.change(await screen.findByRole('textbox', { name: 'Who should be simulated' }), {
+        target: { value: '  Pro customers ' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
+      expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        { text: 'why?' },
+        { body: { uploadIds: [], runOptions, seed: { actors: 'Pro customers' } } },
+      )
+      expect(card()).toBeNull()
+      expect(upsertChat).toHaveBeenCalledWith({ id: 'c1', runStatus: 'queued', title: 'why?' })
+      expect(runOpts.current).toMatchObject({ enabled: true, sendCount: 1 })
+    })
+
+    it('skips without a seed', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      fireEvent.change(await screen.findByRole('textbox', { name: 'What is changing' }), {
+        target: { value: 'A new fee' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Skip and run with my question' }))
+      expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+      expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { uploadIds: [], runOptions } })
+      expect(card()).toBeNull()
+    })
+
+    it('sends an empty Start without a seed', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Start run' }))
+      expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { uploadIds: [], runOptions } })
+    })
+
+    it('sends a 40-word prompt at once', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send long prompt-only run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith({ text: LONG_PROMPT }, { body: { uploadIds: [], runOptions } }),
+      )
+      expect(card()).toBeNull()
+    })
+
+    it('sends a short prompt with a file at once', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'short' }, { body: { uploadIds: ['u1'], runOptions } }),
+      )
+      expect(card()).toBeNull()
+    })
+
+    it('replaces the pending question on a second send', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await screen.findByTestId('context-card')
+      fireEvent.click(screen.getByRole('button', { name: 'Send another prompt-only run' }))
+      await waitFor(() => expect(screen.getByRole('group', { name: 'You: and if prices fall?' })).toBeTruthy())
+      expect(screen.queryByRole('group', { name: 'You: why?' })).toBeNull()
+      expect(screen.getAllByTestId('context-card')).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'Skip and run with my question' }))
+      expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        { text: 'and if prices fall?' },
+        { body: { uploadIds: [], runOptions } },
+      )
+    })
+
+    it('drops the card when a long prompt is sent instead', async () => {
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await screen.findByTestId('context-card')
+      fireEvent.click(screen.getByRole('button', { name: 'Send long prompt-only run' }))
+      await waitFor(() => expect(card()).toBeNull())
+      expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('group', { name: 'You: why?' })).toBeNull()
+    })
+
+    it('has no axe violations with the card', async () => {
+      const { container } = renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await screen.findByTestId('context-card')
+      expect(await axe(container)).toHaveNoViolations()
+    })
+  })
+
   it('has no axe violations', async () => {
     const { container } = renderChat(doneRun('open', inMinutes(10)))
     await act(async () => chat.options!.onError(new Error(JSON.stringify({ error: 'follow_up_failed' }))))
@@ -811,6 +931,60 @@ describe('Chat in new mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
     await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
     expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/messages'])
+    pushState.mockRestore()
+  })
+  it('holds a prompt-only run behind the card, then swaps the URL only once the run is accepted', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    let respond: (response: Response) => void = () => {}
+    fetchSpy.mockImplementation((url: string) =>
+      url === '/api/chats/n1/messages'
+        ? new Promise<Response>((resolve) => {
+            respond = resolve
+          })
+        : Promise.resolve(Response.json({ status: 'queued' })),
+    )
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+    expect(await composer.sent).toBe('sent')
+    expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
+    expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Background and constraints' }), {
+      target: { value: 'We raised prices last year' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
+    await waitFor(() => expect(posts()).toEqual(['/api/chats/n1/messages']))
+    expect(screen.queryByTestId('context-card')).toBeNull()
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
+    respond(new Response(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`, { headers: SSE }))
+    await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
+    expect(upsertChat).toHaveBeenCalledWith({ id: 'n1', title: 'why?', runStatus: 'queued' })
+    expect(composer.props?.usage).toMatchObject({ used: 1 })
+    const init = fetchSpy.mock.calls.find(([url]) => url === '/api/chats/n1/messages')?.[1] as RequestInit
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      uploadIds: [],
+      runOptions: { maxRounds: 1, pauseForInterviews: false },
+      seed: { background: 'We raised prices last year' },
+    })
+    pushState.mockRestore()
+  })
+
+  it('brings the card back when the prompt-only run is refused', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    fetchSpy.mockResolvedValueOnce(Response.json({ error: 'quota_exceeded' }, { status: 429 }))
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip and run with my question' }))
+    await waitFor(() =>
+      expect(screen.getAllByText("You've used today's two runs. Come back tomorrow.").length).toBeGreaterThan(0),
+    )
+    await waitFor(() => expect(screen.getByTestId('context-card')).toBeTruthy())
+    expect(screen.getAllByRole('group', { name: 'You: why?' })).toHaveLength(1)
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
     pushState.mockRestore()
   })
 })

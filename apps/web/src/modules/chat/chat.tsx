@@ -8,14 +8,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
 import type { Usage } from '@/server/usage-from'
+import { needsSeedContext } from '../../../../../packages/engine/src/policy/seed'
 import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
+import type { RunOptionsValue } from './composer/run-options'
 import type { SignInUpsell } from './composer/usage-bar'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
 import { type RecentChat, Welcome } from './home/welcome'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
+import { ContextCard, type SeedContext } from './parts/context-card'
 import { runTransport } from './run-transport'
 import { SEND_FAILED, sendNotices } from './send-notices'
 import { Thread } from './thread/thread'
@@ -32,6 +35,8 @@ const INTERVIEW_NOTICES: Record<string, string> = {
   report_requested: 'The report is being generated; no more interviews for this run.',
   run_paused: 'Pick personas to interview, or generate the report.',
 }
+
+type RunBody = { uploadIds: string[]; runOptions: RunOptionsValue; seed?: SeedContext }
 
 type LatestRun = {
   id: string
@@ -96,6 +101,7 @@ export function Chat({
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
+  const [pendingRun, setPendingRun] = useState<{ text: string; runOptions: RunOptionsValue } | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const committedRef = useRef(mode === 'existing')
   const firstSend = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null)
@@ -226,6 +232,52 @@ export function Chat({
     if (statusRef.current !== 'streaming' && statusRef.current !== 'submitted') void resumeStream()
   }
 
+  const startRun = async (text: string, body: RunBody) => {
+    if (!committedRef.current) {
+      const started = new Promise<void>((resolve, reject) => {
+        firstSend.current = { resolve, reject }
+      })
+      void sendMessage({ text }, { body }).then(() => {
+        firstSend.current?.reject(new Error('aborted'))
+        firstSend.current = null
+      })
+      try {
+        await started
+      } catch (error) {
+        setMessages([])
+        throw error
+      }
+      committedRef.current = true
+      window.history.pushState(null, '', `/c/${chatId}`)
+      setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
+      upsertChat({ id: chatId, title: text.slice(0, 60), runStatus: 'queued' })
+      setSendCount((count) => count + 1)
+      setWatching(true)
+      return
+    }
+    setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
+    const title = chats.find((chat) => chat.id === chatId)?.title
+    upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+    runIdAtSendRef.current = run.runId
+    setSendCount((count) => count + 1)
+    setWatching(true)
+    void sendMessage({ text }, { body })
+  }
+
+  const startPending = (seed?: SeedContext) => {
+    if (!pendingRun) return
+    const pending = pendingRun
+    setPendingRun(null)
+    setNotice(null)
+    startRun(pending.text, {
+      uploadIds: [],
+      runOptions: pending.runOptions,
+      ...(seed && Object.keys(seed).length > 0 ? { seed } : {}),
+    }).catch((error: Error) => {
+      if (error.message !== 'aborted') setPendingRun((current) => current ?? pending)
+    })
+  }
+
   const handleRetry = async () => {
     setNotice(null)
     const response = await fetch(`/api/chats/${chatId}/run/retry`, { method: 'POST' }).catch(() => null)
@@ -256,7 +308,7 @@ export function Chat({
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
-          {mode === 'new' && messages.length === 0 ? (
+          {mode === 'new' && messages.length === 0 && !pendingRun ? (
             <Welcome
               recent={recent}
               onUseStarter={(prompt) => {
@@ -269,6 +321,20 @@ export function Chat({
               className="min-h-0 flex-1"
               messages={messages}
               startedAt={startedAt}
+              pending={
+                pendingRun
+                  ? {
+                      text: pendingRun.text,
+                      card: (
+                        <ContextCard
+                          pending={status === 'submitted' || status === 'streaming'}
+                          onStart={(seed) => startPending(seed)}
+                          onSkip={() => startPending()}
+                        />
+                      ),
+                    }
+                  : undefined
+              }
               renderAssistant={(message) => {
                 const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
                 const asked = question && messageText(question)
@@ -315,38 +381,12 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
-                if (!committedRef.current) {
-                  const started = new Promise<void>((resolve, reject) => {
-                    firstSend.current = { resolve, reject }
-                  })
-                  void sendMessage(
-                    { text },
-                    { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } },
-                  ).then(() => {
-                    firstSend.current?.reject(new Error('aborted'))
-                    firstSend.current = null
-                  })
-                  try {
-                    await started
-                  } catch (error) {
-                    setMessages([])
-                    throw error
-                  }
-                  committedRef.current = true
-                  window.history.pushState(null, '', `/c/${chatId}`)
-                  setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
-                  upsertChat({ id: chatId, title: text.slice(0, 60), runStatus: 'queued' })
-                  setSendCount((count) => count + 1)
-                  setWatching(true)
+                if (needsSeedContext(text, submit.uploadIds.length)) {
+                  setPendingRun({ text, runOptions: submit.runOptions })
                   return
                 }
-                setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
-                const title = chats.find((chat) => chat.id === chatId)?.title
-                upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
-                runIdAtSendRef.current = run.runId
-                setSendCount((count) => count + 1)
-                setWatching(true)
-                void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+                setPendingRun(null)
+                await startRun(text, { uploadIds: submit.uploadIds, runOptions: submit.runOptions })
               }}
             />
           </div>
