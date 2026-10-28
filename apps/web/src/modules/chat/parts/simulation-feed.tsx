@@ -1,7 +1,8 @@
 'use client'
 
 import type { AgentsData, SimFeedData } from '@xo/engine/parts'
-import { useState } from 'react'
+import { type ComponentType, type SVGProps, useState } from 'react'
+import { RedditIcon, XIcon } from '@/components/brand/platform-icons'
 import { Badge } from '@/components/reui/badge'
 import { Frame, FrameDescription, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -18,9 +19,9 @@ type Platform = SimFeedData['posts'][number]['platform']
 type Reply = NonNullable<SimFeedData['replies']>[number]
 type Profiles = AgentsData['profiles']
 
-const PLATFORMS: { value: Platform; label: string }[] = [
-  { value: 'twitter', label: 'Twitter' },
-  { value: 'reddit', label: 'Reddit' },
+const PLATFORMS: { value: Platform; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
+  { value: 'twitter', label: 'X', Icon: XIcon },
+  { value: 'reddit', label: 'Reddit', Icon: RedditIcon },
 ]
 
 export function personaLabel(agent: string, profiles: Profiles = []): { name: string; role?: string } {
@@ -76,15 +77,15 @@ export function SimulationFeed({ data, agents }: { data: SimFeedData; agents?: A
           <FrameTitle className="font-medium">Simulated feed</FrameTitle>
           <Badge variant="outline">{`Round ${data.round} of ${data.totalRounds}`}</Badge>
           <TabsList className="ms-auto">
-            {PLATFORMS.map(({ value, label }) => (
+            {PLATFORMS.map(({ value, label, Icon }) => (
               <TabsTrigger key={value} value={value}>
+                <Icon className="size-3.5" />
                 {`${label} · ${value === 'twitter' ? data.twitterActs : data.redditActs}`}
               </TabsTrigger>
             ))}
           </TabsList>
           <FrameDescription className="basis-full text-xs text-muted-foreground">
-            Personas post and reply to each other on a simulated Twitter and Reddit. Nothing here comes from the real
-            sites.
+            Personas post and reply to each other on a simulated X and Reddit. Nothing here comes from the real sites.
           </FrameDescription>
         </FrameHeader>
         <FramePanel className="p-0">

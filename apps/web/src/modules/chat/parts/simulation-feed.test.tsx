@@ -74,10 +74,10 @@ describe('SimulationFeed', () => {
     expect(screen.getByText('Round 2 of 10').closest('[data-slot="badge"]')).not.toBeNull()
     expect(
       screen.getByText(
-        'Personas post and reply to each other on a simulated Twitter and Reddit. Nothing here comes from the real sites.',
+        'Personas post and reply to each other on a simulated X and Reddit. Nothing here comes from the real sites.',
       ),
     ).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Twitter · 2' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'X · 2' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Reddit · 1' })).toBeTruthy()
   })
 

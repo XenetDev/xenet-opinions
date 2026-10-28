@@ -146,12 +146,20 @@ export const buildProfile = (i: number) => {
   }
 }
 
-const POST_TEXT = [
-  'A 20% increase with no warning is hard to justify.',
-  'Still better value than the alternatives, honestly.',
-  'Comparing competitors before the next renewal.',
-  'Will annual plans keep the old price?',
-]
+const POST_TEXT: Record<Platform, string[]> = {
+  twitter: [
+    'A 20% increase with no warning is hard to justify.',
+    'Still better value than the alternatives, honestly.',
+    'Comparing competitors before the next renewal.',
+    'Will annual plans keep the old price?',
+  ],
+  reddit: [
+    'Got the price-rise email this morning. 20% with a month of notice is a lot for a tool we rely on daily.',
+    'Unpopular opinion: it is still cheaper than switching, once you count the migration time.',
+    'Anyone built a comparison sheet of the alternatives? Happy to share mine if there is interest.',
+    'Question for people on annual plans: did your renewal quote go up too?',
+  ],
+}
 
 const postAuthor = (platform: Platform, round: number, k: number) =>
   (round * 2 + k + (platform === 'reddit' ? 5 : 0)) % PROFILE_COUNT
@@ -160,24 +168,33 @@ export const buildPost = (platform: Platform, round: number, k: number) => ({
   post_id: `${platform}_${round}_${k}`,
   user_id: postAuthor(platform, round, k),
   agent_name: buildProfile(postAuthor(platform, round, k)).name,
-  content: POST_TEXT[(round + k) % POST_TEXT.length] as string,
+  content: POST_TEXT[platform][(round + k) % POST_TEXT[platform].length] as string,
   round,
   platform,
 })
 
-const REPLY_TEXT = [
-  'Agreed, the timing makes it worse.',
-  'I see it differently, the product still earns it.',
-  'Has anyone actually priced the alternatives?',
-  'This is exactly why I switched to annual.',
-  'Fair point, but support has been slipping too.',
-]
+const REPLY_TEXT: Record<Platform, string[]> = {
+  twitter: [
+    'Agreed, the timing makes it worse.',
+    'I see it differently, the product still earns it.',
+    'Has anyone actually priced the alternatives?',
+    'This is exactly why I switched to annual.',
+    'Fair point, but support has been slipping too.',
+  ],
+  reddit: [
+    'Same here. The notice period is the real problem, not the number.',
+    'We ran the numbers last quarter and the next best option was within 10%, so we stayed.',
+    'Mine went up as well, but they honoured the old price until the term ended.',
+    'Worth asking your account manager. Ours gave a discount once we mentioned the competitors.',
+    'The product is fine, but the support queue has doubled since the last release.',
+  ],
+}
 
 export const buildComments = (platform: Platform, round: number, k: number) =>
   [0, 1].map((j) => ({
     comment_id: `${platform}_${round}_${k}_c${j}`,
     post_id: `${platform}_${round}_${k}`,
     user_id: (postAuthor(platform, round, k) + 3 + j) % PROFILE_COUNT,
-    content: REPLY_TEXT[(round + k + j) % REPLY_TEXT.length] as string,
+    content: REPLY_TEXT[platform][(round + k + j) % REPLY_TEXT[platform].length] as string,
     created_at: round,
   }))

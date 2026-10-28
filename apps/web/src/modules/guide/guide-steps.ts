@@ -14,7 +14,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     title: 'Watch the simulation unfold',
-    body: 'A knowledge graph, generated personas, and a simulated public on Twitter and Reddit, round by round.',
+    body: 'A knowledge graph, generated personas, and a simulated public on X and Reddit, round by round.',
     Scene: WatchScene,
   },
   {
