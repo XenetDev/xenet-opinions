@@ -14,11 +14,16 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const chat = await getOwnedChat(id, user.id)
   if (!chat) notFound()
 
-  const limits = getLimits()
+  const limits = getLimits(user)
   const [{ initialMessages, activeRun, latestRun }, usage] = await Promise.all([
     loadChatPage(chat.id, user.id),
     getUsage(user.id, limits),
   ])
+
+  const signIn =
+    limits.anonymous && limits.demoMode
+      ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent(`/c/${chat.id}`)}` }
+      : undefined
 
   return (
     <Chat
@@ -29,6 +34,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       limits={limits}
       usage={usage}
+      {...(signIn ? { signIn } : {})}
       startedAt={chat.createdAt.toISOString()}
     />
   )

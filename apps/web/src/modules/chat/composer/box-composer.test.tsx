@@ -484,6 +484,24 @@ describe('usage bar', () => {
   })
 })
 
+describe('usage bar sign-in upsell', () => {
+  it('threads signIn through the composer to the usage bar', () => {
+    render(
+      <TooltipProvider>
+        <Composer
+          mode="run"
+          onSend={vi.fn()}
+          usage={{ used: 1, max: 1, resetAt: '2026-10-29T08:00:00.000Z' }}
+          signIn={{ max: 3, href: '/sign-in?next=%2F' }}
+        />
+      </TooltipProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Sign in for 3 runs a day' }).getAttribute('href')).toBe(
+      '/sign-in?next=%2F',
+    )
+  })
+})
+
 describe('resetLabel', () => {
   it('says today, tomorrow or the weekday', async () => {
     const { resetLabel } = await import('./usage-bar')

@@ -10,6 +10,7 @@ import type { Limits } from '@/server/limits'
 import type { Usage } from '@/server/usage-from'
 import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
+import type { SignInUpsell } from './composer/usage-bar'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
@@ -47,6 +48,7 @@ export function Chat({
   limits,
   startedAt,
   usage: initialUsage = null,
+  signIn,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
@@ -60,6 +62,7 @@ export function Chat({
   latestRun: LatestRun | null
   limits: Limits
   usage?: Usage | null
+  signIn?: SignInUpsell
   startedAt?: string
 }) {
   const router = useRouter()
@@ -233,6 +236,7 @@ export function Chat({
               chatId={chatId}
               allowPause={limits.allowPause}
               usage={usage}
+              {...(signIn ? { signIn } : {})}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
               busy={runActive && !interviewMode}

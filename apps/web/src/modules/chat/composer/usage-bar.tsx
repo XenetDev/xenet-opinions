@@ -1,4 +1,5 @@
 import { ActivityIcon } from 'lucide-react'
+import Link from 'next/link'
 import { FrameHeader } from '@/components/reui/frame'
 import { Progress } from '@/components/ui/progress'
 import type { Usage } from '@/server/usage-from'
@@ -13,7 +14,9 @@ export function resetLabel(iso: string, now = new Date()): string {
   return `${when} at ${clock(iso)}`
 }
 
-export function UsageBar({ usage }: { usage: Usage }) {
+export type SignInUpsell = { max: number; href: string }
+
+export function UsageBar({ usage, signIn }: { usage: Usage; signIn?: SignInUpsell }) {
   const left = Math.max(usage.max - usage.used, 0)
   const summary = `${usage.used} of ${usage.max} runs used today`
   const detail =
@@ -38,6 +41,17 @@ export function UsageBar({ usage }: { usage: Usage }) {
                 className="mx-1.5 inline-block size-1 rounded-full bg-muted-foreground/40 align-middle"
               />
               <span suppressHydrationWarning>{detail}</span>
+            </>
+          )}
+          {signIn && (
+            <>
+              <span
+                aria-hidden="true"
+                className="mx-1.5 inline-block size-1 rounded-full bg-muted-foreground/40 align-middle"
+              />
+              <Link href={signIn.href} className="text-xs underline-offset-2 hover:underline">
+                Sign in for {signIn.max} runs a day
+              </Link>
             </>
           )}
         </span>

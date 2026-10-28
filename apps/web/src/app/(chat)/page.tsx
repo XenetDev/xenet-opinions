@@ -7,7 +7,7 @@ import { getUsage } from '@/server/usage'
 
 export default async function Home() {
   const user = await getSessionUser(await headers())
-  const limits = getLimits()
+  const limits = getLimits(user ?? { isAnonymous: true })
   const chats = user ? await listChats(user.id) : []
   const usage = user ? await getUsage(user.id, limits) : null
   const recent = chats
@@ -20,5 +20,10 @@ export default async function Home() {
       ...(chat.firstFile ? { firstFile: chat.firstFile } : {}),
     }))
 
-  return <HomeChat recent={recent} limits={limits} usage={usage} />
+  const signIn =
+    limits.anonymous && limits.demoMode
+      ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent('/')}` }
+      : undefined
+
+  return <HomeChat recent={recent} limits={limits} usage={usage} {...(signIn ? { signIn } : {})} />
 }

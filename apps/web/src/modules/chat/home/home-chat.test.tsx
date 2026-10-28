@@ -25,7 +25,15 @@ afterEach(() => {
   router.refresh.mockReset()
 })
 
-const LIMITS: Limits = { demoMode: true, paused: false, maxRunsPerDay: 2, maxRounds: 3, allowPause: true }
+const LIMITS: Limits = {
+  demoMode: true,
+  paused: false,
+  maxRunsPerDay: 2,
+  signedInMaxRunsPerDay: 3,
+  anonymous: false,
+  maxRounds: 3,
+  allowPause: true,
+}
 
 function Titles() {
   const { chats } = useChatList()

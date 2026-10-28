@@ -29,9 +29,16 @@ const owned = () => {
 }
 
 const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
-  vi
-    .mocked(getLimits)
-    .mockReturnValue({ demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true, ...over })
+  vi.mocked(getLimits).mockReturnValue({
+    demoMode: false,
+    paused: false,
+    maxRunsPerDay: 2,
+    signedInMaxRunsPerDay: 3,
+    anonymous: false,
+    maxRounds: 40,
+    allowPause: true,
+    ...over,
+  })
 
 beforeEach(() => {
   vi.resetAllMocks()

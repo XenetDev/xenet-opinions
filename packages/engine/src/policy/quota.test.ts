@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkRunPolicy, DEMO_MAX_ROUNDS, MAX_RUNS_PER_DAY, QUOTA_WINDOW_MS } from './quota'
+import { checkRunPolicy, DEMO_MAX_ROUNDS, MAX_RUNS_PER_DAY, MAX_RUNS_PER_DAY_ANONYMOUS, QUOTA_WINDOW_MS } from './quota'
 
 const windowStartedAt = new Date('2026-01-01T00:00:00Z')
 const base = {
@@ -14,7 +14,8 @@ const base = {
 
 describe('checkRunPolicy', () => {
   it('uses the documented constants', () => {
-    expect(MAX_RUNS_PER_DAY).toBe(2)
+    expect(MAX_RUNS_PER_DAY).toBe(3)
+    expect(MAX_RUNS_PER_DAY_ANONYMOUS).toBe(1)
     expect(DEMO_MAX_ROUNDS).toBe(3)
     expect(QUOTA_WINDOW_MS).toBe(24 * 60 * 60 * 1000)
   })

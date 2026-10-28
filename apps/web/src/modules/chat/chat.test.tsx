@@ -109,7 +109,15 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true }
+const limits = {
+  demoMode: false,
+  paused: false,
+  maxRunsPerDay: 2,
+  signedInMaxRunsPerDay: 3,
+  anonymous: false,
+  maxRounds: 40,
+  allowPause: true,
+}
 
 const seen: (ChatActivity | null)[] = []
 const Spy = () => {
