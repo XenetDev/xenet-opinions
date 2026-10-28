@@ -6,10 +6,20 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 
 const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn() }))
+const session = vi.hoisted(() => ({ isAnonymous: true }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
   usePathname: () => nav.pathname,
+}))
+
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    useSession: () => ({
+      data: { user: { id: 'g', name: 'Guest', email: 'g@x.y', image: null, isAnonymous: session.isAnonymous } },
+      isPending: false,
+    }),
+  },
 }))
 
 import { type ChatActivity, ChatActivityProvider, useChatActivity } from '../chat-activity'
@@ -23,6 +33,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  session.isAnonymous = true
   nav.pathname = '/c/a'
   nav.push.mockReset()
   nav.refresh.mockReset()
@@ -51,12 +62,12 @@ const Grab = () => {
   return null
 }
 
-const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity) => {
+const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity, signInAvailable = true) => {
   const result = render(
     <TooltipProvider>
       <ChatListProvider chats={chats}>
         <ChatActivityProvider>
-          <ChatHeader />
+          <ChatHeader signInAvailable={signInAvailable} />
           <Grab />
         </ChatActivityProvider>
       </ChatListProvider>
@@ -79,6 +90,24 @@ describe('ChatHeader', () => {
     renderHeader()
     expect(screen.getByRole('button', { name: 'Switch chat, New chat' })).toBeTruthy()
     expect(screen.getByRole('banner').textContent).toContain('New chat')
+  })
+
+  it('offers sign in to anonymous visitors as the last element in the header', () => {
+    renderHeader()
+    const button = screen.getByRole('button', { name: 'Sign in' })
+    expect(screen.getByRole('banner').lastElementChild).toBe(button)
+  })
+
+  it('keeps the avatar menu last for registered users', () => {
+    session.isAnonymous = false
+    renderHeader()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'Account menu' }))
+  })
+
+  it('hides sign in when no provider is available', () => {
+    renderHeader(CHATS, undefined, false)
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: /Switch to/ }))
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {

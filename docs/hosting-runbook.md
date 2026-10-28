@@ -194,9 +194,18 @@ add S3_FORCE_PATH_STYLE "$S3_FORCE_PATH_STYLE"
 add DEMO_MODE 1
 add DEMO_PAUSED 0
 add DEMO_ALLOW_PAUSE 0
-add MAX_RUNS_PER_DAY 2
+add MAX_RUNS_PER_DAY_ANONYMOUS 1
+add MAX_RUNS_PER_DAY 3
 add DEMO_MAX_ROUNDS 3
 add HEALTH_CHECK_MIROFISH 1
+
+# Optional sign-in providers; each option appears once its variables are set
+# add RESEND_API_KEY "$RESEND_API_KEY" s
+# add EMAIL_FROM "$EMAIL_FROM" s
+# add GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
+# add GOOGLE_CLIENT_SECRET "$GOOGLE_CLIENT_SECRET" s
+# add GITHUB_CLIENT_ID "$GITHUB_CLIENT_ID"
+# add GITHUB_CLIENT_SECRET "$GITHUB_CLIENT_SECRET" s
 ```
 
 `<app-domain>` is `xenet-opinions.vercel.app` unless you attach a custom domain (`vercel domains add <domain>`). Confirm with `vercel env ls production`.
@@ -278,7 +287,7 @@ Use the kill switch in section 4. To stop the worker as well, remove its latest 
 
 - Railway: usage-based (CPU, memory, volume, egress). `mirofish` is the heavy service; a 3.9 GB image sits idle between runs. The Hobby plan is the minimum; check the plan's included resource limits against the MiroFish memory need (verify in the dashboard).
 - Vercel: Pro seat plus function time; run streams hold a function open for up to 300 s per connection, which is also what eats into Hobby's included usage.
-- LLM and Zep: dominant cost, scaling with agents times rounds. `DEMO_MAX_ROUNDS=3`, `MAX_RUNS_PER_DAY=2` per anonymous user and `MAX_CONCURRENT_RUNS=1` bound it; the global daily budget is not capped, so keep `DEMO_PAUSED` handy and set provider-side spend limits.
+- LLM and Zep: dominant cost, scaling with agents times rounds. `DEMO_MAX_ROUNDS=3`, `MAX_RUNS_PER_DAY_ANONYMOUS=1` per guest, `MAX_RUNS_PER_DAY=3` per signed-in user and `MAX_CONCURRENT_RUNS=1` bound it; the global daily budget is not capped, so keep `DEMO_PAUSED` handy and set provider-side spend limits.
 - Bucket: R2 has no egress fees and uploads are small.
 
 ### Alternatives

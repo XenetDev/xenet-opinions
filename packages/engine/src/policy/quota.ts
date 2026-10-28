@@ -1,4 +1,5 @@
-export const MAX_RUNS_PER_DAY = 2
+export const MAX_RUNS_PER_DAY = 3
+export const MAX_RUNS_PER_DAY_ANONYMOUS = 1
 export const DEMO_MAX_ROUNDS = 3
 export const QUOTA_WINDOW_MS = 24 * 60 * 60 * 1000
 

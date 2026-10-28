@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <TooltipProvider delayDuration={500} skipDelayDuration={0}>
             <AnonymousSession>{children}</AnonymousSession>
           </TooltipProvider>
-          <Toaster position="bottom-center" />
+          <Toaster position="bottom-right" />
         </ThemeProvider>
       </body>
     </html>

@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
+import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
 import { ThemeToggle } from './theme-toggle'
 import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
 
-export function ChatHeader() {
+export function ChatHeader({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const { chats } = useChatList()
@@ -48,6 +49,7 @@ export function ChatHeader() {
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
       <ThemeToggle />
+      <AccountMenu signInAvailable={signInAvailable} />
     </header>
   )
 }

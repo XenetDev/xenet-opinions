@@ -25,14 +25,22 @@ afterEach(() => {
   router.refresh.mockReset()
 })
 
-const LIMITS: Limits = { demoMode: true, paused: false, maxRunsPerDay: 2, maxRounds: 3, allowPause: true }
+const LIMITS: Limits = {
+  demoMode: true,
+  paused: false,
+  maxRunsPerDay: 2,
+  signedInMaxRunsPerDay: 3,
+  anonymous: false,
+  maxRounds: 3,
+  allowPause: true,
+}
 
 function Titles() {
   const { chats } = useChatList()
   return <output data-testid="titles">{chats.map((c) => `${c.id}:${c.title}:${c.runStatus}`).join(',')}</output>
 }
 
-function renderHome(limits: Partial<Limits> = {}) {
+function renderHome(limits: Partial<Limits> = {}, signIn?: { max: number }) {
   return render(
     <TooltipProvider>
       <ChatListProvider chats={[]}>
@@ -40,6 +48,7 @@ function renderHome(limits: Partial<Limits> = {}) {
         <HomeChat
           recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
           limits={{ ...LIMITS, ...limits }}
+          {...(signIn ? { signIn } : {})}
         />
       </ChatListProvider>
     </TooltipProvider>,
@@ -135,6 +144,20 @@ describe('HomeChat', () => {
     expect(textarea().value).toBe('hello')
     expect(screen.getByTestId('pending-file').textContent).toContain('brief.txt')
     expect(screen.getByTestId('titles').textContent).toBe('')
+  })
+
+  it.each([
+    [true, "You've used today's free run. Sign in for 3 runs a day, or come back tomorrow."],
+    [false, "You've used today's run. Come back tomorrow."],
+  ])('words the anonymous quota notice by sign-in availability (%s)', async (available, notice) => {
+    stubFetch({
+      '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+      '/api/chats/new/messages': () => Response.json({ error: 'quota_exceeded' }, { status: 429 }),
+    })
+    renderHome({ anonymous: true, maxRunsPerDay: 1, demoMode: true }, available ? { max: 3 } : undefined)
+    fireEvent.change(textarea(), { target: { value: 'hello' } })
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))
   })
 
   it('reuses the created chat when a send is retried', async () => {

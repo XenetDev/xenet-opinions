@@ -1,6 +1,8 @@
+'use client'
+
 import { ActivityIcon } from 'lucide-react'
 import { FrameHeader } from '@/components/reui/frame'
-import { Progress } from '@/components/ui/progress'
+import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 import type { Usage } from '@/server/usage-from'
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -13,7 +15,10 @@ export function resetLabel(iso: string, now = new Date()): string {
   return `${when} at ${clock(iso)}`
 }
 
-export function UsageBar({ usage }: { usage: Usage }) {
+export type SignInUpsell = { max: number }
+
+export function UsageBar({ usage, signIn }: { usage: Usage; signIn?: SignInUpsell }) {
+  const signInDialog = useSignInDialog()
   const left = Math.max(usage.max - usage.used, 0)
   const summary = `${usage.used} of ${usage.max} runs used today`
   const detail =
@@ -40,13 +45,23 @@ export function UsageBar({ usage }: { usage: Usage }) {
               <span suppressHydrationWarning>{detail}</span>
             </>
           )}
+          {signIn && (
+            <>
+              <span
+                aria-hidden="true"
+                className="mx-1.5 inline-block size-1 rounded-full bg-muted-foreground/40 align-middle"
+              />
+              <button
+                type="button"
+                className="cursor-pointer text-xs underline-offset-2 hover:underline"
+                onClick={signInDialog.open}
+              >
+                Sign in for {signIn.max} runs a day
+              </button>
+            </>
+          )}
         </span>
       </div>
-      <Progress
-        value={usage.max ? Math.round((usage.used / usage.max) * 100) : 0}
-        aria-label="Runs used today"
-        className="h-1.5 [&_[data-slot=progress-indicator]]:rounded-full [&_[data-slot=progress-track]]:h-1.5 [&_[data-slot=progress-track]]:bg-muted-foreground/15"
-      />
     </FrameHeader>
   )
 }

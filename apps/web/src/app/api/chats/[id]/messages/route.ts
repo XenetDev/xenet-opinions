@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
-  const limits = getLimits()
+  const limits = getLimits(user)
   const now = new Date()
   const window = limits.demoMode
     ? await runsStartedSince(user.id, new Date(now.getTime() - QUOTA_WINDOW_MS))

@@ -7,6 +7,7 @@ import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
 import type { Usage } from '@/server/usage-from'
 import { Composer } from '../composer/composer'
+import type { SignInUpsell } from '../composer/usage-bar'
 import { NoticeRegion } from '../notice-region'
 import { SEND_FAILED, sendNotices } from '../send-notices'
 import { type RecentChat, Welcome } from './welcome'
@@ -15,9 +16,11 @@ export function HomeChat({
   recent,
   limits,
   usage = null,
+  signIn,
 }: {
   recent: RecentChat[]
   limits: Limits
+  signIn?: SignInUpsell
   usage?: Usage | null
 }) {
   const router = useRouter()
@@ -62,6 +65,7 @@ export function HomeChat({
             allowPause={limits.allowPause}
             disabled={limits.paused}
             usage={usage}
+            {...(signIn ? { signIn } : {})}
             onSend={async (text, submit) => {
               if (submit.kind !== 'run') return
               setNotice(null)
@@ -81,7 +85,7 @@ export function HomeChat({
               if (!id || !response?.ok) {
                 const body = (await response?.json().catch(() => null)) as { error?: string } | null
                 const code = body?.error ?? 'send_failed'
-                setNotice(sendNotices(limits)[code] ?? SEND_FAILED)
+                setNotice(sendNotices(limits, !!signIn)[code] ?? SEND_FAILED)
                 throw new Error(code)
               }
               void response.body?.cancel()

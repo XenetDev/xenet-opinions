@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/session'
 import { storage } from '@/lib/storage'
 import { getOwnedChat } from '@/server/chats'
+import { sessionUser } from '@/test/session-user'
 import { POST } from './route'
 
 const call = (build: (form: FormData) => void) => {
@@ -32,7 +33,7 @@ describe('POST /api/uploads', () => {
   })
 
   it('returns 404 when chat is not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await call((f) => {
       f.set('chatId', 'c1')
@@ -44,7 +45,7 @@ describe('POST /api/uploads', () => {
   })
 
   it('returns 400 invalid_body without chatId or files', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     const noChat = await call((f) => f.append('files', new File(['x'], 'a.txt', { type: 'text/plain' })))
     expect(noChat.status).toBe(400)
     expect(await noChat.json()).toEqual({ error: 'invalid_body' })
@@ -55,7 +56,7 @@ describe('POST /api/uploads', () => {
   })
 
   it('rejects a bad upload with 400 before any storage write', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     const res = await call((f) => {
       f.set('chatId', 'c1')
@@ -69,7 +70,7 @@ describe('POST /api/uploads', () => {
   })
 
   it('stores files and returns 201 with summaries', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     const res = await call((f) => {
       f.set('chatId', 'c1')
