@@ -5,12 +5,21 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
+import type { Usage } from '@/server/usage-from'
 import { Composer } from '../composer/composer'
 import { NoticeRegion } from '../notice-region'
 import { SEND_FAILED, sendNotices } from '../send-notices'
 import { type RecentChat, Welcome } from './welcome'
 
-export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Limits }) {
+export function HomeChat({
+  recent,
+  limits,
+  usage = null,
+}: {
+  recent: RecentChat[]
+  limits: Limits
+  usage?: Usage | null
+}) {
   const router = useRouter()
   const { upsertChat } = useChatList()
   const [draft, setDraft] = useState('')
@@ -52,6 +61,7 @@ export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Lim
             maxRounds={limits.maxRounds}
             allowPause={limits.allowPause}
             disabled={limits.paused}
+            usage={usage}
             onSend={async (text, submit) => {
               if (submit.kind !== 'run') return
               setNotice(null)
