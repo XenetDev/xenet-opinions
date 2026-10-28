@@ -14,6 +14,7 @@ import {
 import type { PendingFile } from './use-uploads'
 
 const FILE_STATE = { pending: 'idle', uploading: 'uploading', done: 'done', error: 'error' } as const
+const FILE_STATUS = { pending: 'Pending', uploading: 'Uploading', done: 'Uploaded', error: 'Failed' } as const
 
 export function FileChips({ files, onRemove }: { files: PendingFile[]; onRemove: (localId: string) => void }) {
   if (files.length === 0) return null
@@ -32,6 +33,7 @@ export function FileChips({ files, onRemove }: { files: PendingFile[]; onRemove:
           </AttachmentMedia>
           <AttachmentContent>
             <AttachmentTitle>{item.file.name}</AttachmentTitle>
+            <span className="sr-only">{FILE_STATUS[item.status]}</span>
             {item.status === 'error' && <AttachmentDescription>{item.error}</AttachmentDescription>}
           </AttachmentContent>
           <AttachmentActions>

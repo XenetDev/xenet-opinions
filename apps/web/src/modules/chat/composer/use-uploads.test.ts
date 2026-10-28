@@ -106,4 +106,13 @@ describe('useUploads', () => {
     expect(fetchStub).not.toHaveBeenCalled()
     expect(result.current.files[0]).toMatchObject({ status: 'error', error: 'chat_failed' })
   })
+
+  it('returns how many files were accepted', () => {
+    const { result } = renderHook(() => useUploads('chat-1'))
+    let accepted = -1
+    act(() => {
+      accepted = result.current.add(Array.from({ length: 6 }, (_, i) => file(`f${i}.txt`)))
+    })
+    expect(accepted).toBe(5)
+  })
 })

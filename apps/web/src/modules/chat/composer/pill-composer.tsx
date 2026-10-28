@@ -132,7 +132,8 @@ export function PillComposer({
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
+      return
     event.preventDefault()
     void send()
   }
@@ -164,7 +165,7 @@ export function PillComposer({
             {notice}
           </p>
         )}
-        <InputGroup className="h-auto rounded-full bg-background px-2 shadow-xs">
+        <InputGroup className="h-auto rounded-full bg-background px-2 shadow-xs has-disabled:opacity-100">
           <InputGroupTextarea
             id={fieldId}
             ref={field}
@@ -187,9 +188,9 @@ export function PillComposer({
                 accept={ACCEPT}
                 data-testid="file-input"
                 onChange={(event) => {
-                  add(Array.from(event.target.files ?? []))
+                  const accepted = add(Array.from(event.target.files ?? []))
                   event.target.value = ''
-                  if (!chatId) void resolveChatId().catch(() => {})
+                  if (!chatId && accepted > 0) void resolveChatId().catch(() => {})
                 }}
               />
               <DropdownMenu>

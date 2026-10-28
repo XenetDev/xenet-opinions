@@ -25,6 +25,7 @@ export function useUploads(chatId: string | (() => Promise<string>), deps: { fet
 
   const add = useCallback(
     (incoming: File[]) => {
+      let acceptedCount = 0
       setFiles((prev) => {
         let accepted = prev.filter((f) => f.status !== 'error').length
         const added = incoming.map((file): PendingFile => {
@@ -32,10 +33,12 @@ export function useUploads(chatId: string | (() => Promise<string>), deps: { fet
           const result = accepted >= MAX_FILES ? ({ ok: false, reason: 'too_many' } as const) : validateUploads([file])
           if (!result.ok) return { localId, file, status: 'error', error: result.reason }
           accepted += 1
+          acceptedCount += 1
           return { localId, file, status: 'pending' }
         })
         return [...prev, ...added]
       })
+      return acceptedCount
     },
     [setFiles],
   )

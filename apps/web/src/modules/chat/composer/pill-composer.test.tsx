@@ -77,6 +77,60 @@ describe('PillComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('does not send on the Safari IME commit Enter (keyCode 229)', async () => {
+    const { onSend } = renderComposer({ mode: 'followUp' })
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter', keyCode: 229 })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('does not send on Enter while busy', async () => {
+    const { onSend } = renderComposer({ mode: 'followUp', busy: true, onStop: vi.fn() })
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('keeps Stop at full opacity while the pill is disabled', () => {
+    renderComposer({ busy: true, disabled: true, onStop: vi.fn() })
+    const stop = screen.getByRole('button', { name: 'Stop' })
+    const pill = stop.closest('[data-slot="input-group"]') as HTMLElement
+    expect(pill.className).toContain('has-disabled:opacity-100')
+    expect(stop.className).not.toMatch(/(^|\s)opacity-50/)
+    expect((stop as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('does not create a chat when every attached file is rejected', async () => {
+    const onNeedChat = vi.fn(async () => 'new-chat')
+    renderComposer({ chatId: undefined, onNeedChat })
+    const big = new File(['x'], 'huge.txt', { type: 'text/plain' })
+    Object.defineProperty(big, 'size', { value: 1024 * 1024 * 1024 })
+    fireEvent.change(screen.getByTestId('file-input'), { target: { files: [big] } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getAllByTestId('pending-file')).toHaveLength(1)
+    expect(onNeedChat).not.toHaveBeenCalled()
+  })
+
+  it('states each file chip status in text', async () => {
+    let release: (value: Response) => void = () => {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((resolve) => (release = resolve))),
+    )
+    renderComposer()
+    fireEvent.change(screen.getByTestId('file-input'), {
+      target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
+    })
+    expect(within(screen.getByTestId('pending-file')).getByText('Pending')).toBeTruthy()
+    type('hello')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(within(screen.getByTestId('pending-file')).getByText('Uploading')).toBeTruthy())
+    release(Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }))
+    await waitFor(() => expect(screen.queryByTestId('pending-file')).toBeNull())
+  })
+
   it('lists attach and the pause option in the plus menu in run mode', () => {
     renderComposer()
     openMenu('Add files and options')
