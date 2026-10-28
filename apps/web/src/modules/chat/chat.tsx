@@ -11,6 +11,7 @@ import { Composer } from './composer/composer'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
+import { SEND_FAILED, sendNotices } from './send-notices'
 import { Thread } from './thread/thread'
 import { messageText } from './thread/turn'
 import { useRunStatus } from './use-run-status'
@@ -20,23 +21,11 @@ const CANCEL_NOTICES: Record<string, string> = {
   not_found: 'There is no run to cancel yet',
 }
 
-const SEND_NOTICES: Record<string, string> = {
-  run_active: 'A run is already in progress for this chat.',
-  follow_up_failed: 'The report agent did not answer. Try again.',
-  follow_up_unavailable: 'Follow-ups are not available for this run.',
-  demo_paused: 'The demo is paused right now. Try again later.',
-}
-
 const INTERVIEW_NOTICES: Record<string, string> = {
   window_closed: 'The interview window has closed. The report is being generated.',
   report_requested: 'The report is being generated; no more interviews for this run.',
   run_paused: 'Pick personas to interview, or generate the report.',
 }
-
-const SEND_FAILED = 'Something went wrong sending your message'
-
-const quotaNotice = (runs: number) =>
-  `You've used today's ${runs === 1 ? '' : `${runs === 2 ? 'two' : runs} `}run${runs === 1 ? '' : 's'}. Come back tomorrow.`
 
 type LatestRun = {
   id: string
@@ -79,12 +68,7 @@ export function Chat({
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
     onError: (error) => {
-      const notices: Record<string, string> = {
-        ...SEND_NOTICES,
-        quota_exceeded: quotaNotice(limits.maxRunsPerDay),
-        rounds_exceeded: `The demo allows up to ${limits.maxRounds} rounds.`,
-      }
-      const match = Object.entries(notices).find(([code]) => error.message.includes(code))
+      const match = Object.entries(sendNotices(limits)).find(([code]) => error.message.includes(code))
       if (match) setNotice(match[1])
       else if (!runActiveRef.current) setNotice(SEND_FAILED)
     },

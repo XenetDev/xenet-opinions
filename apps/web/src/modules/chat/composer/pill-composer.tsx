@@ -40,6 +40,8 @@ export function PillComposer({
   maxRounds = 40,
   allowPause = true,
   onNeedChat,
+  value,
+  onValueChange,
 }: {
   chatId?: string
   initialText?: string
@@ -52,6 +54,8 @@ export function PillComposer({
   maxRounds?: number
   allowPause?: boolean
   onNeedChat?: () => Promise<string>
+  value?: string
+  onValueChange?: (value: string) => void
 }) {
   const pendingChat = useRef<Promise<string> | null>(null)
   const resolveChatId = useCallback(() => {
@@ -64,7 +68,12 @@ export function PillComposer({
     return pendingChat.current
   }, [chatId, onNeedChat])
   const { files, add, remove, uploadAll, reset } = useUploads(chatId ?? resolveChatId)
-  const [text, setText] = useState(initialText ?? '')
+  const [ownText, setOwnText] = useState(initialText ?? '')
+  const text = value ?? ownText
+  const setText = (next: string) => {
+    setOwnText(next)
+    onValueChange?.(next)
+  }
   const [runOptions, setRunOptions] = useState<RunOptionsValue>({
     maxRounds: defaultRounds(maxRounds),
     pauseForInterviews: false,

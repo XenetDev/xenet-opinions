@@ -287,6 +287,22 @@ describe('PillComposer', () => {
     expect(onSend.mock.calls[0]?.[1]).toMatchObject({ kind: 'run', uploadIds: ['u1'] })
   })
 
+  it('follows a controlled value and reports edits', () => {
+    const onValueChange = vi.fn()
+    const { rerender } = renderComposer({ value: 'from starter', onValueChange })
+    expect(textarea().value).toBe('from starter')
+    type('edited')
+    expect(onValueChange).toHaveBeenCalledWith('edited')
+    rerender(
+      <TooltipProvider>
+        <InterviewSelectionProvider enabled={false}>
+          <PillComposer chatId="c1" mode="run" value="next" onValueChange={onValueChange} onSend={vi.fn()} />
+        </InterviewSelectionProvider>
+      </TooltipProvider>,
+    )
+    expect(textarea().value).toBe('next')
+  })
+
   it('shows the disclaimer', () => {
     renderComposer()
     expect(screen.getByText('Simulated opinions. Check important decisions with real people.')).toBeTruthy()

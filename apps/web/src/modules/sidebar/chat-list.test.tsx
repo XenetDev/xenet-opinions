@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 
@@ -68,6 +68,24 @@ describe('ChatList', () => {
       'b',
     )
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('AppSidebar', () => {
+  it('links New conversation to the home page without creating a chat', () => {
+    const fetchStub = vi.spyOn(globalThis, 'fetch')
+    render(
+      <SidebarProvider>
+        <ChatListProvider chats={[]}>
+          <AppSidebar />
+        </ChatListProvider>
+      </SidebarProvider>,
+    )
+    const link = screen.getByRole('link', { name: 'New conversation' })
+    expect(link.getAttribute('href')).toBe('/')
+    fireEvent.click(link)
+    expect(fetchStub).not.toHaveBeenCalled()
+    fetchStub.mockRestore()
   })
 })
 
