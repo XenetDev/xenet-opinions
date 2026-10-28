@@ -2,7 +2,9 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import type { ReactNode } from 'react'
 import './globals.css'
+import { Toaster } from 'sonner'
 import { AnonymousSession } from '@/components/providers/anonymous-session'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -23,7 +25,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AnonymousSession>{children}</AnonymousSession>
+        <TooltipProvider delayDuration={500} skipDelayDuration={0}>
+          <AnonymousSession>{children}</AnonymousSession>
+        </TooltipProvider>
+        <Toaster position="bottom-center" />
       </body>
     </html>
   )

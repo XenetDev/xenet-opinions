@@ -15,7 +15,8 @@
       "!apps/web/src/components/ui",
       "!!.superpowers",
       "!!.context",
-      "!!.data"
+      "!!.data",
+      "!**/.vercel"
     ]
   },
   "formatter": {
