@@ -43,6 +43,8 @@ Every visitor starts with an anonymous session. Sign in from the header or the u
 
 ## Run it
 
+On a first visit a short guide shows how the app works; the ? button in the header opens it again at any time.
+
 ### 1. Self-host with Docker
 
 You need Docker with Compose v2.20 or later, an API key for any OpenAI-compatible LLM provider, and a [Zep Cloud](https://www.getzep.com/) API key (MiroFish stores its knowledge graph there).

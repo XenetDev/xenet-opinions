@@ -9,6 +9,7 @@ import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
 import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
+import { GuideButton } from './guide-button'
 import { ThemeToggle } from './theme-toggle'
 import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
 
@@ -49,6 +50,7 @@ export function ChatHeader({ signInAvailable }: { signInAvailable: boolean }) {
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
       <ThemeToggle />
+      <GuideButton />
       <AccountMenu signInAvailable={signInAvailable} />
     </header>
   )

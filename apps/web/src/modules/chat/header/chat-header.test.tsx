@@ -104,10 +104,22 @@ describe('ChatHeader', () => {
     expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'Account menu' }))
   })
 
+  it('places the "How it works" button right before the account control', () => {
+    renderHeader()
+    const help = screen.getByRole('button', { name: 'How it works' })
+    expect(help.nextElementSibling).toBe(screen.getByRole('button', { name: 'Sign in' }))
+    cleanup()
+    session.isAnonymous = false
+    renderHeader()
+    expect(screen.getByRole('button', { name: 'How it works' }).nextElementSibling).toBe(
+      screen.getByRole('button', { name: 'Account menu' }),
+    )
+  })
+
   it('hides sign in when no provider is available', () => {
     renderHeader(CHATS, undefined, false)
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
-    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: /Switch to/ }))
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'How it works' }))
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {
