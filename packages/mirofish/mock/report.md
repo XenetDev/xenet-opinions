@@ -1,6 +1,6 @@
 # Public Reaction to the 20% Price Increase
 
-This report summarises how simulated customers, competitors and commentators responded across Twitter and Reddit after the announcement of a 20% increase in the monthly subscription price.
+This report summarises how simulated customers, competitors and commentators responded across x.com and reddit.com after the announcement of a 20% increase in the monthly subscription price.
 
 ## Overall sentiment
 

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { Http, RequestInitOptions } from '../client'
 import { type Platform, PlatformSchema } from '../schemas/common'
 import {
+  Comments,
   InterviewBatchResult,
   Posts,
   PrepareStarted,
@@ -73,6 +74,14 @@ export const simulationEndpoints = (http: Http) => ({
   ) {
     const query = { platform: PlatformSchema.parse(q.platform), limit: q.limit, offset: q.offset }
     return http.getJson(`${sim(simulationId)}/posts`, Posts, { ...init, query })
+  },
+  async comments(
+    simulationId: string,
+    q: { platform: Platform; limit?: number; offset?: number },
+    init?: RequestInitOptions,
+  ) {
+    const query = { platform: PlatformSchema.parse(q.platform), limit: q.limit, offset: q.offset }
+    return http.getJson(`${sim(simulationId)}/comments`, Comments, { ...init, query })
   },
   stop(simulationId: string, init?: RequestInitOptions) {
     return http.postJson('/api/simulation/stop', { simulation_id: simulationId }, z.unknown(), init)

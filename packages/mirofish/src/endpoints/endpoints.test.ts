@@ -183,6 +183,23 @@ describe('simulation endpoints', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('comments passes platform, limit, offset as query', async () => {
+    const { client, calls } = stubbed({ comments: [] })
+    await client.simulation.comments('s', { platform: 'reddit', limit: 20, offset: 40 })
+    expect(first(calls).url.pathname).toBe('/api/simulation/s/comments')
+    expect(Object.fromEntries(first(calls).url.searchParams)).toEqual({
+      platform: 'reddit',
+      limit: '20',
+      offset: '40',
+    })
+  })
+
+  it('comments rejects an invalid platform before any request', async () => {
+    const { client, calls } = stubbed({})
+    await expect(client.simulation.comments('s', { platform: '../etc' as never })).rejects.toThrow()
+    expect(calls).toHaveLength(0)
+  })
+
   it('stop and closeEnv post simulation_id', async () => {
     const { client, calls } = stubbed({})
     await client.simulation.stop('s')

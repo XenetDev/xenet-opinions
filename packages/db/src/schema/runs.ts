@@ -44,6 +44,8 @@ export type RunCursors = Partial<{
   idlePolls: number
   postsOffsetTwitter: number
   postsOffsetReddit: number
+  commentsOffsetTwitter: number
+  commentsOffsetReddit: number
   simStarted: boolean
   startAcked: boolean
   envCloseRequested: boolean
@@ -66,6 +68,14 @@ export type RunFeedCursor = {
   twitterActs: number
   redditActs: number
   posts: Array<{ id: string; platform: 'twitter' | 'reddit'; agent: string; content: string; round: number }>
+  replies?: Array<{
+    id: string
+    postId: string
+    platform: 'twitter' | 'reddit'
+    agent: string
+    content: string
+    round: number
+  }>
 }
 
 export type RunOutlineCursor = {

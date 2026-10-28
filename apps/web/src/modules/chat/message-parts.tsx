@@ -102,7 +102,7 @@ export function MessageParts({
       )}
       {feed && (
         <div data-part="feed">
-          <SimulationFeed data={feed} />
+          <SimulationFeed data={feed} agents={agents} />
         </div>
       )}
       {interviewGroups.length > 0 && (

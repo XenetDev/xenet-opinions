@@ -3,6 +3,7 @@ import type { AgentLogPage, OntologyResult } from '@xo/mirofish'
 import { describe, expect, it } from 'vitest'
 import {
   agentLogToEvents,
+  commentsToReplies,
   configToPlatform,
   graphDataToPart,
   ontologyToPart,
@@ -151,6 +152,81 @@ describe('posts and feed', () => {
     ])
     expect(mixed.posts.map((p) => p.id)).toEqual(['p2', 'p1'])
     expect(counted).toMatchObject({ round: 1, totalRounds: 0, twitterActs: 9, redditActs: 4, posts: [] })
+  })
+})
+
+describe('replies', () => {
+  const mk = (i: number, round = 1) => ({
+    id: `c${String(i).padStart(3, '0')}`,
+    postId: 'p1',
+    platform: 'twitter' as const,
+    agent: '2',
+    content: 'r',
+    round,
+  })
+
+  it('maps comment rows with fallbacks', () => {
+    expect(
+      commentsToReplies(
+        {
+          comments: [
+            { comment_id: 7, post_id: 'twitter_1_0', user_id: 3, content: 'yes', created_at: 1 },
+            { id: 'x', post_id: 'twitter_1_0', agent_id: 'a5', text: 'no' },
+            { post_id: 'twitter_1_1', user_name: 'Liam' },
+            { comment_id: 9, content: 'orphan' },
+          ],
+        },
+        'twitter',
+        4,
+      ),
+    ).toEqual([
+      { id: '7', postId: 'twitter_1_0', platform: 'twitter', agent: '3', content: 'yes', round: 4 },
+      { id: 'x', postId: 'twitter_1_0', platform: 'twitter', agent: 'a5', content: 'no', round: 4 },
+      { id: 'twitter_reply_2', postId: 'twitter_1_1', platform: 'twitter', agent: 'Liam', content: '', round: 4 },
+    ])
+    expect(commentsToReplies([{ comment_id: 'c', post_id: 'p' }], 'reddit', 1)[0]?.platform).toBe('reddit')
+    expect(commentsToReplies({}, 'twitter', 1)).toEqual([])
+    expect(commentsToReplies([{ post_id: 'p' }, { post_id: 'p' }], 'twitter', 1, 50).map((r) => r.id)).toEqual([
+      'twitter_reply_50',
+      'twitter_reply_51',
+    ])
+  })
+
+  it('merges replies by round then id, caps at 300 and keeps posts', () => {
+    const post = { id: 'p1', platform: 'twitter' as const, agent: 'a', content: 'c', round: 1 }
+    const prev = {
+      round: 1,
+      totalRounds: 3,
+      twitterActs: 1,
+      redditActs: 0,
+      posts: [post],
+      replies: Array.from({ length: 290 }, (_, i) => mk(i)),
+    }
+    const next = runStatusToFeed(
+      prev,
+      { runner_status: 'running', current_round: 2 },
+      [],
+      [mk(999, 2), ...Array.from({ length: 19 }, (_, i) => mk(290 + i, 2)), mk(5, 0)],
+    )
+    expect(next.replies).toHaveLength(300)
+    expect(next.replies?.[0]?.id).toBe('c010')
+    expect(next.replies?.at(-1)?.id).toBe('c999')
+    expect(next.replies?.at(-2)?.id).toBe('c308')
+    expect(next.posts).toEqual([post])
+    const legacy = runStatusToFeed({ ...prev, replies: undefined }, { runner_status: 'running' }, [])
+    expect(legacy.replies).toEqual([])
+    const numeric = runStatusToFeed(
+      undefined,
+      { runner_status: 'running' },
+      [],
+      [
+        { ...mk(0), id: '10' },
+        { ...mk(0), id: '9' },
+        { ...mk(0), id: 'b' },
+        { ...mk(0), id: 'a' },
+      ],
+    )
+    expect(numeric.replies?.map((r) => r.id)).toEqual(['9', '10', 'a', 'b'])
   })
 })
 
