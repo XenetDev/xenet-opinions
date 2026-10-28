@@ -63,6 +63,12 @@ describe('deriveConsole', () => {
     expect(model.elapsedSeconds).toBeUndefined()
   })
 
+  it('drops a stage message that only repeats the row title', () => {
+    const model = deriveConsole(through('report', 'running', 'Writing the report'), live)
+    expect(model.rows[5]).toMatchObject({ kind: 'live', title: 'Writing the report' })
+    expect(model.rows[5]?.detail).toBeUndefined()
+  })
+
   it('reports a stage percent when the stage has one', () => {
     const parts: Parts = [{ type: 'data-stage', data: { stage: 'ontology', status: 'running', progress: 40 } }]
     expect(deriveConsole(parts, live).rows[0]?.percent).toBe(40)

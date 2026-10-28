@@ -137,7 +137,7 @@ function stageRow(
 ): ConsoleRow {
   const id = `stage:${stage}`
   const title = STAGE_TITLES[stage]
-  const message = data?.message
+  const message = data?.message === title ? undefined : data?.message
   if (error || data?.status === 'failed') {
     return { id, kind: 'failed', title, detail: message ?? error?.message, action: 'retry' }
   }
