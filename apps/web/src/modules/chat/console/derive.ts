@@ -238,3 +238,8 @@ export function deriveConsole(parts: Parts, live: ConsoleLive): ConsoleModel {
 
   return { status, rows, step: { n, total: rows.length }, folded }
 }
+
+export function liveStepLabel(parts: Parts): string | undefined {
+  const model = deriveConsole(parts, {})
+  return model.status === 'queued' ? model.rows[0]?.title : model.rows.find((row) => row.kind === 'live')?.title
+}

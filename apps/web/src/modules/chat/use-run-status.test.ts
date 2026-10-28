@@ -3,7 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ChatListProvider, useChatList } from '@/modules/sidebar/chat-list-context'
+import { ChatListProvider, useChatList } from '@/modules/chat/chat-list-context'
 import { useRunStatus } from './use-run-status'
 
 const reply = (body: unknown) => vi.fn(async () => Response.json(body))
@@ -144,13 +144,16 @@ describe('useRunStatus', () => {
     expect(stub.mock.calls.length).toBe(before + 1)
   })
 
-  it('pushes the terminal status into the sidebar chat list', async () => {
+  it('pushes the terminal status into the chat list', async () => {
     const stub = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ status: 'running' }))
       .mockResolvedValue(Response.json({ status: 'cancelled' }))
     const wrapper = ({ children }: { children: ReactNode }) =>
-      createElement(ChatListProvider, { chats: [{ id: 'c1', title: 'T', runStatus: 'running' }], children })
+      createElement(ChatListProvider, {
+        chats: [{ id: 'c1', title: 'T', runStatus: 'running', updatedAt: '2026-10-28T10:00:00Z' }],
+        children,
+      })
     const { result } = renderHook(
       () => ({
         run: useRunStatus('c1', { enabled: true, intervalMs: 1000, fetch: asFetch(stub) }),
@@ -163,6 +166,8 @@ describe('useRunStatus', () => {
       await vi.advanceTimersByTimeAsync(1000)
     })
     expect(result.current.run.status).toBe('cancelled')
-    expect(result.current.list.chats).toEqual([{ id: 'c1', title: 'T', runStatus: 'cancelled' }])
+    expect(result.current.list.chats).toEqual([
+      { id: 'c1', title: 'T', runStatus: 'cancelled', updatedAt: '2026-10-28T10:00:00Z' },
+    ])
   })
 })

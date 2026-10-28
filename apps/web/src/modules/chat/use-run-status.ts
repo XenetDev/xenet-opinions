@@ -2,7 +2,7 @@
 
 import type { Stage } from '@xo/engine/parts'
 import { useEffect, useRef, useState } from 'react'
-import { useChatList } from '@/modules/sidebar/chat-list-context'
+import { useChatList } from '@/modules/chat/chat-list-context'
 
 export type RunStatus = 'none' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
 export type RunStatusState = {

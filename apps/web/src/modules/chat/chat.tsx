@@ -5,9 +5,11 @@ import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { DefaultChatTransport, generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { useChatList } from '@/modules/sidebar/chat-list-context'
+import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
+import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
+import { liveStepLabel, STAGE_TITLES } from './console/derive'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
@@ -58,6 +60,7 @@ export function Chat({
 }) {
   const router = useRouter()
   const { chats, upsertChat } = useChatList()
+  const { setActivity } = useChatActivity()
   const runActiveRef = useRef(!!activeRun)
   const [notice, setNotice] = useState<string | null>(null)
   const [watching, setWatching] = useState(!!activeRun)
@@ -175,6 +178,20 @@ export function Chat({
   }
 
   const lastMessage = messages.at(-1)
+  const runMessage = runActive
+    ? (messages.find((message) => message.id === run.assistantMessageId) ??
+      messages.findLast((message) => message.role === 'assistant'))
+    : undefined
+  const step = runActive
+    ? ((runMessage && liveStepLabel(runMessage.parts)) ?? (run.stage && STAGE_TITLES[run.stage]))
+    : undefined
+
+  useEffect(() => {
+    setActivity({ chatId, running: runActive, ...(step && { step }) })
+  }, [chatId, runActive, step, setActivity])
+
+  useEffect(() => () => setActivity(null), [setActivity])
+
   const latestFailed =
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))

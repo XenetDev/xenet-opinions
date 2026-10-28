@@ -41,7 +41,7 @@ vi.mock('./use-run-status', () => ({
     return runState.seeded && opts.initial ? opts.initial : runState.current
   },
 }))
-vi.mock('@/modules/sidebar/chat-list-context', () => ({
+vi.mock('@/modules/chat/chat-list-context', () => ({
   useChatList: () => ({ chats: [], upsertChat, removeChat: vi.fn() }),
 }))
 vi.mock('next/navigation', () => ({
@@ -77,6 +77,7 @@ vi.mock('./composer/composer', async () => {
 })
 
 import { Chat } from './chat'
+import { type ChatActivity, ChatActivityProvider, useChatActivity } from './chat-activity'
 
 type LatestRun = Parameters<typeof Chat>[0]['latestRun']
 const doneRun = (envState: 'none' | 'open' | 'closed', envKeepaliveUntil: string | null = null): LatestRun => ({
@@ -109,6 +110,18 @@ afterEach(() => {
 })
 
 const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true }
+
+const seen: (ChatActivity | null)[] = []
+const Spy = () => {
+  seen.push(useChatActivity().activity)
+  return null
+}
+const Harness = ({ open }: { open: boolean }) => (
+  <ChatActivityProvider>
+    {open && <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />}
+    <Spy />
+  </ChatActivityProvider>
+)
 
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(
@@ -424,6 +437,31 @@ describe('Chat', () => {
   it('keeps the status region mounted with no notice', () => {
     renderChat()
     expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('reports the running state and the live step to the header, and clears it on unmount', () => {
+    seen.length = 0
+    runState.current = { status: 'running', stage: 'graph_build', assistantMessageId: 'm1' }
+    chat.messages = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'done' } },
+          { type: 'data-stage', id: 'stage:graph_build', data: { stage: 'graph_build', status: 'running' } },
+        ],
+      },
+    ]
+    const { rerender } = render(<Harness open />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c1', running: true, step: 'Building the knowledge graph' })
+    rerender(<Harness open={false} />)
+    expect(seen.at(-1)).toBeNull()
+  })
+
+  it('reports an idle chat as not running', () => {
+    seen.length = 0
+    render(<Harness open />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c1', running: false })
   })
 
   it('has no axe violations', async () => {

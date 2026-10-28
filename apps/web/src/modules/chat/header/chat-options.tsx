@@ -1,7 +1,6 @@
 'use client'
 
-import { MoreHorizontalIcon } from 'lucide-react'
-import Link from 'next/link'
+import { EllipsisVerticalIcon, PencilIcon, Trash2Icon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
@@ -14,47 +13,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { useChatList } from './chat-list-context'
+import { type ChatListItem, useChatList } from '../chat-list-context'
 import { RenameDialog } from './rename-dialog'
 
-export type SidebarChat = { id: string; title: string; runStatus: string }
-
-export function ChatItem({ chat, active }: { chat: SidebarChat; active: boolean }) {
+export function ChatOptions({ chat }: { chat: Pick<ChatListItem, 'id' | 'title'> }) {
   const router = useRouter()
   const { upsertChat, removeChat } = useChatList()
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const label = chat.title || 'New conversation'
-  const running = chat.runStatus === 'queued' || chat.runStatus === 'running'
 
   return (
-    <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={active}>
-        <Link href={`/c/${chat.id}`}>
-          <span className="truncate">{label}</span>
-          {running && (
-            <span
-              data-testid="run-status-dot"
-              role="img"
-              aria-label="Run in progress"
-              className="ml-auto size-2 shrink-0 rounded-full bg-emerald-500"
-            >
-              <span className="sr-only">Run in progress</span>
-            </span>
-          )}
-        </Link>
-      </SidebarMenuButton>
+    <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <SidebarMenuAction showOnHover aria-label={`Actions for ${label}`}>
-            <MoreHorizontalIcon />
-          </SidebarMenuAction>
+          <Button variant="ghost" size="icon-sm" aria-label="Chat options">
+            <EllipsisVerticalIcon aria-hidden="true" />
+          </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start">
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename</DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onSelect={() => setRenaming(true)}>
+            <PencilIcon aria-hidden="true" />
+            Rename
+          </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(true)}>
+            <Trash2Icon aria-hidden="true" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -92,7 +76,7 @@ export function ChatItem({ chat, active }: { chat: SidebarChat; active: boolean 
                 const res = await fetch(`/api/chats/${chat.id}`, { method: 'DELETE' }).catch(() => null)
                 if (!res?.ok) return
                 removeChat(chat.id)
-                if (active) router.push('/')
+                router.push('/')
                 router.refresh()
               }}
             >
@@ -101,6 +85,6 @@ export function ChatItem({ chat, active }: { chat: SidebarChat; active: boolean 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarMenuItem>
+    </>
   )
 }

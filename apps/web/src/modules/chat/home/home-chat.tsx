@@ -3,7 +3,7 @@
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useCallback, useRef, useState } from 'react'
-import { useChatList } from '@/modules/sidebar/chat-list-context'
+import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
 import { Composer } from '../composer/composer'
 import { NoticeRegion } from '../notice-region'

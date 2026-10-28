@@ -9,7 +9,7 @@ import { axe } from '@/test/axe'
 const router = { push: vi.fn(), refresh: vi.fn() }
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => '/' }))
 
-import { ChatListProvider, useChatList } from '@/modules/sidebar/chat-list-context'
+import { ChatListProvider, useChatList } from '@/modules/chat/chat-list-context'
 import { HomeChat } from './home-chat'
 
 beforeAll(() => {

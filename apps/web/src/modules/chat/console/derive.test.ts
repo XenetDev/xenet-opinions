@@ -1,6 +1,6 @@
 import { type OpinionsUIMessage, STAGES, type Stage, type StageStatus } from '@xo/engine/parts'
 import { describe, expect, it } from 'vitest'
-import { deriveConsole } from './derive'
+import { deriveConsole, liveStepLabel } from './derive'
 
 type Parts = OpinionsUIMessage['parts']
 
@@ -315,5 +315,14 @@ describe('deriveConsole', () => {
       detail: 'Agents went offline',
       action: 'retry',
     })
+  })
+})
+
+describe('liveStepLabel', () => {
+  it('names the live row, the queue position, or nothing once settled', () => {
+    expect(liveStepLabel(through('graph_build', 'running'))).toBe('Building the knowledge graph')
+    expect(liveStepLabel([{ type: 'data-queue', data: { position: 2 } }])).toBe('Waiting for a free slot, #2 in queue')
+    expect(liveStepLabel(through('finished', 'done'))).toBeUndefined()
+    expect(liveStepLabel([])).toBeUndefined()
   })
 })
