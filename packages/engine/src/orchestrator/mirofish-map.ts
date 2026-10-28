@@ -112,14 +112,14 @@ export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>
 
 export const rawComments = (res: unknown): unknown[] => (Array.isArray(res) ? res : list(rec(res).comments))
 
-export const commentsToReplies = (res: unknown, platform: Platform, round: number): FeedReply[] =>
+export const commentsToReplies = (res: unknown, platform: Platform, round: number, offset = 0): FeedReply[] =>
   rawComments(res).flatMap((raw, i) => {
     const c = rec(raw)
     const postId = str(c.post_id)
     if (!postId) return []
     return [
       {
-        id: str(c.comment_id, c.id) ?? `${platform}_reply_${round}_${i}`,
+        id: str(c.comment_id, c.id) ?? `${platform}_reply_${offset + i}`,
         postId,
         platform,
         agent: str(c.user_id, c.agent_id, c.user_name) ?? 'Agent',
@@ -128,6 +128,12 @@ export const commentsToReplies = (res: unknown, platform: Platform, round: numbe
       },
     ]
   })
+
+const NUMERIC = /^\d+$/
+const byId = (a: string, b: string) =>
+  NUMERIC.test(a) && NUMERIC.test(b) ? Number(a) - Number(b) : a < b ? -1 : a > b ? 1 : 0
+const byRoundThenId = (a: { round: number; id: string }, b: { round: number; id: string }) =>
+  a.round - b.round || byId(a.id, b.id)
 
 export const runStatusToFeed = (
   prev: SimFeedData | undefined,
@@ -143,9 +149,7 @@ export const runStatusToFeed = (
     twitterActs: num(s.twitter_actions_count) ?? (prev?.twitterActs ?? 0) + added('twitter'),
     redditActs: num(s.reddit_actions_count) ?? (prev?.redditActs ?? 0) + added('reddit'),
     posts: [...(prev?.posts ?? []), ...newPosts].sort((a, b) => a.round - b.round).slice(-MAX_POSTS),
-    replies: [...(prev?.replies ?? []), ...newReplies]
-      .sort((a, b) => a.round - b.round || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-      .slice(-MAX_REPLIES),
+    replies: [...(prev?.replies ?? []), ...newReplies].sort(byRoundThenId).slice(-MAX_REPLIES),
   }
 }
 

@@ -489,6 +489,52 @@ describe('tick', () => {
     })
   })
 
+  it('keeps posting and advancing when the comments endpoint fails', async () => {
+    const notFound = new MiroFishError({ code: 'http', status: 404, message: 'not found', path: '/comments' })
+    const { store, deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi.fn(async () => ({ runner_status: 'completed' as const, current_round: 2, total_rounds: 2 })),
+          comments: vi.fn(async () => {
+            throw notFound
+          }),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, commentsOffsetTwitter: 7 } },
+    )
+    const next = await tick(run, deps)
+    expect(next.stage).toBe('report')
+    expect(next.status).not.toBe('failed')
+    expect(next.cursors.commentsOffsetTwitter).toBe(7)
+    expect(next.cursors.commentsOffsetReddit).toBe(0)
+    const feed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'sim_feed')?.payload as {
+      posts: unknown[]
+      replies: unknown[]
+    }
+    expect(feed.posts.length).toBeGreaterThan(0)
+    expect(feed.replies).toEqual([])
+    expect(deps.log).toHaveBeenCalledWith('replies unavailable', {
+      runId: run.id,
+      platform: 'twitter',
+      error: expect.any(String),
+    })
+  })
+
+  it('still aborts on a fence error from the comments fetch', async () => {
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 1, total_rounds: 2 })),
+          comments: vi.fn(async () => {
+            throw new FenceError('r')
+          }),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true } },
+    )
+    await expect(tick(run, deps)).rejects.toBeInstanceOf(FenceError)
+  })
+
   it('does not emit the report text until a drain after completion reaches an empty page', async () => {
     const line = { action: 'tool_call', details: { tool_name: 'quick_search' } }
     const { store, deps, run } = await setup(

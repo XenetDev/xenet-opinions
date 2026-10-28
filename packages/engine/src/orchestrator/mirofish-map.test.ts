@@ -182,10 +182,14 @@ describe('replies', () => {
     ).toEqual([
       { id: '7', postId: 'twitter_1_0', platform: 'twitter', agent: '3', content: 'yes', round: 4 },
       { id: 'x', postId: 'twitter_1_0', platform: 'twitter', agent: 'a5', content: 'no', round: 4 },
-      { id: 'twitter_reply_4_2', postId: 'twitter_1_1', platform: 'twitter', agent: 'Liam', content: '', round: 4 },
+      { id: 'twitter_reply_2', postId: 'twitter_1_1', platform: 'twitter', agent: 'Liam', content: '', round: 4 },
     ])
     expect(commentsToReplies([{ comment_id: 'c', post_id: 'p' }], 'reddit', 1)[0]?.platform).toBe('reddit')
     expect(commentsToReplies({}, 'twitter', 1)).toEqual([])
+    expect(commentsToReplies([{ post_id: 'p' }, { post_id: 'p' }], 'twitter', 1, 50).map((r) => r.id)).toEqual([
+      'twitter_reply_50',
+      'twitter_reply_51',
+    ])
   })
 
   it('merges replies by round then id, caps at 300 and keeps posts', () => {
@@ -211,6 +215,18 @@ describe('replies', () => {
     expect(next.posts).toEqual([post])
     const legacy = runStatusToFeed({ ...prev, replies: undefined }, { runner_status: 'running' }, [])
     expect(legacy.replies).toEqual([])
+    const numeric = runStatusToFeed(
+      undefined,
+      { runner_status: 'running' },
+      [],
+      [
+        { ...mk(0), id: '10' },
+        { ...mk(0), id: '9' },
+        { ...mk(0), id: 'b' },
+        { ...mk(0), id: 'a' },
+      ],
+    )
+    expect(numeric.replies?.map((r) => r.id)).toEqual(['9', '10', 'a', 'b'])
   })
 })
 

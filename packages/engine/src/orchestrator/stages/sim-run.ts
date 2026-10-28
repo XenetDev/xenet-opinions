@@ -1,5 +1,6 @@
 import type { Run } from '@xo/db'
 import { MiroFishError, type Platform } from '@xo/mirofish'
+import { FenceError } from '../../store/types'
 import { advance, emit, need, remoteFailure, running } from '../emit'
 import { closeEnvAndWait } from '../env'
 import { fail, isRetriable, messageOf } from '../fail'
@@ -13,7 +14,7 @@ const MAX_START_ATTEMPTS = 3
 const fetchPages = async <T>(
   page: (offset: number) => Promise<unknown>,
   rows: (res: unknown) => unknown[],
-  map: (res: unknown) => T[],
+  map: (res: unknown, offset: number) => T[],
   from: number,
   backlog: boolean,
 ) => {
@@ -22,7 +23,7 @@ const fetchPages = async <T>(
   for (let i = 0; i < MAX_PAGES; i++) {
     const res = await page(offset)
     const count = rows(res).length
-    items.push(...map(res))
+    items.push(...map(res, offset))
     offset += count
     if (!backlog || count < PAGE) break
   }
@@ -38,21 +39,29 @@ const fetchPosts = (deps: Deps, simulationId: string, platform: Platform, from: 
     backlog,
   )
 
-const fetchReplies = (
+const fetchReplies = async (
+  run: Run,
   deps: Deps,
   simulationId: string,
   platform: Platform,
   from: number,
   backlog: boolean,
   round: number,
-) =>
-  fetchPages(
-    (offset) => deps.mirofish.simulation.comments(simulationId, { platform, limit: PAGE, offset }),
-    rawComments,
-    (res) => commentsToReplies(res, platform, round),
-    from,
-    backlog,
-  )
+) => {
+  try {
+    return await fetchPages(
+      (offset) => deps.mirofish.simulation.comments(simulationId, { platform, limit: PAGE, offset }),
+      rawComments,
+      (res, offset) => commentsToReplies(res, platform, round, offset),
+      from,
+      backlog,
+    )
+  } catch (err) {
+    if (err instanceof FenceError) throw err
+    deps.log('replies unavailable', { runId: run.id, platform, error: messageOf(err) })
+    return { offset: from, items: [] }
+  }
+}
 
 const IDLE_POLLS_BEFORE_RESTART = 2
 
@@ -113,6 +122,7 @@ export const simRun: StageHandler = {
     const prev = run.cursors.feed
     const round = status.current_round ?? prev?.round ?? 0
     const twitterReplies = await fetchReplies(
+      run,
       deps,
       simulationId,
       'twitter',
@@ -121,6 +131,7 @@ export const simRun: StageHandler = {
       round,
     )
     const redditReplies = await fetchReplies(
+      run,
       deps,
       simulationId,
       'reddit',
