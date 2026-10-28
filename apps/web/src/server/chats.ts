@@ -1,6 +1,7 @@
 import { type Chat, type Message, type Run, schema } from '@xo/db'
 import { generateId } from 'ai'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { cache } from 'react'
 import { isChatId } from '@/lib/chat-id'
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
@@ -62,7 +63,7 @@ export type ChatSummary = {
   firstFile?: string
 }
 
-export async function listChats(userId: string): Promise<ChatSummary[]> {
+export const listChats = cache(async (userId: string): Promise<ChatSummary[]> => {
   const rows = await db
     .select({
       id: chats.id,
@@ -79,7 +80,7 @@ export async function listChats(userId: string): Promise<ChatSummary[]> {
     .where(eq(chats.userId, userId))
     .orderBy(desc(chats.updatedAt))
   return rows.map(({ firstFile, ...row }) => (firstFile ? { ...row, firstFile } : row))
-}
+})
 
 export async function renameChat(chatId: string, title: string): Promise<void> {
   await db.update(chats).set({ title }).where(eq(chats.id, chatId))

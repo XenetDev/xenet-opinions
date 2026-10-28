@@ -747,14 +747,32 @@ describe('Chat in new mode', () => {
     pushState.mockRestore()
   })
 
+  it('adopts fresh usage from the server', () => {
+    const view = renderNew()
+    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    view.rerender(
+      <Chat
+        mode="new"
+        chatId="n1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={null}
+        limits={{ ...limits, demoMode: true }}
+        usage={{ used: 2, max: 2, resetAt: null }}
+      />,
+    )
+    expect(composer.props?.usage).toMatchObject({ used: 2 })
+  })
+
   it('drops an aborted first send without claiming the URL or showing a notice', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    fetchSpy.mockImplementation(
-      (_url: string, init?: RequestInit) =>
-        new Promise<Response>((_, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
-        }),
+    fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+      url === '/api/chats/n1/run/cancel'
+        ? Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }))
+        : new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
     )
     renderNew()
     fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
@@ -765,8 +783,9 @@ describe('Chat in new mode', () => {
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
     expect(composer.props?.usage).toMatchObject({ used: 0 })
+    await act(async () => {})
     expect(screen.queryAllByRole('status').filter((el) => el.textContent)).toEqual([])
-    expect(posts()).toEqual(['/api/chats/n1/messages'])
+    expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/run/cancel'])
     pushState.mockRestore()
   })
 

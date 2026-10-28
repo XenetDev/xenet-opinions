@@ -2,7 +2,7 @@
 
 import { generateId } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Limits } from '@/server/limits'
 import type { Usage } from '@/server/usage-from'
 import { Chat } from '../chat'
@@ -23,6 +23,7 @@ export function HomeChat({
   const router = useRouter()
   const pathname = usePathname()
   const [chatId, setChatId] = useState(generateId)
+  const firstId = useRef(chatId)
   const [shownAt, setShownAt] = useState(pathname)
   if (pathname !== shownAt) {
     setShownAt(pathname)
@@ -30,7 +31,7 @@ export function HomeChat({
   }
 
   useEffect(() => {
-    if (pathname !== '/' && pathname !== `/c/${chatId}`) router.refresh()
+    if (pathname === '/' ? chatId !== firstId.current : pathname !== `/c/${chatId}`) router.refresh()
   }, [pathname, chatId, router])
 
   if (pathname !== '/' && pathname !== `/c/${chatId}`) return null

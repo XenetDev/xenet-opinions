@@ -88,6 +88,11 @@ export function Chat({
   const messagesRef = useRef(initialMessages)
   const [notice, setNotice] = useState<string | null>(null)
   const [usage, setUsage] = useState(initialUsage)
+  const [seenUsage, setSeenUsage] = useState(initialUsage)
+  if (seenUsage !== initialUsage) {
+    setSeenUsage(initialUsage)
+    setUsage(initialUsage)
+  }
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
@@ -180,6 +185,7 @@ export function Chat({
   const handleStop = async () => {
     if (!committedRef.current) {
       void stop()
+      void fetch(`/api/chats/${chatId}/run/cancel`, { method: 'POST' }).catch(() => {})
       return
     }
     if (followUpMode && !runActive) {
