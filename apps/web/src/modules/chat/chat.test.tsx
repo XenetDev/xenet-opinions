@@ -698,6 +698,8 @@ describe('Chat', () => {
       expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy()
       expect(card()).toBeTruthy()
       expect(screen.getByText('Needs you')).toBeTruthy()
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Add context or start the run'))
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Background and constraints' }))
       expect(chat.sendMessage).not.toHaveBeenCalled()
       expect(upsertChat).not.toHaveBeenCalled()
       expect(runOpts.current).toMatchObject({ enabled: false, sendCount: 0 })
@@ -985,6 +987,39 @@ describe('Chat in new mode', () => {
     expect(screen.getAllByRole('group', { name: 'You: why?' })).toHaveLength(1)
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
+    pushState.mockRestore()
+  })
+  it('keeps the welcome block away between Start and the first message', async () => {
+    chat.sendMessage.mockImplementation(() => new Promise(() => {}))
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Start run' }))
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+    await act(async () => {})
+    expect(screen.queryByTestId('context-card')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
+  })
+
+  it('puts the question back in the composer when the first send from the card is stopped', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+      url === '/api/chats/n1/run/cancel'
+        ? Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }))
+        : new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
+    )
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Start run' }))
+    await waitFor(() => expect(screen.queryByTestId('context-card')).toBeNull())
+    await waitFor(() => expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    await waitFor(() => expect(composer.props?.value).toBe('why?'))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy())
+    expect(screen.queryByTestId('context-card')).toBeNull()
+    expect(pushState).not.toHaveBeenCalled()
     pushState.mockRestore()
   })
 })

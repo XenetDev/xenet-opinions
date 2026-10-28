@@ -104,6 +104,7 @@ export function Chat({
   const [pendingRun, setPendingRun] = useState<{ text: string; runOptions: RunOptionsValue } | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const committedRef = useRef(mode === 'existing')
+  const startingRef = useRef(false)
   const firstSend = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null)
   const replayFirstResume = useRef(!!activeRun).current
   const transport = useMemo(() => {
@@ -269,13 +270,21 @@ export function Chat({
     const pending = pendingRun
     setPendingRun(null)
     setNotice(null)
+    startingRef.current = true
     startRun(pending.text, {
       uploadIds: [],
       runOptions: pending.runOptions,
       ...(seed && Object.keys(seed).length > 0 ? { seed } : {}),
-    }).catch((error: Error) => {
-      if (error.message !== 'aborted') setPendingRun((current) => current ?? pending)
-    })
+    }).then(
+      () => {
+        startingRef.current = false
+      },
+      (error: Error) => {
+        startingRef.current = false
+        if (error.message === 'aborted') setDraft(pending.text)
+        else setPendingRun((current) => current ?? pending)
+      },
+    )
   }
 
   const handleRetry = async () => {
@@ -308,7 +317,7 @@ export function Chat({
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
-          {mode === 'new' && messages.length === 0 && !pendingRun ? (
+          {mode === 'new' && messages.length === 0 && !pendingRun && !startingRef.current ? (
             <Welcome
               recent={recent}
               onUseStarter={(prompt) => {

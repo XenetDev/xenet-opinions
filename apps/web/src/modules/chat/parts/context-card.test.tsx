@@ -29,6 +29,11 @@ describe('ContextCard', () => {
     expect(screen.getByRole('button', { name: 'Skip and run with my question' })).toBeTruthy()
   })
 
+  it('focuses the first field when it appears', () => {
+    renderCard()
+    expect(document.activeElement).toBe(field('Background and constraints'))
+  })
+
   it('caps each field at 2000 characters', () => {
     renderCard()
     for (const name of ['Background and constraints', 'Who should be simulated', 'What is changing'])
