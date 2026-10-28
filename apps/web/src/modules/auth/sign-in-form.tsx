@@ -91,8 +91,14 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
     setExpired(false)
     setState({ status: 'sending', via: 'email' })
     try {
-      const result = await authClient.signIn.magicLink({ email: address, callbackURL: next })
-      if (result.error?.status === 429) setState({ status: 'error', message: RATE_LIMITED })
+      const result = await authClient.signIn.magicLink({
+        email: address,
+        callbackURL: next,
+        errorCallbackURL: `/sign-in?next=${encodeURIComponent(next)}`,
+      })
+      const status = result.error?.status ?? 0
+      if (status === 429) setState({ status: 'error', message: RATE_LIMITED })
+      else if (status >= 500) setState({ status: 'error', message: FAILED })
       else setState({ status: 'sent', email: address })
     } catch {
       setState({ status: 'error', message: FAILED })

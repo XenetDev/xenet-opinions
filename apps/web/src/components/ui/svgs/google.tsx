@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { SVGProps } from 'react'
 
 const Google = (props: SVGProps<SVGSVGElement>) => (
   <svg
@@ -165,24 +165,10 @@ const Google = (props: SVGProps<SVGSVGElement>) => (
         gradientTransform="matrix(-.0814 -1.93722 2.92674 -.11625 -215.135 632.86)"
         gradientUnits="userSpaceOnUse"
       />
-      <filter
-        id="q"
-        width="1.097"
-        height="1.116"
-        x="-.048"
-        y="-.058"
-        colorInterpolationFilters="sRGB"
-      >
+      <filter id="q" width="1.097" height="1.116" x="-.048" y="-.058" colorInterpolationFilters="sRGB">
         <feGaussianBlur stdDeviation="1.701" />
       </filter>
-      <filter
-        id="k"
-        width="1.033"
-        height="1.02"
-        x="-.017"
-        y="-.01"
-        colorInterpolationFilters="sRGB"
-      >
+      <filter id="k" width="1.033" height="1.02" x="-.017" y="-.01" colorInterpolationFilters="sRGB">
         <feGaussianBlur stdDeviation=".242" />
       </filter>
       <clipPath id="i" clipPathUnits="userSpaceOnUse">
@@ -238,6 +224,6 @@ const Google = (props: SVGProps<SVGSVGElement>) => (
       />
     </g>
   </svg>
-);
+)
 
-export { Google };
+export { Google }

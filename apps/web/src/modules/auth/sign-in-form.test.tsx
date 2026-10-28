@@ -78,7 +78,11 @@ describe('SignInForm', () => {
     render(<SignInForm providers={ALL} next="/c/abc" />)
     submit()
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeTruthy()
-    expect(client.magicLink).toHaveBeenCalledWith({ email: 'ada@example.com', callbackURL: '/c/abc' })
+    expect(client.magicLink).toHaveBeenCalledWith({
+      email: 'ada@example.com',
+      callbackURL: '/c/abc',
+      errorCallbackURL: '/sign-in?next=%2Fc%2Fabc',
+    })
     expect(screen.getByText('We sent a sign-in link to ada@example.com.')).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()
   })
@@ -104,6 +108,14 @@ describe('SignInForm', () => {
     submit()
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(email().value).toBe('ada@example.com')
+    expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
+  })
+
+  it('shows an alert when the server fails', async () => {
+    client.magicLink.mockResolvedValue({ data: null, error: { status: 500, message: 'Internal Server Error' } })
+    render(<SignInForm providers={ALL} next="/" />)
+    submit()
+    expect((await screen.findByRole('alert')).textContent).toContain('Something went wrong. Try again.')
     expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
   })
 
