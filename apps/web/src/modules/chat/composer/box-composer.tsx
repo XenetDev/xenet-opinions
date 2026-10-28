@@ -3,6 +3,7 @@
 import type { ChatStatus } from 'ai'
 import { ArrowUpIcon, PaperclipIcon, PlusIcon } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, useCallback, useId, useRef, useState } from 'react'
+import { Frame, FramePanel } from '@/components/reui/frame'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
@@ -11,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
 import { FileChips, PersonaChips } from './chips'
-import { defaultRounds, PauseOption, RoundsPicker, type RunOptionsValue } from './run-options'
+import { defaultRounds, PauseToggle, RoundsPicker, type RunOptionsValue } from './run-options'
 import { useUploads } from './use-uploads'
 
 const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
@@ -28,7 +29,7 @@ export type ComposerSubmit =
   | { kind: 'run'; uploadIds: string[]; runOptions: RunOptionsValue }
   | { kind: 'followUp'; target: 'report' | 'agents'; agentIds: string[] }
 
-export function PillComposer({
+export function BoxComposer({
   chatId,
   mode,
   onSend,
@@ -145,47 +146,22 @@ export function PillComposer({
     void send()
   }
 
+  const showChips = (mode === 'run' && files.length > 0) || personas.length > 0
+
   return (
     <div className="flex w-full flex-col gap-2">
-      <form onSubmit={submit} className="flex flex-col gap-2">
-        <FieldLabel className="sr-only" htmlFor={fieldId}>
-          Message
-        </FieldLabel>
-        {mode === 'run' && (
-          <FileChips
-            files={files}
-            onRemove={(localId) => {
-              remove(localId)
-              setNotice(null)
-            }}
-          />
-        )}
-        <PersonaChips
-          personas={personas}
-          onRemove={(id) => {
-            selection?.remove(id)
-            setNotice(null)
-          }}
-        />
-        {notice && (
-          <p role={routed ? undefined : 'status'} className="px-3 text-sm text-destructive">
-            {notice}
-          </p>
-        )}
-        <InputGroup className="h-auto rounded-full bg-background px-2 shadow-xs has-disabled:opacity-100">
-          <InputGroupTextarea
-            id={fieldId}
-            ref={field}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={PLACEHOLDERS[mode]}
-            disabled={disabled}
-            rows={1}
-            className="field-sizing-content max-h-40 min-h-12 px-0 py-3 placeholder:truncate"
-          />
-          {mode === 'run' && (
-            <InputGroupAddon align="inline-start" className="me-1">
+      {notice && (
+        <p role={routed ? undefined : 'status'} className="px-3 text-sm text-destructive">
+          {notice}
+        </p>
+      )}
+      <Frame dense spacing="sm" className="w-full">
+        <FramePanel className="p-0">
+          <form onSubmit={submit}>
+            <FieldLabel className="sr-only" htmlFor={fieldId}>
+              Message
+            </FieldLabel>
+            {mode === 'run' && (
               <input
                 ref={fileInput}
                 type="file"
@@ -200,80 +176,114 @@ export function PillComposer({
                   if (!chatId && accepted > 0) void resolveChatId().catch(() => {})
                 }}
               />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <InputGroupButton
-                    size="icon-sm"
-                    className="rounded-full"
-                    aria-label="Add files and options"
-                    disabled={disabled}
-                  >
-                    <PlusIcon aria-hidden="true" />
-                  </InputGroupButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72">
-                  <DropdownMenuItem onSelect={() => fileInput.current?.click()}>
-                    <PaperclipIcon aria-hidden="true" />
-                    Attach files
-                  </DropdownMenuItem>
-                  {allowPause && (
-                    <PauseOption
-                      checked={runOptions.pauseForInterviews}
-                      onChange={(pauseForInterviews) => setRunOptions((prev) => ({ ...prev, pauseForInterviews }))}
+            )}
+            <InputGroup className="border-0 bg-transparent shadow-none has-disabled:bg-transparent has-disabled:opacity-100 dark:bg-transparent dark:has-disabled:bg-transparent">
+              {showChips && (
+                <InputGroupAddon align="block-start" className="flex-wrap gap-1 px-3">
+                  {mode === 'run' && (
+                    <FileChips
+                      files={files}
+                      onRemove={(localId) => {
+                        remove(localId)
+                        setNotice(null)
+                      }}
                     />
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </InputGroupAddon>
-          )}
-          <InputGroupAddon align="inline-end" className="gap-1">
-            {mode === 'run' && (
-              <RoundsPicker
-                value={runOptions.maxRounds}
-                onChange={(rounds) => setRunOptions((prev) => ({ ...prev, maxRounds: rounds }))}
-                maxRounds={maxRounds}
+                  <PersonaChips
+                    personas={personas}
+                    onRemove={(id) => {
+                      selection?.remove(id)
+                      setNotice(null)
+                    }}
+                  />
+                </InputGroupAddon>
+              )}
+              <InputGroupTextarea
+                id={fieldId}
+                ref={field}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={PLACEHOLDERS[mode]}
                 disabled={disabled}
+                rows={1}
+                className="field-sizing-content max-h-48 min-h-16 px-3 py-3"
               />
-            )}
-            {stopping ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <InputGroupButton
-                    size="icon-sm"
-                    variant="default"
-                    className="rounded-full"
-                    aria-label="Stop"
-                    disabled={!onStop}
-                    onClick={onStop}
-                  >
-                    <span aria-hidden="true" className="size-2.5 bg-primary-foreground" />
-                  </InputGroupButton>
-                </TooltipTrigger>
-                <TooltipContent>Stop</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <InputGroupButton
-                    type="submit"
-                    size="icon-sm"
-                    variant="default"
-                    className="rounded-full"
-                    aria-label="Send message"
-                    disabled={disabled || uploading || sending}
-                  >
-                    <ArrowUpIcon aria-hidden="true" />
-                  </InputGroupButton>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Send
-                  <Kbd>Enter</Kbd>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </InputGroupAddon>
-        </InputGroup>
-      </form>
+              <InputGroupAddon align="block-end" className="flex-wrap gap-1">
+                {mode === 'run' && (
+                  <>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <InputGroupButton size="icon-sm" aria-label="Add files" disabled={disabled}>
+                          <PlusIcon aria-hidden="true" />
+                        </InputGroupButton>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem className="gap-3 py-2" onSelect={() => fileInput.current?.click()}>
+                          <PaperclipIcon aria-hidden="true" />
+                          <span className="flex flex-1 flex-col">
+                            <span>Upload files</span>
+                            <span className="text-xs text-muted-foreground">PDF, Markdown, text</span>
+                          </span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {allowPause && (
+                      <PauseToggle
+                        checked={runOptions.pauseForInterviews}
+                        onChange={(pauseForInterviews) => setRunOptions((prev) => ({ ...prev, pauseForInterviews }))}
+                        disabled={disabled}
+                      />
+                    )}
+                    <RoundsPicker
+                      value={runOptions.maxRounds}
+                      onChange={(rounds) => setRunOptions((prev) => ({ ...prev, maxRounds: rounds }))}
+                      maxRounds={maxRounds}
+                      disabled={disabled}
+                    />
+                  </>
+                )}
+                <div className="ms-auto flex items-center">
+                  {stopping ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <InputGroupButton
+                          size="icon-sm"
+                          variant="default"
+                          aria-label="Stop"
+                          disabled={!onStop}
+                          onClick={onStop}
+                        >
+                          <span aria-hidden="true" className="size-2.5 rounded-xs bg-primary-foreground" />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>Stop</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <InputGroupButton
+                          type="submit"
+                          size="icon-sm"
+                          variant="default"
+                          aria-label="Send message"
+                          disabled={disabled || uploading || sending}
+                        >
+                          <ArrowUpIcon aria-hidden="true" />
+                        </InputGroupButton>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Send
+                        <Kbd>Enter</Kbd>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </InputGroupAddon>
+            </InputGroup>
+          </form>
+        </FramePanel>
+      </Frame>
       <p className="text-center text-xs text-muted-foreground">
         Simulated opinions. Check important decisions with real people.
       </p>

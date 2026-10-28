@@ -1,9 +1,8 @@
 'use client'
 
-import { ChevronDownIcon } from 'lucide-react'
+import { CheckIcon, PauseIcon, RepeatIcon } from 'lucide-react'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -12,7 +11,6 @@ import {
 import { InputGroupButton } from '@/components/ui/input-group'
 
 export const DEFAULT_ROUNDS = 3
-export const PAUSE_LABEL = 'Pause for interviews before the report'
 
 export const defaultRounds = (maxRounds: number) => Math.min(DEFAULT_ROUNDS, maxRounds)
 export const roundsLabel = (rounds: number) => (rounds === 1 ? '1 round' : `${rounds} rounds`)
@@ -33,12 +31,12 @@ export function RoundsPicker({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <InputGroupButton size="sm" variant="ghost" className="rounded-full" disabled={disabled}>
+        <InputGroupButton size="sm" variant="ghost" disabled={disabled}>
+          <RepeatIcon data-icon="inline-start" aria-hidden="true" />
           {roundsLabel(value)}
-          <ChevronDownIcon data-icon="inline-end" aria-hidden="true" />
         </InputGroupButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-72 w-36">
+      <DropdownMenuContent align="start" className="max-h-72 w-36">
         <DropdownMenuRadioGroup value={String(value)} onValueChange={(next) => onChange(Number(next))}>
           {Array.from({ length: maxRounds }, (_, index) => index + 1).map((rounds) => (
             <DropdownMenuRadioItem key={rounds} value={String(rounds)}>
@@ -51,14 +49,29 @@ export function RoundsPicker({
   )
 }
 
-export function PauseOption({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+export function PauseToggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
   return (
-    <DropdownMenuCheckboxItem
-      checked={checked}
-      onCheckedChange={(next) => onChange(next === true)}
-      onSelect={(event) => event.preventDefault()}
+    <InputGroupButton
+      size="sm"
+      variant={checked ? 'secondary' : 'ghost'}
+      aria-pressed={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
     >
-      {PAUSE_LABEL}
-    </DropdownMenuCheckboxItem>
+      {checked ? (
+        <CheckIcon data-icon="inline-start" aria-hidden="true" />
+      ) : (
+        <PauseIcon data-icon="inline-start" aria-hidden="true" />
+      )}
+      Pause for interviews
+    </InputGroupButton>
   )
 }

@@ -2,8 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { defaultRounds, PauseOption, RoundsPicker, roundsLabel } from './run-options'
+import { defaultRounds, PauseToggle, RoundsPicker, roundsLabel } from './run-options'
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
@@ -39,19 +38,15 @@ describe('run options', () => {
     expect(onChange).toHaveBeenCalledWith(4)
   })
 
-  it('toggles the pause item without closing the menu', () => {
+  it('reports the flipped pause state and marks it pressed', () => {
     const onChange = vi.fn()
-    render(
-      <DropdownMenu>
-        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <PauseOption checked={false} onChange={onChange} />
-        </DropdownMenuContent>
-      </DropdownMenu>,
-    )
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Open' }), { key: 'Enter' })
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Pause for interviews before the report' }))
+    const { rerender } = render(<PauseToggle checked={false} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pause for interviews' }))
     expect(onChange).toHaveBeenCalledWith(true)
-    expect(screen.getByRole('menu')).toBeTruthy()
+    rerender(<PauseToggle checked onChange={onChange} />)
+    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
+    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(chip)
+    expect(onChange).toHaveBeenLastCalledWith(false)
   })
 })

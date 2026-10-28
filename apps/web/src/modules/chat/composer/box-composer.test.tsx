@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 import { InterviewSelectionProvider, useInterviewSelection } from '../interview-selection'
-import { PillComposer } from './pill-composer'
+import { BoxComposer } from './box-composer'
+import { Composer } from './composer'
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
@@ -19,7 +20,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-type Props = ComponentProps<typeof PillComposer>
+type Props = ComponentProps<typeof BoxComposer>
 
 function Picker() {
   const selection = useInterviewSelection()
@@ -36,7 +37,7 @@ function renderComposer(props: Partial<Props> = {}) {
     <TooltipProvider>
       <InterviewSelectionProvider enabled={props.mode === 'interview'}>
         <Picker />
-        <PillComposer chatId="c1" mode="run" maxRounds={40} allowPause {...props} onSend={onSend} />
+        <BoxComposer chatId="c1" mode="run" maxRounds={40} allowPause {...props} onSend={onSend} />
       </InterviewSelectionProvider>
     </TooltipProvider>,
   )
@@ -47,7 +48,11 @@ const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLT
 const type = (value: string) => fireEvent.change(textarea(), { target: { value } })
 const openMenu = (name: string | RegExp) => fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' })
 
-describe('PillComposer', () => {
+describe('BoxComposer', () => {
+  it('is the Composer export', () => {
+    expect(Composer).toBe(BoxComposer)
+  })
+
   it.each([
     ['run', 'Ask how people would react to…'],
     ['followUp', 'Ask the report…'],
@@ -55,6 +60,14 @@ describe('PillComposer', () => {
   ] as const)('uses the %s placeholder', (mode, placeholder) => {
     renderComposer({ mode })
     expect(textarea().placeholder).toBe(placeholder)
+  })
+
+  it.each(['run', 'followUp', 'interview'] as const)('pads the field itself in %s mode', (mode) => {
+    const { container } = renderComposer({ mode })
+    expect(textarea().className).toMatch(/(^|\s)px-3(\s|$)/)
+    expect(textarea().className).toMatch(/(^|\s)py-3(\s|$)/)
+    expect(container.querySelector('[data-align="inline-start"], [data-align="inline-end"]')).toBeNull()
+    expect(container.querySelector('[data-align="block-end"]')?.contains(textarea())).toBe(false)
   })
 
   it('sends on Enter and keeps Shift+Enter for a new line', async () => {
@@ -131,27 +144,33 @@ describe('PillComposer', () => {
     await waitFor(() => expect(screen.queryByTestId('pending-file')).toBeNull())
   })
 
-  it('lists attach and the pause option in the plus menu in run mode', () => {
+  it('offers Upload files with its hint in the plus menu', () => {
     renderComposer()
-    openMenu('Add files and options')
-    const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: 'Attach files' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Pause for interviews before the report' })).toBeTruthy()
+    openMenu('Add files')
+    const item = within(screen.getByRole('menu')).getByRole('menuitem', { name: /Upload files/ })
+    expect(within(item).getByText('Upload files')).toBeTruthy()
+    expect(within(item).getByText('PDF, Markdown, text')).toBeTruthy()
   })
 
-  it('hides the pause option when pausing is not allowed', () => {
-    renderComposer({ allowPause: false })
-    openMenu('Add files and options')
-    expect(screen.queryByRole('menuitemcheckbox')).toBeNull()
+  it('opens the file picker from Upload files', () => {
+    renderComposer()
+    const input = screen.getByTestId('file-input') as HTMLInputElement
+    const click = vi.spyOn(input, 'click')
+    openMenu('Add files')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Upload files/ }))
+    expect(click).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the menu open when ticking pause and sends the choice', async () => {
+  it('toggles the pause chip, swaps its icon for a check and sends the choice', async () => {
     const { onSend } = renderComposer()
-    openMenu('Add files and options')
-    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Pause for interviews before the report' }))
-    const item = screen.getByRole('menuitemcheckbox', { name: 'Pause for interviews before the report' })
-    expect(item.getAttribute('aria-checked')).toBe('true')
-    fireEvent.keyDown(item, { key: 'Escape' })
+    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
+    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    expect(chip.querySelector('svg.lucide-pause')).toBeTruthy()
+    fireEvent.click(chip)
+    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    expect(chip.getAttribute('data-variant')).toBe('secondary')
+    expect(chip.querySelector('svg.lucide-check')).toBeTruthy()
+    expect(chip.querySelector('svg.lucide-pause')).toBeNull()
     type('hello')
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() =>
@@ -163,19 +182,27 @@ describe('PillComposer', () => {
     )
   })
 
-  it('opens the file picker from Attach files', () => {
+  it('turns pause off again on a second press', () => {
     renderComposer()
-    const input = screen.getByTestId('file-input') as HTMLInputElement
-    const click = vi.spyOn(input, 'click')
-    openMenu('Add files and options')
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Attach files' }))
-    expect(click).toHaveBeenCalledTimes(1)
+    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
+    fireEvent.click(chip)
+    fireEvent.click(chip)
+    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    expect(chip.getAttribute('data-variant')).toBe('ghost')
   })
 
-  it('has no plus menu or rounds outside run mode', () => {
-    renderComposer({ mode: 'followUp' })
-    expect(screen.queryByRole('button', { name: 'Add files and options' })).toBeNull()
+  it('hides the pause chip when pausing is not allowed', () => {
+    renderComposer({ allowPause: false })
+    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
+  })
+
+  it.each(['followUp', 'interview'] as const)('has no plus menu, pause or rounds in %s mode', (mode) => {
+    renderComposer({ mode })
+    expect(screen.queryByTestId('file-input')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
     expect(screen.queryByRole('button', { name: /rounds?$/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeTruthy()
   })
 
   it('reads the default rounds and offers 1 to maxRounds', async () => {
@@ -229,10 +256,11 @@ describe('PillComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('disables the field, plus menu, rounds and send when disabled', () => {
+  it('disables the field, plus menu, pause, rounds and send when disabled', () => {
     renderComposer({ disabled: true })
     expect(textarea().disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'Add files and options' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Add files' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Pause for interviews' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '3 rounds' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('file-input') as HTMLInputElement).disabled).toBe(true)
@@ -245,6 +273,8 @@ describe('PillComposer', () => {
     })
     expect(screen.getAllByTestId('pending-file')).toHaveLength(1)
     expect(screen.getByText('brief.txt')).toBeTruthy()
+    const chips = screen.getByTestId('pending-file').closest('[data-align="block-start"]') as HTMLElement
+    expect(chips.compareDocumentPosition(textarea()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Remove brief.txt' }))
     expect(screen.queryByTestId('pending-file')).toBeNull()
   })
@@ -253,6 +283,7 @@ describe('PillComposer', () => {
     renderComposer({ mode: 'interview' })
     fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
     expect(screen.getByText('Ada')).toBeTruthy()
+    expect(screen.getByText('Ada').closest('[data-align="block-start"]')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Remove Ada' }))
     expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
   })
@@ -296,11 +327,93 @@ describe('PillComposer', () => {
     rerender(
       <TooltipProvider>
         <InterviewSelectionProvider enabled={false}>
-          <PillComposer chatId="c1" mode="run" value="next" onValueChange={onValueChange} onSend={vi.fn()} />
+          <BoxComposer chatId="c1" mode="run" value="next" onValueChange={onValueChange} onSend={vi.fn()} />
         </InterviewSelectionProvider>
       </TooltipProvider>,
     )
     expect(textarea().value).toBe('next')
+  })
+
+  it('does not send and keeps text when upload rejects', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 })),
+    )
+    const { onSend } = renderComposer()
+    fireEvent.change(screen.getByTestId('file-input'), {
+      target: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] },
+    })
+    type('hello')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(screen.getByText('too_large')).toBeTruthy())
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('hello')
+  })
+
+  it('refuses to submit while a failed file is present', async () => {
+    const fetchStub = vi.fn(async () =>
+      Response.json({ error: 'upload_rejected', reason: 'too_large' }, { status: 400 }),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+    const { onSend } = renderComposer()
+    const submit = () => screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement
+    fireEvent.change(screen.getByTestId('file-input'), {
+      target: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] },
+    })
+    type('hello')
+    fireEvent.click(submit())
+    await waitFor(() => expect(screen.getByText('too_large')).toBeTruthy())
+    await waitFor(() => expect(submit().disabled).toBe(false))
+    fireEvent.click(submit())
+    await waitFor(() => expect(screen.getByText('Remove failed files to continue')).toBeTruthy())
+    expect(fetchStub).toHaveBeenCalledTimes(1)
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('hello')
+  })
+
+  it('leaves the file input enabled when not disabled', () => {
+    renderComposer()
+    expect((screen.getByTestId('file-input') as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('clears the persona notice once a persona is picked', async () => {
+    renderComposer({ mode: 'interview' })
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText('Select at least one persona to interview')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    expect(screen.queryByText('Select at least one persona to interview')).toBeNull()
+  })
+
+  it('sends the selected persona ids and clears the chips after sending', async () => {
+    const { onSend } = renderComposer({ mode: 'interview' })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('why?', { kind: 'followUp', target: 'agents', agentIds: ['p1'] }),
+    )
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull())
+  })
+
+  it('keeps the chips and the text when sending fails', async () => {
+    const onSend = vi.fn(async () => {
+      throw new Error('window_closed')
+    })
+    renderComposer({ mode: 'interview', onSend })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeTruthy()
+    expect(textarea().value).toBe('why?')
+  })
+
+  it('shows no persona chips in follow-up mode', () => {
+    renderComposer({ mode: 'followUp' })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
   })
 
   it('shows the disclaimer', () => {
@@ -311,10 +424,17 @@ describe('PillComposer', () => {
   it.each(['run', 'followUp', 'interview'] as const)('has no axe violations in %s mode', async (mode) => {
     const { container } = renderComposer({ mode })
     if (mode === 'interview') fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
-    if (mode === 'run')
+    if (mode === 'run') {
       fireEvent.change(screen.getByTestId('file-input'), {
         target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
       })
+      fireEvent.click(screen.getByRole('button', { name: 'Pause for interviews' }))
+    }
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('has no axe violations while streaming', async () => {
+    const { container } = renderComposer({ status: 'streaming', onStop: vi.fn() })
     expect(await axe(container)).toHaveNoViolations()
   })
 })
