@@ -6,6 +6,7 @@ import { axe } from '@/test/axe'
 import type { RunStatusState } from './use-run-status'
 
 const chat = vi.hoisted(() => ({
+  real: false,
   status: 'ready' as string,
   messages: [] as unknown[],
   stop: vi.fn(),
@@ -23,18 +24,22 @@ const composer = vi.hoisted(() => ({
 }))
 const upsertChat = vi.hoisted(() => vi.fn())
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: (options: { onError: (error: Error) => void; onFinish?: (arg: unknown) => void }) => {
-    chat.options = options
-    return {
-      messages: chat.messages,
-      sendMessage: chat.sendMessage,
-      status: chat.status,
-      stop: chat.stop,
-      resumeStream: chat.resumeStream,
-    }
-  },
-}))
+vi.mock('@ai-sdk/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ai-sdk/react')>()
+  const stubChat = () => ({
+    messages: chat.messages,
+    sendMessage: chat.sendMessage,
+    status: chat.status,
+    stop: chat.stop,
+    resumeStream: chat.resumeStream,
+  })
+  return {
+    useChat: (options: { onError: (error: Error) => void; onFinish?: (arg: unknown) => void }) => {
+      chat.options = options
+      return (chat.real ? actual.useChat : stubChat)(options as never)
+    },
+  }
+})
 vi.mock('./use-run-status', () => ({
   useRunStatus: (_chatId: string, opts: { enabled: boolean; sendCount?: number; initial?: RunStatusState }) => {
     runOpts.current = opts
@@ -92,6 +97,7 @@ const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).t
 const fetchSpy = vi.fn()
 
 beforeEach(() => {
+  chat.real = false
   chat.status = 'ready'
   chat.messages = []
   runState.seeded = false
@@ -208,6 +214,39 @@ describe('Chat', () => {
     runState.current = { ...runState.current }
     view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
     await waitFor(() => expect(chat.resumeStream).toHaveBeenCalledTimes(2))
+  })
+
+  it('renders the resumed turn of a run that already failed when the page loaded it as active', async () => {
+    chat.real = true
+    runState.current = { status: 'failed', stage: 'ontology', runId: 'r1', assistantMessageId: 'a1' }
+    const chunks = [
+      { type: 'start', messageId: 'a1' },
+      { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'running' } },
+      {
+        type: 'data-sources',
+        data: { files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 5 }] },
+      },
+      { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'failed' } },
+      { type: 'error', errorText: 'Injected failure' },
+      { type: 'finish' },
+    ]
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(`${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('')}data: [DONE]\n\n`, {
+          headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' },
+        }),
+    )
+    const { container } = render(
+      <Chat
+        chatId="c1"
+        initialMessages={[{ id: 'u0', role: 'user', parts: [{ type: 'text', text: 'How will people react?' }] }]}
+        activeRun={{ id: 'r1', assistantMessageId: 'a1', stage: 'ontology' }}
+        latestRun={null}
+        limits={limits}
+      />,
+    )
+    await waitFor(() => expect(container.querySelector('[data-part="console"]')).toBeTruthy())
+    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/stream', expect.anything())
   })
 
   it('shows no send-error notice while the run is active', async () => {
