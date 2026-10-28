@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseEnv } from '@/env.schema'
+import { envSchema, parseEnv } from '@/env.schema'
 
 const valid = {
   DATABASE_URL: 'postgresql://xo:xo@localhost:5432/xo',
@@ -33,7 +33,7 @@ describe('parseEnv', () => {
   it('defaults WORKER_POLL_MS to 2000', () => expect(parseEnv(valid).WORKER_POLL_MS).toBe(2000))
   it('defaults the demo limits', () => {
     const env = parseEnv(valid)
-    expect([env.DEMO_MODE, env.DEMO_PAUSED, env.MAX_RUNS_PER_DAY, env.DEMO_MAX_ROUNDS]).toEqual(['0', '0', 2, 3])
+    expect([env.DEMO_MODE, env.DEMO_PAUSED, env.MAX_RUNS_PER_DAY, env.DEMO_MAX_ROUNDS]).toEqual(['0', '0', 3, 3])
   })
   it('defaults DEMO_ALLOW_PAUSE to 1 and rejects other values', () => {
     expect(parseEnv(valid).DEMO_ALLOW_PAUSE).toBe('1')
@@ -62,4 +62,23 @@ describe('parseEnv', () => {
         S3_SECRET_ACCESS_KEY: 's',
       }).STORAGE_DRIVER,
     ).toBe('s3'))
+  it('accepts no provider variables', () => expect(() => parseEnv(valid)).not.toThrow())
+  it('rejects GOOGLE_CLIENT_ID without secret', () => {
+    const result = envSchema.safeParse({ ...valid, GOOGLE_CLIENT_ID: 'id' })
+    expect(result.error?.issues.map((i) => i.path)).toEqual([['GOOGLE_CLIENT_SECRET']])
+  })
+  it('rejects RESEND_API_KEY without EMAIL_FROM', () => {
+    const result = envSchema.safeParse({ ...valid, RESEND_API_KEY: 're_1' })
+    expect(result.error?.issues.map((i) => i.path)).toEqual([['EMAIL_FROM']])
+  })
+  it('rejects a malformed EMAIL_FROM', () =>
+    expect(() => parseEnv({ ...valid, EMAIL_FROM: 'not an address' })).toThrow())
+  it('accepts "Name <a@b.co>" and bare addresses', () => {
+    expect(parseEnv({ ...valid, EMAIL_FROM: 'Name <a@b.co>' }).EMAIL_FROM).toBe('Name <a@b.co>')
+    expect(parseEnv({ ...valid, EMAIL_FROM: 'a@b.co' }).EMAIL_FROM).toBe('a@b.co')
+  })
+  it('defaults MAX_RUNS_PER_DAY_ANONYMOUS to 1 and MAX_RUNS_PER_DAY to 3', () => {
+    const env = parseEnv(valid)
+    expect([env.MAX_RUNS_PER_DAY_ANONYMOUS, env.MAX_RUNS_PER_DAY]).toEqual([1, 3])
+  })
 })
