@@ -22,6 +22,14 @@ describe('englishMessage', () => {
     ['模拟配置不存在，请先调用 /prepare 接口', 'The simulation has not been prepared yet'],
     ['模拟配置不存在: sim_1', 'Simulation configuration not found: sim_1'],
     ['不支持的文件格式: .exe', 'Unsupported file format: .exe'],
+    [
+      '模拟环境未运行或已关闭，无法执行Interview: sim_1',
+      'The simulation environment is not running, so interviews are unavailable: sim_1',
+    ],
+    [
+      '模拟环境未运行或已关闭。请确保模拟已完成并进入等待命令模式。',
+      'The simulation environment is not running, so interviews are unavailable',
+    ],
     ['等待命令响应超时: cmd_1', 'Timed out waiting for the simulation to respond: cmd_1'],
   ])('translates the prefix of %j and keeps the detail', (input, output) => {
     expect(englishMessage(input)).toBe(output)

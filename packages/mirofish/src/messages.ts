@@ -16,10 +16,7 @@ const PREFIXES: [string, string][] = (
     ['无法处理的文件格式', 'Unprocessable file format'],
     ['模拟不存在', 'Simulation not found'],
     ['模拟已在运行或结束处理中', 'The simulation is already running or shutting down'],
-    [
-      '模拟环境未运行或已关闭，无法执行Interview',
-      'The simulation environment is not running, so interviews are unavailable',
-    ],
+    ['模拟环境未运行或已关闭', 'The simulation environment is not running, so interviews are unavailable'],
     ['模拟配置不存在，请先调用 /prepare 接口', 'The simulation has not been prepared yet'],
     ['模拟配置不存在', 'Simulation configuration not found'],
     ['模拟配置中没有Agent', 'The simulation has no agents'],
@@ -38,10 +35,9 @@ const translate = (message: string) => {
   if (exact) return exact
   for (const [zh, en] of PREFIXES) {
     if (!message.startsWith(zh)) continue
-    const detail = message
-      .slice(zh.length)
-      .replace(/^[\s:：,，]+/, '')
-      .trim()
+    const rest = message.slice(zh.length)
+    const colon = rest.search(/[:：]/)
+    const detail = colon === -1 ? '' : rest.slice(colon + 1).trim()
     return detail ? `${en}: ${detail}` : en
   }
   return message
