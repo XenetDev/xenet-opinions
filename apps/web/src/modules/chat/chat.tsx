@@ -103,7 +103,10 @@ export function Chat({
   const wasActive = useRef(runActive)
   const lastPoll = useRef(run)
 
+  const statusRef = useRef(status)
+
   useEffect(() => {
+    statusRef.current = status
     if (status === 'streaming') resumeGuard.current = false
   }, [status])
 
@@ -168,7 +171,7 @@ export function Chat({
       setNotice(INTERVIEW_NOTICES[code] ?? SEND_FAILED)
       throw new Error(code)
     }
-    if (status !== 'streaming' && status !== 'submitted') void resumeStream()
+    if (statusRef.current !== 'streaming' && statusRef.current !== 'submitted') void resumeStream()
   }
 
   const handleRetry = async () => {

@@ -389,6 +389,20 @@ describe('Chat', () => {
       expect(chat.resumeStream).not.toHaveBeenCalled()
     })
 
+    it('reads the stream status when the post returns, not when it was sent', async () => {
+      chat.status = 'ready'
+      let respond!: (response: Response) => void
+      fetchSpy.mockReturnValue(new Promise<Response>((resolve) => (respond = resolve)))
+      const view = renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
+      chat.status = 'streaming'
+      view.rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
+      const before = chat.resumeStream.mock.calls.length
+      respond(Response.json({ questionId: 'q1', interviewIds: ['i1'] }, { status: 202 }))
+      expect(await composer.sent).toBe('sent')
+      expect(chat.resumeStream).toHaveBeenCalledTimes(before)
+    })
+
     it.each([
       ['window_closed', 409, 'The interview window has closed. The report is being generated.'],
       ['report_requested', 409, 'The report is being generated; no more interviews for this run.'],

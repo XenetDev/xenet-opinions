@@ -3,26 +3,43 @@ import { type ChatTransport, DefaultChatTransport, type UIMessageChunk } from 'a
 
 type Stream = ReadableStream<UIMessageChunk>
 
-export function continueRunStream(first: Stream, next: (after: number) => Promise<Stream | null>): Stream {
+const BACKOFF_MS = [1000, 2000, 4000, 5000]
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+export function continueRunStream(
+  first: Stream,
+  next: (after: number) => Promise<Stream | null>,
+  wait: (ms: number) => Promise<void> = sleep,
+): Stream {
   let reader = first.getReader()
   let after = 0
-  let finished = false
+  let ended = false
   let continuing = false
   let received = false
+  let idle = 0
+  let cancelled = false
   return new ReadableStream<UIMessageChunk>({
     async pull(controller) {
       while (true) {
         const { done, value } = await reader.read()
         if (!done) {
-          received = true
-          if (value.type === 'finish') finished = true
+          if (value.type === 'finish' || value.type === 'error') ended = true
           if (value.type === 'data-cursor') after = (value.data as { seq: number }).seq
           if (continuing && value.type === 'start') continue
+          if (value.type !== 'start') received = true
           controller.enqueue(value)
           return
         }
-        if (finished || (continuing && !received)) return controller.close()
+        if (cancelled) return
+        if (ended) return controller.close()
+        if (continuing && !received) await wait(BACKOFF_MS[Math.min(idle++, BACKOFF_MS.length - 1)]!)
+        else idle = 0
+        if (cancelled) return
         const stream = await next(after)
+        if (cancelled) {
+          await stream?.cancel()
+          return
+        }
         if (!stream) return controller.close()
         reader = stream.getReader()
         continuing = true
@@ -30,31 +47,29 @@ export function continueRunStream(first: Stream, next: (after: number) => Promis
       }
     },
     cancel(reason) {
+      cancelled = true
       return reader.cancel(reason)
     },
   })
 }
 
 export function runTransport(chatId: string): ChatTransport<OpinionsUIMessage> {
-  let after = 0
   const base = new DefaultChatTransport<OpinionsUIMessage>({
     api: `/api/chats/${chatId}/messages`,
     prepareSendMessagesRequest: ({ id, messages, body }) => ({ body: { ...body, id, message: messages.at(-1) } }),
-    prepareReconnectToStreamRequest: ({ id }) => ({ api: `/api/chats/${id}/stream?after=${after}` }),
+    prepareReconnectToStreamRequest: ({ id, requestMetadata }) => {
+      const after = (requestMetadata as { after?: number } | undefined)?.after
+      return { api: `/api/chats/${id}/stream${after === undefined ? '' : `?after=${after}`}` }
+    },
   })
-  const reconnect = (options: Parameters<typeof base.reconnectToStream>[0], seq: number) => {
-    after = seq
-    return base.reconnectToStream(options)
-  }
-  const continued = (stream: Stream, options: Parameters<typeof base.reconnectToStream>[0]) =>
-    continueRunStream(stream, (seq) => reconnect(options, seq))
+  const continued = (stream: Stream, chatId: string, abortSignal: AbortSignal | undefined) =>
+    continueRunStream(stream, (after) => base.reconnectToStream({ chatId, abortSignal, metadata: { after } }))
   return {
     resumeStreamIsReplay: true,
-    sendMessages: async (options) =>
-      continued(await base.sendMessages(options), { chatId: options.chatId, abortSignal: options.abortSignal }),
+    sendMessages: async (options) => continued(await base.sendMessages(options), options.chatId, options.abortSignal),
     reconnectToStream: async (options) => {
-      const stream = await reconnect(options, 0)
-      return stream && continued(stream, options)
+      const stream = await base.reconnectToStream({ ...options, metadata: undefined })
+      return stream && continued(stream, options.chatId, options.abortSignal)
     },
   }
 }
