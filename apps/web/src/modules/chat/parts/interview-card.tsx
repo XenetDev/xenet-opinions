@@ -1,9 +1,9 @@
 import type { InterviewData } from '@xo/engine/parts'
-import { MessageResponse } from '@/components/ai-elements/message'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageAvatar, MessageContent, MessageHeader } from '@/components/ui/message'
 import { Spinner } from '@/components/ui/spinner'
+import { Markdown } from '../markdown'
 import { initials } from './agent-roster'
 
 export function InterviewCard({ data, showQuestion = true }: { data: InterviewData; showQuestion?: boolean }) {
@@ -30,7 +30,7 @@ export function InterviewCard({ data, showQuestion = true }: { data: InterviewDa
                 <span className="shimmer [--shimmer-duration:2.4s]">Thinking</span>
               </div>
             )}
-            {data.status === 'done' && data.answer && <MessageResponse>{data.answer}</MessageResponse>}
+            {data.status === 'done' && data.answer && <Markdown>{data.answer}</Markdown>}
             {data.status === 'failed' && (
               <Alert variant="destructive">
                 <AlertDescription>{data.error ?? 'This persona could not answer.'}</AlertDescription>

@@ -14,7 +14,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
     <SidebarProvider>
       <ChatListProvider chats={chats}>
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="h-svh">
           <header className="flex h-12 shrink-0 items-center px-2">
             <SidebarTrigger />
           </header>

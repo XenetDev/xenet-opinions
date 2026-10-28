@@ -30,7 +30,6 @@ export type ComposerSubmit =
 
 export function PillComposer({
   chatId,
-  initialText,
   mode,
   onSend,
   disabled = false,
@@ -44,7 +43,6 @@ export function PillComposer({
   onValueChange,
 }: {
   chatId?: string
-  initialText?: string
   mode: 'run' | 'followUp' | 'interview'
   onSend: (text: string, submit: ComposerSubmit) => void | Promise<void>
   disabled?: boolean
@@ -68,7 +66,7 @@ export function PillComposer({
     return pendingChat.current
   }, [chatId, onNeedChat])
   const { files, add, remove, uploadAll, reset } = useUploads(chatId ?? resolveChatId)
-  const [ownText, setOwnText] = useState(initialText ?? '')
+  const [ownText, setOwnText] = useState('')
   const text = value ?? ownText
   const setText = (next: string) => {
     setOwnText(next)

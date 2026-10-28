@@ -73,9 +73,10 @@ describe('HomeChat', () => {
   })
 
   it('creates the chat, posts the run and navigates on send', async () => {
+    const cancel = vi.fn()
     const { calls, fetchStub } = stubFetch({
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
-      '/api/chats/new/messages': () => new Response('stream', { status: 200 }),
+      '/api/chats/new/messages': () => new Response(new ReadableStream({ cancel }), { status: 200 }),
     })
     renderHome()
     fireEvent.click(screen.getByRole('button', { name: STARTER }))
@@ -92,6 +93,7 @@ describe('HomeChat', () => {
     })
     expect(typeof body.message.id).toBe('string')
     expect(screen.getByTestId('titles').textContent).toBe(`new:${STARTER.slice(0, 60)}:queued`)
+    expect(cancel).toHaveBeenCalled()
   })
 
   it('creates the chat when a file is attached, before uploading it', async () => {
@@ -116,17 +118,22 @@ describe('HomeChat', () => {
     [400, 'rounds_exceeded', 'The demo allows up to 3 rounds.'],
     [409, 'demo_paused', 'The demo is paused right now. Try again later.'],
     [409, 'run_active', 'A run is already in progress for this chat.'],
-  ])('stays home with the notice on a %s %s', async (status, error, notice) => {
+  ])('stays home with the notice and the attached file on a %s %s', async (status, error, notice) => {
     stubFetch({
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+      '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
       '/api/chats/new/messages': () => Response.json({ error }, { status }),
     })
     renderHome()
+    fireEvent.change(screen.getByTestId('file-input'), {
+      target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
+    })
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))
     expect(router.push).not.toHaveBeenCalled()
     expect(textarea().value).toBe('hello')
+    expect(screen.getByTestId('pending-file').textContent).toContain('brief.txt')
     expect(screen.getByTestId('titles').textContent).toBe('')
   })
 

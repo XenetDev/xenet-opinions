@@ -91,11 +91,6 @@ describe('Composer', () => {
     expect(textarea().value).toBe('')
   })
 
-  it('starts from the initial text', () => {
-    wrap(<Composer chatId="c1" mode="run" onSend={vi.fn()} initialText="draft" />)
-    expect(textarea().value).toBe('draft')
-  })
-
   it('leaves the file input enabled when not disabled', () => {
     wrap(<Composer chatId="c1" mode="run" onSend={vi.fn()} />)
     expect((screen.getByTestId('file-input') as HTMLInputElement).disabled).toBe(false)

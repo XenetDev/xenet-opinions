@@ -1,8 +1,8 @@
 import type { InterviewData, OpinionsDataParts, OpinionsUIMessage } from '@xo/engine/parts'
-import { MessageResponse } from '@/components/ai-elements/message'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
 import { RunConsole } from './console/run-console'
+import { Markdown } from './markdown'
 import { AgentRoster } from './parts/agent-roster'
 import { GraphPreview } from './parts/graph-preview'
 import { InterviewCard } from './parts/interview-card'
@@ -134,7 +134,7 @@ export function MessageParts({
       {texts.map((text, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
         <div key={i} data-part="text">
-          <MessageResponse>{text}</MessageResponse>
+          <Markdown>{text}</Markdown>
         </div>
       ))}
     </>

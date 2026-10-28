@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { DefaultChatTransport, generateId } from 'ai'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 import type { Limits } from '@/server/limits'
@@ -40,7 +40,6 @@ export function Chat({
   initialMessages,
   activeRun,
   latestRun,
-  initialText,
   limits,
   startedAt,
 }: {
@@ -54,12 +53,10 @@ export function Chat({
     envKeepaliveUntil?: string | null
   } | null
   latestRun: LatestRun | null
-  initialText?: string
   limits: Limits
   startedAt?: string
 }) {
   const router = useRouter()
-  const pathname = usePathname()
   const { chats, upsertChat } = useChatList()
   const runActiveRef = useRef(!!activeRun)
   const [notice, setNotice] = useState<string | null>(null)
@@ -186,7 +183,7 @@ export function Chat({
   const sources = sourcesPart?.type === 'data-sources' ? sourcesPart.data : undefined
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] w-full flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
           <Thread
@@ -216,7 +213,6 @@ export function Chat({
             <Composer
               maxRounds={limits.maxRounds}
               chatId={chatId}
-              initialText={initialText}
               allowPause={limits.allowPause}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
@@ -238,7 +234,6 @@ export function Chat({
                 }
                 const title = chats.find((chat) => chat.id === chatId)?.title
                 upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
-                if (initialText) window.history.replaceState(null, '', pathname)
                 setSendCount((count) => count + 1)
                 setWatching(true)
                 void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })

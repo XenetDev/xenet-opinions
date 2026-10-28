@@ -32,7 +32,7 @@ export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Lim
   }, [])
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] w-full flex-col">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <Welcome
           recent={recent}
@@ -74,6 +74,7 @@ export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Lim
                 setNotice(sendNotices(limits)[code] ?? SEND_FAILED)
                 throw new Error(code)
               }
+              void response.body?.cancel()
               upsertChat({ id, title: text.slice(0, 60), runStatus: 'queued' })
               router.push(`/c/${id}`)
               router.refresh()
