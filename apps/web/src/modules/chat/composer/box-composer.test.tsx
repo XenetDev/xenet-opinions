@@ -341,6 +341,21 @@ describe('BoxComposer', () => {
     expect(screen.queryByText('Attach at least one document (.pdf, .md or .txt) to start a run.')).toBeNull()
   })
 
+  it('acknowledges a send at once: spinner, disabled send and a read-only field until it settles', async () => {
+    stubUpload()
+    const onSend = vi.fn(() => new Promise<void>(() => {}))
+    renderComposer({ onSend })
+    attach()
+    type('hello')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    const send = screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement
+    expect(send.disabled).toBe(true)
+    expect(send.getAttribute('aria-busy')).toBe('true')
+    expect(send.querySelector('[data-slot="spinner"]')).toBeTruthy()
+    expect(textarea().readOnly).toBe(true)
+  })
+
   it('creates the chat on attach when there is no chat yet and uploads into it', async () => {
     const onNeedChat = vi.fn(async () => 'new-chat')
     const fetchStub = vi.fn(async (_url: string, _init: RequestInit) =>

@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
 import { Kbd } from '@/components/ui/kbd'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Usage } from '@/server/usage-from'
 import { useInterviewSelection } from '../interview-selection'
@@ -223,6 +224,7 @@ export function BoxComposer({
                 onKeyDown={handleKeyDown}
                 placeholder={PLACEHOLDERS[mode]}
                 disabled={disabled}
+                readOnly={sending}
                 rows={1}
                 className="field-sizing-content max-h-48 min-h-16 px-3 py-3"
               />
@@ -285,8 +287,9 @@ export function BoxComposer({
                           variant="default"
                           aria-label="Send message"
                           disabled={disabled || uploading || sending}
+                          aria-busy={sending || undefined}
                         >
-                          <ArrowUpIcon aria-hidden="true" />
+                          {sending ? <Spinner aria-hidden="true" /> : <ArrowUpIcon aria-hidden="true" />}
                         </InputGroupButton>
                       </TooltipTrigger>
                       <TooltipContent>
