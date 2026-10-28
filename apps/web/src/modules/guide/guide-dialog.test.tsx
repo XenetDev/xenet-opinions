@@ -76,6 +76,21 @@ describe('GuideDialog', () => {
     expect(heading()).toBe('Interview the personas')
   })
 
+  it('ignores arrow keys with modifiers or inside editable fields', () => {
+    render(<GuideDialog open onOpenChange={() => {}} />)
+    fireEvent.keyDown(dialog(), { key: 'ArrowRight', altKey: true })
+    fireEvent.keyDown(dialog(), { key: 'ArrowRight', ctrlKey: true })
+    fireEvent.keyDown(dialog(), { key: 'ArrowRight', metaKey: true })
+    expect(heading()).toBe('Ask a question')
+    const input = document.createElement('input')
+    const textarea = document.createElement('textarea')
+    const editable = document.createElement('div')
+    editable.setAttribute('contenteditable', 'true')
+    dialog().append(input, textarea, editable)
+    for (const field of [input, textarea, editable]) fireEvent.keyDown(field, { key: 'ArrowRight' })
+    expect(heading()).toBe('Ask a question')
+  })
+
   it('moves focus with the step when arrowing on the stepper', () => {
     render(<GuideDialog open onOpenChange={() => {}} />)
     const first = screen.getByRole('tab', { name: 'Ask a question' })

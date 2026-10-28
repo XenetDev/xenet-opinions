@@ -40,10 +40,16 @@ export function GuideProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (pathname !== '/' || hasSeenGuide()) return
-    const id = window.setTimeout(() => {
-      if (!dialogOpen()) setOpen(true)
-    }, 0)
-    return () => window.clearTimeout(id)
+    let timer = 0
+    const frame = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(() => {
+        if (!dialogOpen()) setOpen(true)
+      }, 0)
+    })
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
   }, [pathname])
 
   const onOpenChange = useCallback((next: boolean) => {

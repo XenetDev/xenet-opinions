@@ -14,6 +14,8 @@ export function GuideDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable]')) return
     event.preventDefault()
     const next = Math.min(Math.max(index + (event.key === 'ArrowRight' ? 1 : -1), 0), LAST)
     setIndex(next)
@@ -28,7 +30,7 @@ export function GuideDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         aria-describedby={undefined}
         overlayClassName="backdrop-blur-sm supports-backdrop-filter:backdrop-blur-sm"
         className="max-w-[calc(100%-2rem)] gap-0 p-0 sm:max-w-[40rem]"
-        onOpenAutoFocus={() => setIndex(0)}
+        onCloseAutoFocus={() => setIndex(0)}
         onKeyDown={onKeyDown}
       >
         <DialogTitle className="sr-only">How Xenet Opinions works</DialogTitle>

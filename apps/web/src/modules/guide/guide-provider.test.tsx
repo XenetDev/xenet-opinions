@@ -35,6 +35,7 @@ afterEach(() => {
   open = () => {}
   vi.restoreAllMocks()
   document.body.innerHTML = ''
+  window.history.replaceState(null, '', '/')
 })
 
 const renderProvider = () =>
@@ -44,7 +45,7 @@ const renderProvider = () =>
     </GuideProvider>,
   )
 
-const tick = () => act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+const tick = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)))
 const guide = () => screen.queryByRole('dialog', { name: 'How Xenet Opinions works' })
 const seen = () => localStorage.getItem('xo.guide.v1')
 
@@ -76,6 +77,26 @@ describe('GuideProvider', () => {
     renderProvider()
     await tick()
     expect(guide()).toBeNull()
+  })
+
+  it('stays closed when a sign-in link is opening the sign-in dialog', async () => {
+    window.history.replaceState(null, '', '/?signIn=1')
+    renderProvider()
+    await tick()
+    expect(guide()).toBeNull()
+  })
+
+  it('reopens on step one with the first step focused after closing on the last', async () => {
+    renderProvider()
+    await waitFor(() => expect(guide()).toBeTruthy())
+    fireEvent.click(screen.getByRole('tab', { name: 'Read the report, keep asking' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(guide()).toBeNull())
+    act(() => open())
+    expect(screen.getByRole('heading', { name: 'Ask a question' })).toBeTruthy()
+    const first = screen.getByRole('tab', { name: 'Ask a question' })
+    expect(first.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(first)
   })
 
   it('marks the guide seen on Done', async () => {
