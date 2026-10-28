@@ -12,6 +12,7 @@
       "!!**/next-env.d.ts",
       "!**/drizzle/meta",
       "!apps/web/src/components/ui",
+      "!apps/web/src/app/icon.svg",
       "!!.superpowers",
       "!!.context",
       "!!.data",
