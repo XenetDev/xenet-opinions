@@ -194,6 +194,22 @@ describe('deriveConsole', () => {
     expect(findings?.children?.[0]?.seconds).toBeUndefined()
   })
 
+  it('keeps a tool result off the live report line', () => {
+    const parts: Parts = [
+      ...through('report', 'running'),
+      {
+        type: 'data-report_event',
+        data: { n: 1, action: 'tool_call', toolName: 'panorama_search', summary: 'Called panorama_search' },
+      },
+      {
+        type: 'data-report_event',
+        data: { n: 2, action: 'tool_result', toolName: 'panorama_search', summary: '## Results\n1. "City council' },
+      },
+    ]
+    const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
+    expect(report?.detail).toBe('Called panorama_search')
+  })
+
   it('keeps tool events without a section on the report row', () => {
     const parts: Parts = [
       ...through('report', 'running'),

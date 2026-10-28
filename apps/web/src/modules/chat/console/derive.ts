@@ -206,7 +206,8 @@ export function deriveConsole(parts: Parts, live: ConsoleLive): ConsoleModel {
     if (stage === 'report' && (outline || events.length > 0)) {
       const children = reportChildren(outline, events, row.kind === 'live')
       if (children.length > 0) row.children = children
-      if (row.kind === 'live' && !row.detail && events.length > 0) row.detail = events.at(-1)?.summary
+      if (row.kind === 'live' && !row.detail)
+        row.detail = events.findLast((event) => event.action !== 'tool_result')?.summary
       const last = events.findLast((event) => event.elapsedSeconds !== undefined)?.elapsedSeconds
       if (row.kind === 'done' && last !== undefined) row.seconds = Math.round(last)
     }
