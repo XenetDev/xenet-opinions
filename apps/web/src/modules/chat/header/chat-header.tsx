@@ -12,7 +12,7 @@ import { ChatOptions } from './chat-options'
 import { ThemeToggle } from './theme-toggle'
 import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
 
-export function ChatHeader() {
+export function ChatHeader({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const { chats } = useChatList()
@@ -48,7 +48,7 @@ export function ChatHeader() {
         </TooltipTrigger>
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
-      <AccountMenu />
+      <AccountMenu signInAvailable={signInAvailable} />
       <ThemeToggle />
     </header>
   )

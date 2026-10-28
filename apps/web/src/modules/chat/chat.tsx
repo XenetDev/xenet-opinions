@@ -76,7 +76,7 @@ export function Chat({
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
     onError: (error) => {
-      const match = Object.entries(sendNotices(limits)).find(([code]) => error.message.includes(code))
+      const match = Object.entries(sendNotices(limits, !!signIn)).find(([code]) => error.message.includes(code))
       if (match) setNotice(match[1])
       else if (!runActiveRef.current) setNotice(SEND_FAILED)
     },

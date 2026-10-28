@@ -52,21 +52,27 @@ const openMenu = () => fireEvent.keyDown(screen.getByRole('button', { name: 'Acc
 describe('AccountMenu', () => {
   it('renders nothing while pending or without a session', () => {
     auth.session = { data: null, isPending: true }
-    const { container } = render(<AccountMenu />)
+    const { container } = render(<AccountMenu signInAvailable />)
     expect(container.innerHTML).toBe('')
     cleanup()
     auth.session = { data: null, isPending: false }
-    expect(render(<AccountMenu />).container.innerHTML).toBe('')
+    expect(render(<AccountMenu signInAvailable />).container.innerHTML).toBe('')
   })
 
   it('links anonymous visitors to sign in with the current path', () => {
     auth.session = { data: anonymous, isPending: false }
-    render(<AccountMenu />)
+    render(<AccountMenu signInAvailable />)
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in?next=%2Fc%2Fa')
   })
 
+  it('shows nothing to anonymous visitors when no sign-in provider is available', () => {
+    auth.session = { data: anonymous, isPending: false }
+    const { container } = render(<AccountMenu signInAvailable={false} />)
+    expect(container.innerHTML).toBe('')
+  })
+
   it('shows initials on the avatar and name, email and actions in the menu', () => {
-    render(<AccountMenu />)
+    render(<AccountMenu signInAvailable />)
     expect(screen.getByRole('button', { name: 'Account menu' }).textContent).toBe('AL')
     openMenu()
     expect(screen.getByText('Ada Lovelace')).toBeTruthy()
@@ -76,7 +82,7 @@ describe('AccountMenu', () => {
   })
 
   it('signs out, goes home and refreshes', async () => {
-    render(<AccountMenu />)
+    render(<AccountMenu signInAvailable />)
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalled())
@@ -85,7 +91,7 @@ describe('AccountMenu', () => {
   })
 
   it('sends the delete confirmation email', async () => {
-    render(<AccountMenu />)
+    render(<AccountMenu signInAvailable />)
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete account' }))
     const dialog = screen.getByRole('alertdialog')
@@ -102,7 +108,7 @@ describe('AccountMenu', () => {
 
   it('reports a failed confirmation email', async () => {
     auth.deleteUser.mockResolvedValue({ data: null, error: { message: 'nope' } })
-    render(<AccountMenu />)
+    render(<AccountMenu signInAvailable />)
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete account' }))
     fireEvent.click(screen.getByRole('button', { name: 'Send confirmation email' }))
@@ -111,7 +117,7 @@ describe('AccountMenu', () => {
   })
 
   it('has no axe violations', async () => {
-    const { container } = render(<AccountMenu />)
+    const { container } = render(<AccountMenu signInAvailable />)
     expect(await axe(container)).toHaveNoViolations()
     openMenu()
     expect(await axe(screen.getByRole('menu'))).toHaveNoViolations()

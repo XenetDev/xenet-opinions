@@ -472,6 +472,25 @@ describe('Chat', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('The demo allows up to 10 rounds.'))
   })
 
+  it.each([
+    [true, "You've used today's free run. Sign in for 3 runs a day, or come back tomorrow."],
+    [false, "You've used today's run. Come back tomorrow."],
+  ])('words the anonymous quota notice by sign-in availability (%s)', async (available, sentence) => {
+    const anonymous = { ...limits, anonymous: true, maxRunsPerDay: 1, demoMode: true }
+    render(
+      <Chat
+        chatId="c1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={null}
+        limits={anonymous}
+        {...(available ? { signIn: { max: 3, href: '/sign-in?next=%2Fc%2Fc1' } } : {})}
+      />,
+    )
+    act(() => chat.options!.onError(new Error('quota_exceeded')))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(sentence))
+  })
+
   it('shows the paused banner and disables the composer when paused', () => {
     renderChat(null, { paused: true })
     expect(screen.getByRole('status').textContent).toBe('The demo is paused')

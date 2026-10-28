@@ -60,12 +60,12 @@ const Grab = () => {
   return null
 }
 
-const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity) => {
+const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity, signInAvailable = true) => {
   const result = render(
     <TooltipProvider>
       <ChatListProvider chats={chats}>
         <ChatActivityProvider>
-          <ChatHeader />
+          <ChatHeader signInAvailable={signInAvailable} />
           <Grab />
         </ChatActivityProvider>
       </ChatListProvider>
@@ -93,6 +93,11 @@ describe('ChatHeader', () => {
   it('offers sign in to anonymous visitors', () => {
     renderHeader()
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in?next=%2Fc%2Fa')
+  })
+
+  it('hides sign in when no provider is available', () => {
+    renderHeader(CHATS, undefined, false)
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {

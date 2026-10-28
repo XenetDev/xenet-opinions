@@ -33,7 +33,7 @@ export function initials(name: string, email: string): string {
   return letters.toUpperCase()
 }
 
-export function AccountMenu() {
+export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const { data, isPending } = authClient.useSession()
@@ -42,6 +42,7 @@ export function AccountMenu() {
   if (isPending || !data?.user) return null
   const { user } = data
   if (user.isAnonymous === true) {
+    if (!signInAvailable) return null
     return (
       <Button asChild variant="ghost" size="sm">
         <Link href={`/sign-in?next=${encodeURIComponent(pathname)}`}>Sign in</Link>

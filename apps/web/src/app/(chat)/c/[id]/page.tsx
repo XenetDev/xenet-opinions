@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
+import { signInAvailable } from '@/lib/auth-providers'
 import { getSessionUser } from '@/lib/session'
 import { Chat } from '@/modules/chat/chat'
 import { loadChatPage } from '@/server/chat-page'
@@ -21,7 +22,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   ])
 
   const signIn =
-    limits.anonymous && limits.demoMode
+    limits.anonymous && limits.demoMode && signInAvailable()
       ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent(`/c/${chat.id}`)}` }
       : undefined
 

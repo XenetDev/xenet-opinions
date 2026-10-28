@@ -85,7 +85,7 @@ export function HomeChat({
               if (!id || !response?.ok) {
                 const body = (await response?.json().catch(() => null)) as { error?: string } | null
                 const code = body?.error ?? 'send_failed'
-                setNotice(sendNotices(limits)[code] ?? SEND_FAILED)
+                setNotice(sendNotices(limits, !!signIn)[code] ?? SEND_FAILED)
                 throw new Error(code)
               }
               void response.body?.cancel()

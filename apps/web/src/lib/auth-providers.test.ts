@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { authProvidersFrom } from '@/lib/auth-providers'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { env } from '@/env'
+import { authProvidersFrom, signInAvailable } from '@/lib/auth-providers'
 
 vi.mock('@/env', () => ({ env: {} }))
 
@@ -33,5 +34,28 @@ describe('authProvidersFrom', () => {
     expect(authProvidersFrom({ ...none, [id]: 'i' }, 'production')[name]).toBe(false)
     expect(authProvidersFrom({ ...none, [secret]: 's' }, 'production')[name]).toBe(false)
     expect(authProvidersFrom(none, 'production')[name]).toBe(false)
+  })
+})
+
+describe('signInAvailable', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    for (const key of Object.keys(env)) Reflect.deleteProperty(env, key)
+  })
+
+  it('is false in production without any provider', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(signInAvailable()).toBe(false)
+  })
+
+  it('is true with one provider', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(env, { GITHUB_CLIENT_ID: 'i', GITHUB_CLIENT_SECRET: 's' })
+    expect(signInAvailable()).toBe(true)
+  })
+
+  it('is true in development through the console magic link', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    expect(signInAvailable()).toBe(true)
   })
 })

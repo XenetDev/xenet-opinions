@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { signInAvailable } from '@/lib/auth-providers'
 import { getSessionUser } from '@/lib/session'
 import { HomeChat } from '@/modules/chat/home/home-chat'
 import { listChats } from '@/server/chats'
@@ -21,7 +22,7 @@ export default async function Home() {
     }))
 
   const signIn =
-    limits.anonymous && limits.demoMode
+    limits.anonymous && limits.demoMode && signInAvailable()
       ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent('/')}` }
       : undefined
 

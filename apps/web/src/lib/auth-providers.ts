@@ -26,3 +26,7 @@ export function authProvidersFrom(source: ProviderEnv, nodeEnv: string | undefin
 export function authProviders(): AuthProviders {
   return authProvidersFrom(env, process.env.NODE_ENV)
 }
+
+export function signInAvailable(): boolean {
+  return Object.values(authProviders()).some(Boolean)
+}
