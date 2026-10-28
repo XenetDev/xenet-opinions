@@ -32,24 +32,36 @@ describe('ontologyToPart', () => {
 })
 
 describe('graphDataToPart', () => {
-  it('caps nodes at 200 and drops edges touching unsampled nodes', () => {
-    const nodes = Array.from({ length: 250 }, (_, i) => ({ uuid: `n${i}`, name: `Node ${i}`, labels: ['Customer'] }))
+  it('caps nodes at 400, keeps the most linked first and drops edges touching unsampled nodes', () => {
+    const nodes = Array.from({ length: 450 }, (_, i) => ({ uuid: `n${i}`, name: `Node ${i}`, labels: ['Customer'] }))
     const edges = [
       { uuid: 'e1', source_node_uuid: 'n0', target_node_uuid: 'n1', name: 'KNOWS' },
-      { uuid: 'e2', source_node_uuid: 'n0', target_node_uuid: 'n240', name: 'KNOWS' },
-      { uuid: 'e3', source_node_uuid: 'n230', target_node_uuid: 'n2', name: 'KNOWS' },
-      { uuid: 'e4', source_node_uuid: 'n199', target_node_uuid: 'n3' },
+      { uuid: 'e2', source_node_uuid: 'n440', target_node_uuid: 'n1', name: 'KNOWS' },
+      { uuid: 'e3', source_node_uuid: 'n440', target_node_uuid: 'n2', name: 'KNOWS' },
+      { uuid: 'e4', source_node_uuid: 'n399', target_node_uuid: 'n3' },
     ]
     const part = graphDataToPart('g1', { nodes, edges })
     expect(part.graphId).toBe('g1')
-    expect(part.nodeCount).toBe(250)
+    expect(part.nodeCount).toBe(450)
     expect(part.edgeCount).toBe(4)
-    expect(part.nodes).toHaveLength(200)
-    expect(part.nodes[0]).toEqual({ id: 'n0', label: 'Node 0', type: 'Customer' })
+    expect(part.nodes).toHaveLength(400)
+    expect(part.nodes.slice(0, 3).map((n) => n.id)).toEqual(['n1', 'n440', 'n0'])
+    expect(part.nodes[0]).toEqual({ id: 'n1', label: 'Node 1', type: 'Customer' })
+    const ids = new Set(part.nodes.map((n) => n.id))
+    expect(ids.has('n399')).toBe(true)
+    expect(ids.has('n398')).toBe(false)
     expect(part.links).toEqual([
       { source: 'n0', target: 'n1', label: 'KNOWS' },
-      { source: 'n199', target: 'n3' },
+      { source: 'n440', target: 'n1', label: 'KNOWS' },
+      { source: 'n440', target: 'n2', label: 'KNOWS' },
+      { source: 'n399', target: 'n3' },
     ])
+  })
+
+  it('orders nodes by link count, then original order', () => {
+    const nodes = [{ uuid: 'a' }, { uuid: 'b' }, { uuid: 'c' }]
+    const part = graphDataToPart('g1', { nodes, edges: [{ source_node_uuid: 'c', target_node_uuid: 'b' }] })
+    expect(part.nodes.map((n) => n.id)).toEqual(['b', 'c', 'a'])
   })
 })
 
