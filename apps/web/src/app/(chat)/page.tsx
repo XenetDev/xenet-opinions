@@ -22,9 +22,7 @@ export default async function Home() {
     }))
 
   const signIn =
-    limits.anonymous && limits.demoMode && signInAvailable()
-      ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent('/')}` }
-      : undefined
+    limits.anonymous && limits.demoMode && signInAvailable() ? { max: limits.signedInMaxRunsPerDay } : undefined
 
   return <HomeChat recent={recent} limits={limits} usage={usage} {...(signIn ? { signIn } : {})} />
 }

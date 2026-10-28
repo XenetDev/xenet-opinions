@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe('Chat page', () => {
   it('upsells sign-in to anonymous users when a provider is available', async () => {
-    expect((await open()).props.signIn).toEqual({ max: 3, href: '/sign-in?next=%2Fc%2Fc1' })
+    expect((await open()).props.signIn).toEqual({ max: 3 })
   })
 
   it('does not upsell sign-in when no provider is available', async () => {

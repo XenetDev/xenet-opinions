@@ -2,9 +2,11 @@
 
 import { ArrowRightIcon, Loader2Icon } from 'lucide-react'
 import Link from 'next/link'
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
+import { XoMark } from '@/components/brand/xo-mark'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -21,15 +23,51 @@ type State =
   | { status: 'error'; message: string }
 
 const SOCIAL: { id: Social; label: string; Logo: () => ReactNode }[] = [
-  { id: 'google', label: 'Continue with Google', Logo: GoogleLogo },
-  { id: 'github', label: 'Continue with GitHub', Logo: GithubLogo },
-  { id: 'apple', label: 'Continue with Apple', Logo: AppleLogo },
+  { id: 'google', label: 'Google', Logo: GoogleLogo },
+  { id: 'github', label: 'GitHub', Logo: GithubLogo },
+  { id: 'apple', label: 'Apple', Logo: AppleLogo },
 ]
 
 const HOSTING_DOCS = 'https://github.com/XenetDev/xenet-opinions/blob/main/docs/hosting.md'
 const RATE_LIMITED = 'Too many attempts. Try again in a minute.'
 const FAILED = 'Something went wrong. Try again.'
 const INVALID_EMAIL = 'Enter a valid email address.'
+
+function SignInCard({
+  title,
+  titleRef,
+  description,
+  children,
+}: {
+  title: string
+  titleRef?: Ref<HTMLHeadingElement>
+  description: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <Card className="w-full gap-0 overflow-hidden p-0 shadow-sm">
+      <CardHeader className="flex flex-col items-center gap-4 px-6 pt-8 pb-0 text-center sm:px-8 sm:pt-9">
+        <div
+          aria-hidden="true"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
+        >
+          <XoMark className="w-6" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <h1
+            ref={titleRef}
+            tabIndex={titleRef ? -1 : undefined}
+            className="text-xl font-semibold text-balance outline-none"
+          >
+            {title}
+          </h1>
+          <p className="text-sm text-pretty text-muted-foreground">{description}</p>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6 px-6 pt-6 pb-6 sm:px-8 sm:pt-7 sm:pb-8">{children}</CardContent>
+    </Card>
+  )
+}
 
 export function SignInForm({ providers, next, error }: { providers: AuthProviders; next: string; error?: string }) {
   const [state, setState] = useState<State>({ status: 'idle' })
@@ -46,35 +84,36 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
 
   if (!providers.magicLink && social.length === 0) {
     return (
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl leading-tight font-semibold text-balance">Sign-in is not set up on this instance</h1>
-          <p className="text-base text-pretty text-muted-foreground">
+      <SignInCard
+        title="Sign-in is not set up on this instance"
+        description={
+          <>
             See the{' '}
             <a href={HOSTING_DOCS} className="text-foreground underline underline-offset-4">
               hosting docs
             </a>{' '}
             to turn on email or social sign-in.
-          </p>
-        </div>
+          </>
+        }
+      >
         <Button asChild variant="outline" className="w-full">
           <Link href={next}>Continue without signing in</Link>
         </Button>
-      </div>
+      </SignInCard>
     )
   }
 
   if (state.status === 'sent') {
     return (
-      <div className="flex flex-col gap-2">
-        <h1 ref={sentHeading} tabIndex={-1} className="text-3xl leading-tight font-semibold text-balance outline-none">
-          Check your email
-        </h1>
-        <p className="text-base text-pretty text-muted-foreground">We sent a sign-in link to {state.email}.</p>
+      <SignInCard
+        title="Check your email"
+        titleRef={sentHeading}
+        description={`We sent a sign-in link to ${state.email}.`}
+      >
         <Button
           type="button"
           variant="link"
-          className="self-start px-0"
+          className="self-center px-0"
           onClick={() => {
             setState({ status: 'idle' })
             requestAnimationFrame(() => emailInput.current?.focus())
@@ -82,7 +121,7 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
         >
           Use a different email
         </Button>
-      </div>
+      </SignInCard>
     )
   }
 
@@ -119,14 +158,7 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl leading-tight font-semibold text-balance">Sign in</h1>
-        {providers.magicLink && (
-          <p className="text-base text-pretty text-muted-foreground">Enter your email to get a sign-in link.</p>
-        )}
-      </div>
-
+    <SignInCard title="Sign in" description="Keep your conversations and get more runs a day.">
       {expired && (
         <Alert>
           <AlertDescription>That link has expired or was already used. Request a new one.</AlertDescription>
@@ -136,6 +168,33 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
         <Alert variant="destructive">
           <AlertDescription>{state.message}</AlertDescription>
         </Alert>
+      )}
+
+      {social.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {social.map(({ id, label, Logo }) => (
+            <Button
+              key={id}
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={pending}
+              aria-busy={pending && state.via === id}
+              onClick={() => continueWith(id)}
+            >
+              <Logo />
+              {label}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {providers.magicLink && social.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">Or sign in with email</span>
+          <Separator className="flex-1" />
+        </div>
       )}
 
       {providers.magicLink && (
@@ -151,7 +210,6 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
               autoComplete="email"
               placeholder="name@example.com"
               aria-describedby="sign-in-email-description"
-              className="bg-background"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -167,33 +225,6 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
           </Button>
         </form>
       )}
-
-      {providers.magicLink && social.length > 0 && (
-        <div className="flex items-center gap-3">
-          <Separator className="flex-1" />
-          <span className="text-xs text-muted-foreground">Or continue with</span>
-          <Separator className="flex-1" />
-        </div>
-      )}
-
-      {social.length > 0 && (
-        <div className="grid gap-3">
-          {social.map(({ id, label, Logo }) => (
-            <Button
-              key={id}
-              type="button"
-              variant="outline"
-              className="w-full justify-center px-4 [&_svg:not([class*='size-'])]:size-4"
-              disabled={pending}
-              aria-busy={pending && state.via === id}
-              onClick={() => continueWith(id)}
-            >
-              <Logo />
-              {label}
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
+    </SignInCard>
   )
 }

@@ -492,13 +492,11 @@ describe('usage bar sign-in upsell', () => {
           mode="run"
           onSend={vi.fn()}
           usage={{ used: 1, max: 1, resetAt: '2026-10-29T08:00:00.000Z' }}
-          signIn={{ max: 3, href: '/sign-in?next=%2F' }}
+          signIn={{ max: 3 }}
         />
       </TooltipProvider>,
     )
-    expect(screen.getByRole('link', { name: 'Sign in for 3 runs a day' }).getAttribute('href')).toBe(
-      '/sign-in?next=%2F',
-    )
+    expect(screen.getByRole('button', { name: 'Sign in for 3 runs a day' })).toBeTruthy()
   })
 })
 

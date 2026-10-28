@@ -40,7 +40,7 @@ function Titles() {
   return <output data-testid="titles">{chats.map((c) => `${c.id}:${c.title}:${c.runStatus}`).join(',')}</output>
 }
 
-function renderHome(limits: Partial<Limits> = {}, signIn?: { max: number; href: string }) {
+function renderHome(limits: Partial<Limits> = {}, signIn?: { max: number }) {
   return render(
     <TooltipProvider>
       <ChatListProvider chats={[]}>
@@ -154,10 +154,7 @@ describe('HomeChat', () => {
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
       '/api/chats/new/messages': () => Response.json({ error: 'quota_exceeded' }, { status: 429 }),
     })
-    renderHome(
-      { anonymous: true, maxRunsPerDay: 1, demoMode: true },
-      available ? { max: 3, href: '/sign-in?next=%2F' } : undefined,
-    )
+    renderHome({ anonymous: true, maxRunsPerDay: 1, demoMode: true }, available ? { max: 3 } : undefined)
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))

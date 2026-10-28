@@ -1,7 +1,7 @@
 import { ActivityIcon } from 'lucide-react'
-import Link from 'next/link'
 import { FrameHeader } from '@/components/reui/frame'
 import { Progress } from '@/components/ui/progress'
+import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 import type { Usage } from '@/server/usage-from'
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -14,9 +14,10 @@ export function resetLabel(iso: string, now = new Date()): string {
   return `${when} at ${clock(iso)}`
 }
 
-export type SignInUpsell = { max: number; href: string }
+export type SignInUpsell = { max: number }
 
 export function UsageBar({ usage, signIn }: { usage: Usage; signIn?: SignInUpsell }) {
+  const signInDialog = useSignInDialog()
   const left = Math.max(usage.max - usage.used, 0)
   const summary = `${usage.used} of ${usage.max} runs used today`
   const detail =
@@ -49,9 +50,13 @@ export function UsageBar({ usage, signIn }: { usage: Usage; signIn?: SignInUpsel
                 aria-hidden="true"
                 className="mx-1.5 inline-block size-1 rounded-full bg-muted-foreground/40 align-middle"
               />
-              <Link href={signIn.href} className="text-xs underline-offset-2 hover:underline">
+              <button
+                type="button"
+                className="cursor-pointer text-xs underline-offset-2 hover:underline"
+                onClick={signInDialog.open}
+              >
                 Sign in for {signIn.max} runs a day
-              </Link>
+              </button>
             </>
           )}
         </span>

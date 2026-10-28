@@ -484,7 +484,7 @@ describe('Chat', () => {
         activeRun={null}
         latestRun={null}
         limits={anonymous}
-        {...(available ? { signIn: { max: 3, href: '/sign-in?next=%2Fc%2Fc1' } } : {})}
+        {...(available ? { signIn: { max: 3 } } : {})}
       />,
     )
     act(() => chat.options!.onError(new Error('quota_exceeded')))

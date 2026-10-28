@@ -22,9 +22,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   ])
 
   const signIn =
-    limits.anonymous && limits.demoMode && signInAvailable()
-      ? { max: limits.signedInMaxRunsPerDay, href: `/sign-in?next=${encodeURIComponent(`/c/${chat.id}`)}` }
-      : undefined
+    limits.anonymous && limits.demoMode && signInAvailable() ? { max: limits.signedInMaxRunsPerDay } : undefined
 
   return (
     <Chat

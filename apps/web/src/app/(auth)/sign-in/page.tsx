@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { authProviders } from '@/lib/auth-providers'
 import { sanitiseNext } from '@/lib/next-path'
 import { getSessionUser } from '@/lib/session'
 import { SignInForm } from '@/modules/auth/sign-in-form'
-import { SignInPanel } from '@/modules/auth/sign-in-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,14 +25,20 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   if (user && !user.isAnonymous) redirect(next)
   const error = first(params.error) ? 'expired' : undefined
 
+  const providers = authProviders()
+
   return (
-    <div className="w-full lg:grid lg:min-h-svh lg:grid-cols-[minmax(0,1fr)_600px]">
-      <main className="flex min-h-svh items-center px-6 py-10 sm:px-10 lg:px-16 xl:px-20">
-        <div className="mx-auto w-full max-w-[22rem]">
-          <SignInForm providers={authProviders()} next={next} error={error} />
-        </div>
-      </main>
-      <SignInPanel />
-    </div>
+    <main className="flex min-h-svh w-full items-center justify-center px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
+      <div className="flex w-full max-w-[26rem] flex-col gap-5">
+        <SignInForm providers={providers} next={next} error={error} />
+        {Object.values(providers).some(Boolean) && (
+          <p className="text-center text-sm text-muted-foreground">
+            <Link href={next} className="underline-offset-4 hover:text-foreground hover:underline">
+              Continue without signing in
+            </Link>
+          </p>
+        )}
+      </div>
+    </main>
   )
 }

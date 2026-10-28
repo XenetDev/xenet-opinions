@@ -35,33 +35,34 @@ describe('SignInForm', () => {
   it('renders the email form and every provider button when all providers are on', () => {
     render(<SignInForm providers={ALL} next="/c/abc" />)
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy()
-    expect(screen.getByText('Enter your email to get a sign-in link.')).toBeTruthy()
+    expect(screen.getByText('Keep your conversations and get more runs a day.')).toBeTruthy()
+    expect(document.querySelector('[data-slot="card"] [data-slot="card-header"] svg[aria-hidden="true"]')).toBeTruthy()
     expect(email().type).toBe('email')
     expect(screen.getByText('Your link stays active for 15 minutes.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Send sign-in link' })).toBeTruthy()
-    expect(screen.getByText('Or continue with')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Continue with Apple' })).toBeTruthy()
+    expect(screen.getByText('Or sign in with email')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Google' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'GitHub' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Apple' })).toBeTruthy()
   })
 
   it('hides a provider button when its flag is off', () => {
     render(<SignInForm providers={{ ...ALL, apple: false }} next="/" />)
-    expect(screen.queryByRole('button', { name: 'Continue with Apple' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Apple' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Google' })).toBeTruthy()
   })
 
   it('hides the email form and divider when magic link is off', () => {
     render(<SignInForm providers={{ ...ALL, magicLink: false }} next="/" />)
     expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()
-    expect(screen.queryByText('Or continue with')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeTruthy()
+    expect(screen.queryByText('Or sign in with email')).toBeNull()
+    expect(screen.getByRole('button', { name: 'GitHub' })).toBeTruthy()
   })
 
   it('hides the divider when only magic link is on', () => {
     render(<SignInForm providers={{ ...NONE, magicLink: true }} next="/" />)
     expect(email()).toBeTruthy()
-    expect(screen.queryByText('Or continue with')).toBeNull()
+    expect(screen.queryByText('Or sign in with email')).toBeNull()
   })
 
   it('explains that sign-in is not set up when no provider is on', () => {
@@ -144,16 +145,16 @@ describe('SignInForm', () => {
 
   it('starts the social flow with the provider and next', async () => {
     render(<SignInForm providers={ALL} next="/c/abc" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Google' }))
     await waitFor(() => expect(client.social).toHaveBeenCalledWith({ provider: 'google', callbackURL: '/c/abc' }))
   })
 
   it('shows an alert when the social flow returns an error', async () => {
     client.social.mockResolvedValue({ data: null, error: { status: 500, message: 'boom' } })
     render(<SignInForm providers={ALL} next="/" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub' }))
+    fireEvent.click(screen.getByRole('button', { name: 'GitHub' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Continue with GitHub' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'GitHub' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('disables every button while a request is pending', async () => {
@@ -169,7 +170,7 @@ describe('SignInForm', () => {
   it('disables every button while a social redirect is pending', async () => {
     client.social.mockReturnValue(new Promise(() => {}))
     render(<SignInForm providers={ALL} next="/" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with Apple' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apple' }))
     await waitFor(() => {
       for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true)
     })
