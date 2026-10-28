@@ -1,6 +1,8 @@
-import { MAX_INTERVIEW_AGENTS } from '@xo/engine'
+import { MAX_INTERVIEW_AGENTS, SEED_FIELD_MAX } from '@xo/engine'
 import { z } from 'zod'
 import { MAX_FILES } from './upload-rules'
+
+const seedField = z.string().trim().max(SEED_FIELD_MAX).optional()
 
 const messageBodySchema = z.object({
   id: z.string(),
@@ -18,6 +20,7 @@ const messageBodySchema = z.object({
       pauseForInterviews: z.boolean().default(false),
     })
     .default({ maxRounds: 3, pauseForInterviews: false }),
+  seed: z.object({ background: seedField, actors: seedField, change: seedField }).optional(),
 })
 
 export type MessageBody = z.infer<typeof messageBodySchema>

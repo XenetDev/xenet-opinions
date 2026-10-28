@@ -32,3 +32,24 @@ describe('parseMessageBody follow-up fields', () => {
     expect(parseMessageBody({ ...base, agentIds: ['x'.repeat(65)] })).toBeNull()
   })
 })
+
+describe('parseMessageBody run fields', () => {
+  it('accepts empty uploadIds and no seed', () => {
+    const body = parseMessageBody({ ...base, uploadIds: [] })
+    expect(body?.uploadIds).toEqual([])
+    expect(body?.seed).toBeUndefined()
+  })
+
+  it('trims seed fields and leaves missing ones undefined', () => {
+    expect(parseMessageBody({ ...base, seed: { background: '  Small SaaS  ', change: '\n' } })?.seed).toEqual({
+      background: 'Small SaaS',
+      change: '',
+    })
+  })
+
+  it('rejects a seed field over 2000 characters', () => {
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2000) } })?.seed?.actors).toHaveLength(2000)
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2001) } })).toBeNull()
+    expect(parseMessageBody({ ...base, seed: { background: 1 } })).toBeNull()
+  })
+})

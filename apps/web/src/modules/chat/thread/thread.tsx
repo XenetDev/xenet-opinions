@@ -15,6 +15,8 @@ import {
 import { cn } from '@/lib/utils'
 import { AssistantTurn, UserTurn } from './turn'
 
+const PENDING_ID = 'pending-run'
+
 const ENTER = 'animate-in fade-in-50 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none'
 
 function useArrivals(ids: string[]): Map<string, Date> {
@@ -60,11 +62,13 @@ export function Thread({
   messages,
   renderAssistant,
   startedAt,
+  pending,
   className,
 }: {
   messages: OpinionsUIMessage[]
   renderAssistant: (message: OpinionsUIMessage) => ReactNode
   startedAt?: string
+  pending?: { text: string; card: ReactNode }
   className?: string
 }) {
   const arrivals = useArrivals(messages.map((message) => message.id))
@@ -74,7 +78,7 @@ export function Thread({
 
   return (
     <MessageScrollerProvider autoScroll>
-      <FollowOnSend lastUserId={messages.findLast((message) => message.role === 'user')?.id} />
+      <FollowOnSend lastUserId={pending ? PENDING_ID : messages.findLast((message) => message.role === 'user')?.id} />
       <MessageScroller className={className}>
         <MessageScrollerViewport className="[--scroll-fade-b-size:2.5rem] [overflow-anchor:none]">
           <MessageScrollerContent className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-7 px-4 pt-6 pb-10 sm:px-6">
@@ -103,6 +107,16 @@ export function Thread({
                 </MessageScrollerItem>
               )
             })}
+            {pending && (
+              <>
+                <MessageScrollerItem key={PENDING_ID} className={cn('[content-visibility:visible]', ENTER)}>
+                  <UserTurn message={{ id: PENDING_ID, role: 'user', parts: [{ type: 'text', text: pending.text }] }} />
+                </MessageScrollerItem>
+                <MessageScrollerItem className={cn('flex flex-col gap-4 [content-visibility:visible]', ENTER)}>
+                  <AssistantTurn>{pending.card}</AssistantTurn>
+                </MessageScrollerItem>
+              </>
+            )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton variant="outline" size="icon-sm" className="bottom-4 rounded-full shadow-sm" />

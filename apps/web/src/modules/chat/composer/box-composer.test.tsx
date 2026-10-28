@@ -326,19 +326,15 @@ describe('BoxComposer', () => {
     expect(textarea().value).toBe('why?')
   })
 
-  it('refuses a run without a document and keeps the text', async () => {
+  it('sends a run without a document', async () => {
     const { onSend } = renderComposer()
     type('hello')
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await waitFor(() =>
-      expect(screen.getByRole('status').textContent).toBe(
-        'Attach at least one document (.pdf, .md or .txt) to start a run.',
-      ),
+      expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ kind: 'run', uploadIds: [] })),
     )
-    expect(onSend).not.toHaveBeenCalled()
-    expect(textarea().value).toBe('hello')
-    attach()
-    expect(screen.queryByText('Attach at least one document (.pdf, .md or .txt) to start a run.')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    await waitFor(() => expect(textarea().value).toBe(''))
   })
 
   it('acknowledges a send at once: spinner, disabled send and a read-only field until it settles', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FILES_REQUIRED, sendNotices } from './send-notices'
+import { sendNotices } from './send-notices'
 
 const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3 }
 
@@ -34,10 +34,7 @@ describe('sendNotices quota_exceeded', () => {
 })
 
 describe('sendNotices files_required', () => {
-  it('asks for a document', () => {
-    expect(sendNotices(limits, true).files_required).toBe(
-      'Attach at least one document (.pdf, .md or .txt) to start a run.',
-    )
-    expect(FILES_REQUIRED).toBe(sendNotices(limits, false).files_required)
+  it('is gone now that runs start from a prompt alone', () => {
+    expect(sendNotices(limits, true)).not.toHaveProperty('files_required')
   })
 })
