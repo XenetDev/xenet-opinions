@@ -1,16 +1,32 @@
 import type { InterviewData } from '@xo/engine/parts'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageAvatar, MessageContent, MessageHeader } from '@/components/ui/message'
 import { Spinner } from '@/components/ui/spinner'
 import { Markdown } from '../markdown'
 import { initials } from './agent-roster'
 
-export function InterviewCard({ data, showQuestion = true }: { data: InterviewData; showQuestion?: boolean }) {
+export function InterviewCard({
+  data,
+  showQuestion = true,
+  avatarSrc,
+}: {
+  data: InterviewData
+  showQuestion?: boolean
+  avatarSrc?: string | undefined
+}) {
   return (
     <Message role="group" aria-label={data.agentName} data-status={data.status}>
       <MessageAvatar aria-hidden="true" className="size-8 self-start text-xs font-medium">
-        {initials(data.agentName)}
+        {avatarSrc ? (
+          <Avatar className="size-8">
+            <AvatarImage src={avatarSrc} alt="" />
+            <AvatarFallback className="text-xs font-medium">{initials(data.agentName)}</AvatarFallback>
+          </Avatar>
+        ) : (
+          initials(data.agentName)
+        )}
       </MessageAvatar>
       <MessageContent className="min-w-0 gap-1.5">
         <MessageHeader className="px-0 text-[13px]">

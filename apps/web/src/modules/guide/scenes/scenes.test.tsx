@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { ASK_QUESTION, AskScene } from './ask'
 import { ANSWER, InterviewScene, QUESTION } from './interview'
+import { GUIDE_PERSONAS } from './personas'
 import { FOLLOW_UP, REPLY, REPORT_LINES, ReportScene } from './report'
 import { WatchScene } from './watch'
 
@@ -177,5 +178,52 @@ describe('first frames', () => {
     render(<ReportScene active />)
     expect(screen.getByText('Public reaction to the price increase')).toBeTruthy()
     expect(screen.queryByText(REPORT_LINES[0] ?? '')).toBeNull()
+  })
+})
+
+describe('portrait avatars', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'Image',
+      class extends EventTarget {
+        referrerPolicy = ''
+        crossOrigin: string | null = null
+        complete = false
+        naturalWidth = 0
+        set src(_value: string) {
+          queueMicrotask(() => {
+            this.complete = true
+            this.naturalWidth = 160
+            this.dispatchEvent(new Event('load'))
+          })
+        }
+      },
+    )
+  })
+
+  it('watch renders the six portraits once they load', async () => {
+    vi.useRealTimers()
+    stubReducedMotion(true)
+    render(<WatchScene active />)
+    await waitFor(() => expect(document.querySelectorAll('img[data-slot="avatar-image"]')).toHaveLength(6))
+    const sources = [...document.querySelectorAll('img[data-slot="avatar-image"]')].map((img) =>
+      img.getAttribute('src'),
+    )
+    expect(sources).toEqual(GUIDE_PERSONAS.map((persona) => persona.photo))
+    expect(sources[0]).toBe('/guide/persona-1.jpg')
+    expect(sources[5]).toBe('/guide/persona-6.jpg')
+  })
+
+  it('interview cards and the answer avatar use the portraits', async () => {
+    vi.useRealTimers()
+    stubReducedMotion(true)
+    render(<InterviewScene active />)
+    await waitFor(() => expect(document.querySelectorAll('img[data-slot="avatar-image"]')).toHaveLength(5))
+    const sources = [...document.querySelectorAll('img[data-slot="avatar-image"]')].map((img) =>
+      img.getAttribute('src'),
+    )
+    expect(sources.slice(0, 4)).toEqual(GUIDE_PERSONAS.slice(0, 4).map((persona) => persona.photo))
+    expect(sources[0]).toBe('/guide/persona-1.jpg')
+    expect(sources[4]).toBe('/guide/persona-1.jpg')
   })
 })

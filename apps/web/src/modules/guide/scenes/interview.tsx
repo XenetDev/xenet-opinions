@@ -1,19 +1,15 @@
 'use client'
 
 import { UserIcon } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { initials } from '@/modules/chat/parts/agent-roster'
 import { InterviewCard } from '@/modules/chat/parts/interview-card'
 import { useSceneClock } from '../use-scene-clock'
+import { GUIDE_PERSONAS } from './personas'
 import { ENTER, MiniComposer, Scene, SceneChip, typed } from './scene'
 
-const CARDS = [
-  { name: 'Maya Chen', role: 'Founder, design studio' },
-  { name: 'Liam Walker', role: 'IT lead, retailer' },
-  { name: 'Priya Patel', role: 'Freelance analyst' },
-  { name: 'Noah Ortiz', role: 'Ops manager, SaaS' },
-]
+const CARDS = GUIDE_PERSONAS.slice(0, 4)
 const PLACEHOLDER = 'Ask the selected personas…'
 export const QUESTION = 'Would you stay on Pro at the new price?'
 export const ANSWER = 'Still better value than the alternatives, honestly.'
@@ -43,6 +39,7 @@ export function InterviewScene({ active }: { active: boolean }) {
               )}
             >
               <Avatar size="sm">
+                <AvatarImage src={card.photo} alt="" />
                 <AvatarFallback className="text-[10px]">{initials(card.name)}</AvatarFallback>
               </Avatar>
               <span className="flex min-w-0 flex-col">
@@ -57,6 +54,7 @@ export function InterviewScene({ active }: { active: boolean }) {
         <div className={cn(ENTER, 'w-1/2 min-w-0 [&_[data-slot=bubble-content]]:text-[13px]/5')}>
           <InterviewCard
             showQuestion={false}
+            avatarSrc={GUIDE_PERSONAS[0]?.photo}
             data={{
               agentId: 'maya',
               agentName: 'Maya Chen',
