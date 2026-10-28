@@ -2,9 +2,10 @@
 
 import type { GraphData } from '@xo/engine/parts'
 import { cn } from 'cn'
+import { forceCollide } from 'd3-force'
 import { Maximize2Icon, RefreshCwIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type MutableRefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ForceGraphMethods, LinkObject, NodeObject } from 'react-force-graph-2d'
 import { Frame, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 import { Button } from '@/components/ui/button'
@@ -16,9 +17,14 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false 
 
 const HEIGHT = 420
 const LABEL_LIMIT = 10
-const LABEL_MIN_SCALE = 1.2
+const LABEL_GAP = 2
 const FIT_PADDING = 40
 const DIM_ALPHA = 0.15
+const LINK_ALPHA = 0.4
+const LINK_DISTANCE = 80
+const CHARGE = -300
+const CHARGE_RANGE = 420
+const COLLIDE_PADDING = 6
 
 export const PALETTE = [
   '#3b82f6',
@@ -50,6 +56,9 @@ export function nodeRadius(degree: number, maxDegree: number): number {
 type Node = NodeObject<{ id: string; label: string; type?: string; colour: string; radius: number }>
 type Link = LinkObject<Node, { label?: string }>
 
+const replaceMode = () => 'replace' as const
+const afterMode = () => 'after' as const
+
 const endId = (end: unknown) => (typeof end === 'object' && end ? String((end as { id: unknown }).id) : String(end))
 
 type Rgba = { r: number; g: number; b: number; a: number }
@@ -66,17 +75,27 @@ function rgba(css: string): Rgba {
 }
 const paint = ({ r, g, b, a }: Rgba, alpha = 1) => `rgba(${r}, ${g}, ${b}, ${Math.round(a * alpha * 1000) / 1000})`
 
-type Tokens = { border: Rgba; muted: Rgba; foreground: Rgba; background: Rgba }
+type Tokens = { muted: Rgba; foreground: Rgba; background: Rgba }
 
 function readTokens(el: HTMLElement): Tokens {
   const style = getComputedStyle(el)
   const token = (name: string, fallback: string) => rgba(style.getPropertyValue(name).trim() || fallback)
   return {
-    border: token('--border', '#e5e5e5'),
     muted: token('--muted-foreground', '#737373'),
     foreground: token('--foreground', '#0a0a0a'),
     background: token('--background', '#ffffff'),
   }
+}
+
+function drawLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, scale: number, t: Tokens) {
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 3 / scale
+  ctx.strokeStyle = paint(t.background)
+  ctx.lineJoin = 'round'
+  ctx.strokeText(label, x, y)
+  ctx.fillStyle = paint(t.foreground)
+  ctx.fillText(label, x, y)
 }
 
 function useReducedMotion() {
@@ -97,8 +116,9 @@ function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boole
   const graphRef = useRef<ForceGraphMethods>(undefined)
   const [tokens, setTokens] = useState<Tokens | null>(null)
   const fitted = useRef(false)
+  const labelBoxes = useRef<{ x: number; y: number; w: number; h: number }[]>([])
   const [size, setSize] = useState({ width: 0, height: 0 })
-  const [edgeLabels, setEdgeLabels] = useState(false)
+  const [edgeLabels, setEdgeLabels] = useState(true)
   const [hovered, setHovered] = useState<string | null>(null)
   const reduced = useReducedMotion()
   const switchId = useId()
@@ -169,17 +189,18 @@ function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boole
       ctx.strokeStyle = paint(t.foreground)
       ctx.stroke()
     }
-    if (t && (scale >= LABEL_MIN_SCALE || node.id === hovered)) {
+    if (t && (hovered === null || node.id === hovered || isLit(node.id))) {
       ctx.font = `${11 / scale}px ui-sans-serif, system-ui, sans-serif`
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'middle'
-      ctx.lineWidth = 3 / scale
-      ctx.strokeStyle = paint(t.background)
-      ctx.lineJoin = 'round'
       const lx = x + node.radius + 3 / scale
-      ctx.strokeText(node.label, lx, y)
-      ctx.fillStyle = paint(t.foreground)
-      ctx.fillText(node.label, lx, y)
+      const gap = LABEL_GAP / scale
+      const box = { x: lx - gap, y: y - 7 / scale, w: ctx.measureText(node.label).width + 2 * gap, h: 14 / scale }
+      const free = labelBoxes.current.every(
+        (b) => box.x >= b.x + b.w || b.x >= box.x + box.w || box.y >= b.y + b.h || b.y >= box.y + box.h,
+      )
+      if (free || node.id === hovered) {
+        labelBoxes.current.push(box)
+        drawLabel(ctx, node.label, lx, y, scale, t)
+      }
     }
     ctx.globalAlpha = 1
   }
@@ -207,9 +228,21 @@ function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boole
   const linkColour = (link: Link) => {
     const t = tokens
     if (!t) return paint(GREY)
-    if (hovered === null) return paint(t.border)
-    return touchesHovered(link) ? paint(t.muted) : paint(t.border, DIM_ALPHA * 2)
+    if (hovered === null) return paint(t.muted, LINK_ALPHA)
+    return touchesHovered(link) ? paint(t.muted) : paint(t.muted, LINK_ALPHA * DIM_ALPHA)
   }
+
+  const attachGraph = useCallback((graph: ForceGraphMethods | null) => {
+    graphRef.current = graph ?? undefined
+    graph?.d3Force('link')?.distance?.(LINK_DISTANCE)
+    graph?.d3Force('charge')?.strength?.(CHARGE)?.distanceMax?.(CHARGE_RANGE)
+    graph?.d3Force(
+      'collide',
+      forceCollide<Node>((node) => node.radius + COLLIDE_PADDING) as unknown as Parameters<
+        ForceGraphMethods['d3Force']
+      >[1],
+    )
+  }, [])
 
   const refresh = () => {
     fitted.current = false
@@ -245,11 +278,11 @@ function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boole
       >
         {size.width > 0 && size.height > 0 && (
           <ForceGraph2D
-            ref={graphRef}
+            ref={attachGraph as unknown as MutableRefObject<ForceGraphMethods | undefined>}
             graphData={graphData}
             width={size.width}
             height={size.height}
-            nodeCanvasObjectMode="replace"
+            nodeCanvasObjectMode={replaceMode}
             nodeCanvasObject={(node, ctx, scale) => drawNode(node as Node, ctx, scale)}
             nodePointerAreaPaint={(node, colour, ctx) => {
               const n = node as Node
@@ -260,8 +293,11 @@ function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boole
             }}
             linkColor={(link) => linkColour(link as Link)}
             linkWidth={(link) => (touchesHovered(link as Link) ? 1.5 : 1)}
-            linkCanvasObjectMode={edgeLabels ? 'after' : undefined}
+            linkCanvasObjectMode={edgeLabels ? afterMode : undefined}
             linkCanvasObject={edgeLabels ? (link, ctx, scale) => drawEdgeLabel(link as Link, ctx, scale) : undefined}
+            onRenderFramePre={() => {
+              labelBoxes.current = []
+            }}
             onNodeHover={(node) => setHovered(node ? (node as Node).id : null)}
             onEngineStop={() => {
               if (fitted.current) return

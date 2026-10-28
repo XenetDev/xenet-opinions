@@ -74,6 +74,9 @@ importers:
       cn:
         specifier: ^0.5.0
         version: 0.5.0
+      d3-force:
+        specifier: ^3.0.0
+        version: 3.0.0
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(kysely@0.29.7)(postgres@3.4.9)
@@ -126,6 +129,9 @@ importers:
       '@testing-library/react':
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/d3-force':
+        specifier: ^3.0.10
+        version: 3.0.10
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2

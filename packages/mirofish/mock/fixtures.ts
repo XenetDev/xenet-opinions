@@ -9,26 +9,102 @@ export const ontologyFixture = fixture<Record<string, unknown>>('graph.ontology.
 export const agentLogFixture = fixture<{ logs: Array<Record<string, unknown>> }>('report.agent-log.mock').logs
 export const reportMarkdown = read('./report.md')
 
-const ENTITY_TYPES = ['Customer', 'Competitor', 'Analyst', 'Channel']
+const GRAPH_TYPES: Record<string, string[]> = {
+  Organization: [
+    'Riverton City Council',
+    'ZipRide',
+    'Volt',
+    'Riverton Chamber of Commerce',
+    'Riverton Polytechnic',
+    'Riverton General Hospital',
+    'Public Consultation Office',
+    'Riverton Transit Authority',
+  ],
+  Person: [
+    'Maria Delgado',
+    'Helen Okafor',
+    'Tom Reyes',
+    'Priya Nair',
+    'Grace Whitfield',
+    'Omar Haddad',
+    'Noah Ortiz',
+    'Liam Walker',
+    'Aisha Khan',
+    'Lucas Brandt',
+    'Hannah Meyer',
+    'Ethan Kim',
+  ],
+  Group: [
+    "Riverton Seniors' Association",
+    'Disability Advocates',
+    'Students Union',
+    'Cafe Owners Collective',
+    'Northern District Shops',
+    'Cycling Campaign',
+    'Parents Association',
+    'Night-shift Workers',
+  ],
+  Topic: [
+    'E-scooter ban',
+    'Pavement safety',
+    'Late-night transport',
+    'Parking bays',
+    'Speed limit',
+    'Injury statistics',
+    'Public hearing',
+    'Rental pricing',
+  ],
+  Place: [
+    'Downtown Riverton',
+    'Industrial park',
+    'Riverfront',
+    'Northern district',
+    'Polytechnic campus',
+    'Market square',
+  ],
+  Media: ['Riverton Herald', 'Local radio', 'Community forum', 'Council newsletter'],
+}
+const RELATIONS = [
+  'SUPPORTS',
+  'OPPOSES',
+  'REPRESENTS',
+  'OPERATES_IN',
+  'REPORTED_BY',
+  'MEMBER_OF',
+  'PROPOSED',
+  'AFFECTS',
+]
 
-export const buildGraphData = () => ({
-  nodes: Array.from({ length: 80 }, (_, i) => ({
-    uuid: `node_${i}`,
-    name: `${ENTITY_TYPES[i % ENTITY_TYPES.length]} ${i}`,
-    labels: [ENTITY_TYPES[i % ENTITY_TYPES.length]],
-  })),
-  edges: Array.from({ length: 124 }, (_, j) => {
-    const source = j % 80
-    let target = (j * 7 + 13) % 80
-    if (target === source) target = (target + 1) % 80
-    return {
-      uuid: `edge_${j}`,
-      source_node_uuid: `node_${source}`,
-      target_node_uuid: `node_${target}`,
-      name: j % 2 === 0 ? 'INFLUENCES' : 'SWITCHES_TO',
-    }
-  }),
-})
+export const buildGraphData = () => {
+  const nodes: { uuid: string; name: string; labels: string[]; type: string }[] = []
+  for (const [type, names] of Object.entries(GRAPH_TYPES))
+    for (const name of names) nodes.push({ uuid: `node_${nodes.length}`, name, labels: ['Entity', type], type })
+  while (nodes.length < 80) {
+    const i = nodes.length
+    const type = i % 2 ? 'Person' : 'Topic'
+    nodes.push({ uuid: `node_${i}`, name: `${type} ${i}`, labels: ['Entity', type], type })
+  }
+  const hubs = [0, 1, 20, 28, 8, 29, 2, 21]
+  const seen = new Set<string>()
+  const edges: { uuid: string; source_node_uuid: string; target_node_uuid: string; name: string }[] = []
+  const add = (a: number, b: number) => {
+    if (a === b || edges.length >= 124) return
+    const key = a < b ? `${a}-${b}` : `${b}-${a}`
+    if (seen.has(key)) return
+    seen.add(key)
+    edges.push({
+      uuid: `edge_${edges.length}`,
+      source_node_uuid: `node_${a}`,
+      target_node_uuid: `node_${b}`,
+      name: RELATIONS[(a * 3 + b) % RELATIONS.length] ?? 'RELATED',
+    })
+  }
+  for (let i = 0; i < 80; i++) add(i, hubs[(i * 5 + 3) % hubs.length] ?? 0)
+  for (let i = 0; i < 80; i += 3) add(i, (i * 11 + 7) % 80)
+  for (let i = 0; i < hubs.length; i++) add(hubs[i] ?? 0, hubs[(i + 1) % hubs.length] ?? 0)
+  for (let i = 1; edges.length < 124; i++) add((i * 13) % 80, (i * 29 + 5) % 80)
+  return { nodes: nodes.map(({ type: _type, ...node }) => node), edges }
+}
 
 export const PROFILE_COUNT = 12
 

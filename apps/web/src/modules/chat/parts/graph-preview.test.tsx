@@ -7,19 +7,29 @@ import { GraphPreview, nodeRadius, PALETTE, typeColours, UNKNOWN_COLOUR } from '
 
 const graph = vi.hoisted(() => ({
   props: [] as Record<string, unknown>[],
-  methods: { d3ReheatSimulation: vi.fn(), zoomToFit: vi.fn() },
+  forces: {
+    link: { distance: vi.fn() },
+    charge: { strength: vi.fn((): unknown => graph.forces.charge), distanceMax: vi.fn() },
+  },
+  methods: {
+    d3ReheatSimulation: vi.fn(),
+    zoomToFit: vi.fn(),
+    d3Force: vi.fn((name: string) => graph.forces[name as 'link' | 'charge']),
+  },
 }))
 
 vi.mock('next/dynamic', () => ({
   default: () =>
-    function ForceGraphMock(props: Record<string, unknown> & { ref?: { current: unknown } }) {
+    function ForceGraphMock(props: Record<string, unknown> & { ref?: { current: unknown } | ((v: unknown) => void) }) {
       graph.props.push(props)
-      if (props.ref) props.ref.current = graph.methods
+      if (typeof props.ref === 'function') props.ref(graph.methods)
+      else if (props.ref) props.ref.current = graph.methods
       return <div data-testid="force-graph" data-height={String(props.height)} />
     },
 }))
 
 const lastProps = () => graph.props.at(-1) ?? {}
+const modeFor = (accessor: unknown) => (typeof accessor === 'function' ? accessor({}) : undefined)
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -44,7 +54,11 @@ beforeEach(() => {
       ({
         fillStyle: '',
         fillRect() {},
-        getImageData: () => ({ data: [255, 255, 255, probeAlpha] }),
+        getImageData(this: { fillStyle: string }) {
+          const hex = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(this.fillStyle)
+          const [r, g, b] = hex ? hex.slice(1).map((h) => Number.parseInt(h, 16)) : [255, 255, 255]
+          return { data: [r, g, b, probeAlpha] }
+        },
       }) as unknown as CanvasRenderingContext2D,
   )
   graph.props.length = 0
@@ -135,7 +149,7 @@ describe('GraphPreview', () => {
   it('renders the canvas 420px tall with zoom and pan', () => {
     render(<GraphPreview data={data} />)
     expect(screen.getByTestId('force-graph').dataset.height).toBe('420')
-    expect(lastProps().nodeCanvasObjectMode).toBe('replace')
+    expect(modeFor(lastProps().nodeCanvasObjectMode)).toBe('replace')
     expect(lastProps().enableZoomInteraction).not.toBe(false)
   })
 
@@ -149,15 +163,23 @@ describe('GraphPreview', () => {
     expect(swatch(2).style.backgroundColor).toBe('rgb(161, 161, 170)')
   })
 
-  it('toggles edge labels with the switch, off by default', () => {
+  it('toggles edge labels with the switch, on by default', () => {
     render(<GraphPreview data={data} />)
     const toggle = screen.getByRole('switch', { name: 'Show edge labels' })
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(modeFor(lastProps().linkCanvasObjectMode)).toBe('after')
+    expect(typeof lastProps().linkCanvasObject).toBe('function')
+    fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(lastProps().linkCanvasObjectMode).toBeUndefined()
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
-    expect(lastProps().linkCanvasObjectMode).toBe('after')
-    expect(typeof lastProps().linkCanvasObject).toBe('function')
+  })
+
+  it('spreads the layout with a longer link distance, a capped charge range and a collide force', () => {
+    render(<GraphPreview data={data} />)
+    expect(graph.forces.link.distance).toHaveBeenCalledWith(80)
+    expect(graph.forces.charge.strength).toHaveBeenCalledWith(-300)
+    expect(graph.forces.charge.distanceMax).toHaveBeenCalledWith(420)
+    expect(graph.methods.d3Force).toHaveBeenCalledWith('collide', expect.any(Function))
   })
 
   it('reheats the simulation on refresh', () => {
@@ -186,6 +208,16 @@ describe('GraphPreview', () => {
     expect(screen.getAllByTestId('force-graph')[0]?.dataset.height).toBe('420')
   })
 
+  it('draws links in a translucent muted-foreground so they read on the dot grid', () => {
+    render(<GraphPreview data={data} />)
+    const linkColor = lastProps().linkColor as (link: unknown) => string
+    const [, r, g, b, a] =
+      linkColor({ source: 'n0', target: 'n1' }).match(/rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/) ?? []
+    expect([r, g, b]).toEqual(['115', '115', '115'])
+    expect(Number(a)).toBeGreaterThan(0.2)
+    expect(Number(a)).toBeLessThan(0.6)
+  })
+
   it('keeps the token alpha in link colours and dims non-hovered links further', () => {
     probeAlpha = 26
     render(<GraphPreview data={data} />)
@@ -198,17 +230,20 @@ describe('GraphPreview', () => {
     expect(alpha(linkColor()({ source: 'n0', target: 'n1' }))).toBeLessThan(base)
   })
 
-  it('draws labels above the zoom threshold or on hover and dims non-neighbours', () => {
-    render(<GraphPreview data={data} />)
-    const nodeAt = (i: number) => (lastProps().graphData as { nodes: unknown[] }).nodes[i]
+  const drawer = () => {
+    const nodeAt = (i: number) => (lastProps().graphData as { nodes: { x?: number; y?: number }[] }).nodes[i]
+    for (let i = 0; i < 12; i++) Object.assign(nodeAt(i) ?? {}, { x: i * 1000, y: 0 })
+    const frame = () => (lastProps().onRenderFramePre as () => void)()
     const draw = (i: number, scale: number) => {
       const fills: number[] = []
       const ctx = {
         globalAlpha: 1,
+        font: '',
         beginPath() {},
         arc() {},
         stroke() {},
         strokeText() {},
+        measureText: (text: string) => ({ width: text.length * 6 }),
         fill: vi.fn(function (this: { globalAlpha: number }) {
           fills.push(this.globalAlpha)
         }),
@@ -217,11 +252,37 @@ describe('GraphPreview', () => {
       ;(lastProps().nodeCanvasObject as (n: unknown, c: unknown, s: number) => void)(nodeAt(i), ctx, scale)
       return { labelled: ctx.fillText.mock.calls.length > 0, alpha: fills[0] }
     }
-    expect(draw(5, 1)).toEqual({ labelled: false, alpha: 1 })
-    expect(draw(5, 1.5)).toEqual({ labelled: true, alpha: 1 })
+    return { nodeAt, frame, draw }
+  }
+
+  it('labels every node at any zoom while labels do not collide', () => {
+    render(<GraphPreview data={data} />)
+    const { frame, draw } = drawer()
+    frame()
+    expect(draw(5, 0.3)).toEqual({ labelled: true, alpha: 1 })
+    expect(draw(6, 0.3)).toEqual({ labelled: true, alpha: 1 })
+  })
+
+  it('skips a label that would overlap one already drawn in the same frame', () => {
+    render(<GraphPreview data={data} />)
+    const { nodeAt, frame, draw } = drawer()
+    Object.assign(nodeAt(6) ?? {}, { x: 5000, y: 2 })
+    frame()
+    expect(draw(5, 1).labelled).toBe(true)
+    expect(draw(6, 1).labelled).toBe(false)
+    frame()
+    expect(draw(6, 1).labelled).toBe(true)
+  })
+
+  it('labels the hovered node and its neighbours only, and dims the rest', () => {
+    render(<GraphPreview data={data} />)
     act(() => (lastProps().onNodeHover as (n: unknown) => void)({ id: 'n1' }))
+    const { nodeAt, frame, draw } = drawer()
+    Object.assign(nodeAt(1) ?? {}, { x: 2000, y: 0 })
+    frame()
+    expect(draw(2, 1)).toEqual({ labelled: true, alpha: 1 })
     expect(draw(1, 1)).toEqual({ labelled: true, alpha: 1 })
-    expect(draw(2, 1)).toEqual({ labelled: false, alpha: 1 })
+    expect(draw(5, 1)).toMatchObject({ labelled: false })
     expect(draw(5, 1).alpha).toBeLessThan(1)
   })
 
