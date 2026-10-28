@@ -120,7 +120,7 @@ infra/docker/up.sh up -d web
 
 ### Sign-in providers
 
-Every visitor gets an anonymous session; `/sign-in` adds accounts. Each provider is shown only when its variables are set, and sessions last 30 days. Signing in from an anonymous session moves its chats, uploads and runs to the account, so the 24-hour quota window carries over. Set the variables in `.env.selfhost` (or in Vercel) and recreate `web`.
+Every visitor gets an anonymous session; `/sign-in` adds accounts. Each provider is shown only when its variables are set, and sessions last 30 days. Signing in from an anonymous session moves its chats, uploads and runs to the account, so the 24-hour quota window carries over. A magic link moves them only when it is opened in the browser that requested it; opened elsewhere, it signs in without moving anything. Set the variables in `.env.selfhost` (or in Vercel) and recreate `web`.
 
 - Redirect URIs: register `<APP_URL>/api/auth/callback/google` with Google and `<APP_URL>/api/auth/callback/github` with GitHub, where `<APP_URL>` is `BETTER_AUTH_URL`. A GitHub OAuth app allows one callback URL, so use one app per origin.
 - Magic link: set `RESEND_API_KEY` and `EMAIL_FROM`; the sender's domain must be verified in Resend. Without a key the app prints the link to the server log in development and refuses to send in production, and the magic-link option is hidden.
@@ -134,7 +134,7 @@ Rate limits are stored in the `rate_limit` table, per client IP:
 | Magic-link requests and account deletion | 3 per minute |
 | Anonymous sign-ins | 10 per minute |
 
-The client IP is read from `x-forwarded-for` or `x-real-ip`. Vercel sets the header itself. A self-hosted `web` exposed directly, without a reverse proxy that sets these headers, lets a client choose its own bucket.
+The client IP is read from `x-forwarded-for` or `x-real-ip`. Vercel sets the header itself. A self-hosted `web` exposed directly, without a reverse proxy that sets these headers, lets a client choose its own bucket by sending the header. When no request carries either header, Better Auth finds no IP in production and every client shares one bucket, so one visitor can use up the magic-link limit for everyone. Put a reverse proxy that sets `x-forwarded-for` in front of `web`.
 
 ### Interview window
 
