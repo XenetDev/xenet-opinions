@@ -34,12 +34,12 @@ vi.mock('@/server/interview-window', () => {
   return { InterviewWindowError, createInterviewQuestion: vi.fn() }
 })
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
-vi.mock('@xo/engine', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@xo/engine')>()),
-  tailRunAsUIMessageStream: vi.fn(),
-}))
+vi.mock('@xo/engine', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@xo/engine')>()
+  return { ...actual, checkRunPolicy: vi.fn(actual.checkRunPolicy), tailRunAsUIMessageStream: vi.fn() }
+})
 
-import { tailRunAsUIMessageStream } from '@xo/engine'
+import { checkRunPolicy, tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
@@ -400,6 +400,58 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ maxRounds: 40 }))
       expect(runsStartedSince).not.toHaveBeenCalled()
       await res.body?.cancel()
+    })
+
+    const perUserLimits = () =>
+      vi.mocked(getLimits).mockImplementation((user) => ({
+        demoMode: true,
+        paused: false,
+        maxRunsPerDay: user.isAnonymous ? 1 : 3,
+        signedInMaxRunsPerDay: 3,
+        anonymous: user.isAnonymous,
+        maxRounds: 3,
+        allowPause: false,
+      }))
+    const startable = () => {
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+    }
+
+    it('gives an anonymous user one run, then 429 quota_exceeded', async () => {
+      authed()
+      perUserLimits()
+      startable()
+      const user = sessionUser({ isAnonymous: true })
+      vi.mocked(getSessionUser).mockResolvedValue(user)
+      const first = await call(userMessage('hi'))
+      expect(first.status).toBe(200)
+      await first.body?.cancel()
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 1, oldestQueuedAt: new Date(Date.now() - 60_000) })
+      const second = await call(userMessage('again'))
+      expect(second.status).toBe(429)
+      expect(await second.json()).toMatchObject({ error: 'quota_exceeded' })
+      expect(getLimits).toHaveBeenCalledWith(user)
+      expect(checkRunPolicy).toHaveBeenLastCalledWith(expect.objectContaining({ maxRunsPerDay: 1, runsInWindow: 1 }))
+      expect(startRun).toHaveBeenCalledTimes(1)
+    })
+
+    it('gives a registered user three runs', async () => {
+      authed()
+      perUserLimits()
+      startable()
+      const user = sessionUser({ id: 'real1', isAnonymous: false })
+      vi.mocked(getSessionUser).mockResolvedValue(user)
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 2, oldestQueuedAt: new Date(Date.now() - 60_000) })
+      const third = await call(userMessage('hi'))
+      expect(third.status).toBe(200)
+      await third.body?.cancel()
+      expect(getLimits).toHaveBeenCalledWith(user)
+      expect(runsStartedSince).toHaveBeenCalledWith('real1', expect.any(Date))
+      expect(checkRunPolicy).toHaveBeenLastCalledWith(expect.objectContaining({ maxRunsPerDay: 3, runsInWindow: 2 }))
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 3, oldestQueuedAt: new Date(Date.now() - 60_000) })
+      const fourth = await call(userMessage('again'))
+      expect(fourth.status).toBe(429)
+      expect(await fourth.json()).toMatchObject({ error: 'quota_exceeded' })
     })
 
     it('passes a queuePosition reader for the started run to the tail', async () => {
