@@ -75,6 +75,14 @@ vi.mock('./composer/composer', async () => {
           <button type="button" onClick={() => send({ kind: 'followUp', target: 'agents', agentIds: ['p1', 'p2'] })}>
             Send interview
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              send({ kind: 'run', uploadIds: ['u1'], runOptions: { maxRounds: 1, pauseForInterviews: false } })
+            }
+          >
+            Send run
+          </button>
         </>
       )
     },
@@ -247,6 +255,65 @@ describe('Chat', () => {
     )
     await waitFor(() => expect(container.querySelector('[data-part="console"]')).toBeTruthy())
     expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/stream', expect.anything())
+  })
+
+  it('shows only the failed console, no notice, when a replayed run ends in error', async () => {
+    chat.real = true
+    runState.current = { status: 'failed', stage: 'graph_build', runId: 'r1', assistantMessageId: 'a1' }
+    const chunks = [
+      { type: 'start', messageId: 'a1' },
+      { type: 'data-stage', id: 'stage:graph_build', data: { stage: 'graph_build', status: 'running' } },
+      {
+        type: 'data-stage',
+        id: 'stage:graph_build',
+        data: { stage: 'graph_build', status: 'failed', message: 'Injected failure' },
+      },
+      { type: 'error', errorText: 'Injected failure' },
+      { type: 'finish' },
+    ]
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(`${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('')}data: [DONE]\n\n`, {
+          headers: { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' },
+        }),
+    )
+    const { container } = render(
+      <Chat
+        chatId="c1"
+        initialMessages={[{ id: 'u0', role: 'user', parts: [{ type: 'text', text: 'How will people react?' }] }]}
+        activeRun={{ id: 'r1', assistantMessageId: 'a1', stage: 'graph_build' }}
+        latestRun={null}
+        limits={limits}
+      />,
+    )
+    await waitFor(() => expect(container.querySelector('[data-part="console"]')).toBeTruthy())
+    await act(async () => {})
+    expect(screen.queryByText('Something went wrong sending your message')).toBeNull()
+  })
+
+  it("does not call a stage's failure message a send failure", async () => {
+    chat.messages = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [{ type: 'data-stage', data: { stage: 'ontology', status: 'failed', message: 'Injected failure' } }],
+      },
+    ]
+    renderChat()
+    await act(async () => chat.options!.onError(new Error('Injected failure')))
+    expect(screen.queryByText('Something went wrong sending your message')).toBeNull()
+    await act(async () => chat.options!.onError(new Error('Failed to fetch')))
+    expect(screen.getAllByText('Something went wrong sending your message').length).toBeGreaterThan(0)
+  })
+
+  it('keeps the send-failed notice when a new run fails to post after a failed run', async () => {
+    runState.current = { status: 'failed', stage: 'ontology', runId: 'r1', assistantMessageId: 'a1' }
+    renderChat()
+    await act(async () => chat.options!.onError(new Error('Injected failure')))
+    expect(screen.queryByText('Something went wrong sending your message')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await act(async () => chat.options!.onError(new Error('Internal Server Error')))
+    expect(screen.getAllByText('Something went wrong sending your message').length).toBeGreaterThan(0)
   })
 
   it('shows no send-error notice while the run is active', async () => {

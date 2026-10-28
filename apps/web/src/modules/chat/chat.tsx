@@ -40,6 +40,15 @@ type LatestRun = {
   envKeepaliveUntil: string | null
 }
 
+const isRunFailure = (messages: OpinionsUIMessage[], text: string) =>
+  !!messages
+    .findLast((message) => message.role === 'assistant')
+    ?.parts.some(
+      (part) =>
+        (part.type === 'data-stage' && part.data.status === 'failed' && part.data.message === text) ||
+        (part.type === 'data-error' && part.data.message === text),
+    )
+
 export function Chat({
   chatId,
   initialMessages,
@@ -69,6 +78,9 @@ export function Chat({
   const { chats, upsertChat } = useChatList()
   const { setActivity } = useChatActivity()
   const runActiveRef = useRef(!!activeRun)
+  const runFailedRef = useRef(false)
+  const runIdAtSendRef = useRef<string | undefined>(undefined)
+  const messagesRef = useRef(initialMessages)
   const [notice, setNotice] = useState<string | null>(null)
   const [usage, setUsage] = useState(initialUsage)
   const [watching, setWatching] = useState(!!activeRun)
@@ -78,7 +90,8 @@ export function Chat({
     onError: (error) => {
       const match = Object.entries(sendNotices(limits, !!signIn)).find(([code]) => error.message.includes(code))
       if (match) setNotice(match[1])
-      else if (!runActiveRef.current) setNotice(SEND_FAILED)
+      else if (!runActiveRef.current && !runFailedRef.current && !isRunFailure(messagesRef.current, error.message))
+        setNotice(SEND_FAILED)
     },
     messages: initialMessages,
     resume: !!activeRun,
@@ -98,6 +111,8 @@ export function Chat({
         }
       : undefined,
   })
+  messagesRef.current = messages
+  runFailedRef.current = run.status === 'failed' && (sendCount === 0 || run.runId !== runIdAtSendRef.current)
   const resumeGuard = useRef(!!activeRun)
   const runActive = run.status === 'queued' || run.status === 'running'
   const followUpMode = run.status === 'done' || (run.status === 'none' && latestRun?.status === 'done')
@@ -258,6 +273,7 @@ export function Chat({
                 setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
                 const title = chats.find((chat) => chat.id === chatId)?.title
                 upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+                runIdAtSendRef.current = run.runId
                 setSendCount((count) => count + 1)
                 setWatching(true)
                 void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
