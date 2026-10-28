@@ -179,9 +179,6 @@ export function Chat({
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
 
-  const sourcesPart = messages.flatMap((message) => message.parts).findLast((part) => part.type === 'data-sources')
-  const sources = sourcesPart?.type === 'data-sources' ? sourcesPart.data : undefined
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
@@ -189,7 +186,6 @@ export function Chat({
           <Thread
             className="min-h-0 flex-1"
             messages={messages}
-            sources={sources}
             startedAt={startedAt}
             renderAssistant={(message) => {
               const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')

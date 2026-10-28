@@ -33,23 +33,32 @@ function useArrivals(ids: string[]): Map<string, Date> {
   return arrivals
 }
 
+function sourcesByTurn(messages: OpinionsUIMessage[]): Map<string, SourcesData> {
+  const byTurn = new Map<string, SourcesData>()
+  let userId: string | undefined
+  for (const message of messages) {
+    if (message.role === 'user') userId = message.id
+    const part = message.parts.find((p) => p.type === 'data-sources')
+    if (userId && part?.type === 'data-sources') byTurn.set(userId, part.data)
+  }
+  return byTurn
+}
+
 const clock = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 export function Thread({
   messages,
   renderAssistant,
-  sources,
   startedAt,
   className,
 }: {
   messages: OpinionsUIMessage[]
   renderAssistant: (message: OpinionsUIMessage) => ReactNode
-  sources?: SourcesData
   startedAt?: string
   className?: string
 }) {
   const arrivals = useArrivals(messages.map((message) => message.id))
-  const firstUserId = messages.find((message) => message.role === 'user')?.id
+  const sources = sourcesByTurn(messages)
   const first = messages[0]
   const startDate = startedAt ? new Date(startedAt) : first ? arrivals.get(first.id) : undefined
 
@@ -76,7 +85,7 @@ export function Thread({
                   className={cn('flex flex-col gap-4 [content-visibility:visible]', arrived && ENTER)}
                 >
                   {message.role === 'user' ? (
-                    <UserTurn message={message} sources={message.id === firstUserId ? sources : undefined} />
+                    <UserTurn message={message} sources={sources.get(message.id)} />
                   ) : (
                     <AssistantTurn time={arrived && clock(arrived)}>{renderAssistant(message)}</AssistantTurn>
                   )}

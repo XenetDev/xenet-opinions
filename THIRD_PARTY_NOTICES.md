@@ -15,6 +15,12 @@ This repository includes material from the following third-party projects.
 - License: MIT
 - Used in: `apps/web/src/components/ui/`
 
+## ReUI
+
+- Source: https://reui.io
+- License: ReUI Pro licence held by Xenet; components installed through the shadcn registry, not redistributed as a library
+- Used in: `apps/web/src/components/ui/{attachment,bubble,card,empty,field,kbd,label,marker,message,message-scroller,popover,progress}.tsx`, `apps/web/src/components/reui/`
+
 ## cn
 
 - Source: https://github.com/shadcn-ui/cn

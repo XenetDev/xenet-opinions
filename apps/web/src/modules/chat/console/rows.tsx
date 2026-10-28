@@ -226,7 +226,7 @@ export function LiveRow({ row, mode, action }: { row: ConsoleRow; mode: BandMode
       data-band={mode}
       className={cn('flex flex-col gap-2 border-y border-border bg-muted/50 py-2.5', ROW_X)}
     >
-      <Marker role="status" aria-live="polite" aria-busy={mode === 'live'} className="items-start">
+      <Marker role="status" aria-live="polite" className="items-start">
         {BAND_GLYPH[mode]}
         <MarkerContent
           key={row.id}

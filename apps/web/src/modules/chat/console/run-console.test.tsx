@@ -170,6 +170,25 @@ describe('RunConsole', () => {
       expect(screen.queryByText('Generating report…')).toBeNull()
     })
 
+    it('offers the button again when the request cannot reach the server', async () => {
+      fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
+      render(<RunConsole parts={open()} chatId="c1" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Generate report' }))
+      await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Generate report' })).toBeTruthy())
+      expect(screen.queryByText('Generating report…')).toBeNull()
+    })
+
+    it('keeps Cancel run working while the report is being requested', async () => {
+      fetchSpy.mockReturnValue(new Promise(() => {}))
+      const onCancelRun = vi.fn()
+      render(<RunConsole parts={open()} chatId="c1" onCancelRun={onCancelRun} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Generate report' }))
+      await waitFor(() => expect(screen.getByText('Generating report…')).toBeTruthy())
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
+      expect(onCancelRun).toHaveBeenCalledTimes(1)
+    })
+
     it('shows the report as requested after a reload', () => {
       render(<RunConsole parts={open()} chatId="c1" reportRequested />)
       expect(screen.getByText('Generating report…')).toBeTruthy()
@@ -241,7 +260,7 @@ describe('RunConsole', () => {
       const { rerender } = render(<RunConsole parts={working} chatId="c1" />)
       const region = screen.getByRole('status')
       expect(region.getAttribute('aria-live')).toBe('polite')
-      expect(region.getAttribute('aria-busy')).toBe('true')
+      expect(region.hasAttribute('aria-busy')).toBe(false)
       rerender(<RunConsole parts={through('report', 'running')} chatId="c1" />)
       expect(screen.getByRole('status')).toBe(region)
       expect(within(region).getByText('Writing the report')).toBeTruthy()
@@ -252,12 +271,10 @@ describe('RunConsole', () => {
     it('settles on the outcome when nothing is live', () => {
       const { rerender } = render(<RunConsole parts={through('finished', 'done')} chatId="c1" />)
       expect(within(screen.getByRole('status')).getByText('Run complete')).toBeTruthy()
-      expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('false')
       rerender(<RunConsole parts={finished} chatId="c1" />)
       expect(within(screen.getByRole('status')).getByText('Run complete')).toBeTruthy()
       rerender(<RunConsole parts={through('sim_prepare', 'failed', 'Persona generation timed out')} chatId="c1" />)
       expect(within(screen.getByRole('status')).getByText('Persona generation timed out')).toBeTruthy()
-      expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('false')
       rerender(<RunConsole parts={through('sim_create', 'cancelled', 'Cancelled by the user')} chatId="c1" />)
       expect(within(screen.getByRole('status')).getByText('Cancelled')).toBeTruthy()
       rerender(<RunConsole parts={[{ type: 'data-queue', data: { position: 2 } }]} chatId="c1" />)

@@ -114,6 +114,23 @@ describe('deriveConsole', () => {
     })
   })
 
+  it.each([
+    ['report_requested', 'Report requested'],
+    ['environment_stopped', 'The simulation environment stopped'],
+  ] as const)('explains a window closed for %s', (reason, detail) => {
+    const parts: Parts = [
+      ...through('sim_run', 'done'),
+      stage('interviews', 'done'),
+      {
+        type: 'data-interview_window',
+        id: 'interview_window',
+        data: { until: null, personaCount: 4, closed: true, reason },
+      },
+    ]
+    const model = deriveConsole(parts, { ...live, windowLive: true })
+    expect(model.rows.find((r) => r.title === 'Personas offline')).toMatchObject({ kind: 'done', detail })
+  })
+
   it('shows the personas offline when the run ended without closing the window', () => {
     const until = new Date(NOW + 20 * 60_000).toISOString()
     const parts: Parts = [

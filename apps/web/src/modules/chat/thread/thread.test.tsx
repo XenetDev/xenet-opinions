@@ -8,12 +8,6 @@ import { Thread } from './thread'
 
 afterEach(cleanup)
 
-const messages: OpinionsUIMessage[] = [
-  { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'How will customers react?' }] },
-  { id: 'a1', role: 'assistant', parts: [{ type: 'text', text: 'They will grumble.' }] },
-  { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Why?' }] },
-]
-
 const sources = {
   files: [
     { id: 'f1', filename: 'brief.pdf', mediaType: 'application/pdf', sizeBytes: 2048 },
@@ -21,11 +15,23 @@ const sources = {
   ],
 }
 
+const messages: OpinionsUIMessage[] = [
+  { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'How will customers react?' }] },
+  {
+    id: 'a1',
+    role: 'assistant',
+    parts: [
+      { type: 'data-sources', data: sources },
+      { type: 'text', text: 'They will grumble.' },
+    ],
+  },
+  { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Why?' }] },
+]
+
 const renderThread = (list = messages) =>
   render(
     <Thread
       messages={list}
-      sources={sources}
       startedAt="2026-10-28T09:30:00.000Z"
       renderAssistant={(message) => <p>{`body of ${message.id}`}</p>}
     />,
@@ -47,6 +53,41 @@ describe('Thread', () => {
     expect(within(first).getByText('brief.pdf')).toBeTruthy()
     expect(within(first).getByText('notes.md')).toBeTruthy()
     const second = screen.getByRole('group', { name: 'You: Why?' })
+    expect(within(second).queryByText('brief.pdf')).toBeNull()
+  })
+
+  it('shows each run its own files on the user turn that started it', () => {
+    const rerun: OpinionsUIMessage[] = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'First try' }] },
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'data-sources', data: sources },
+          {
+            type: 'data-error',
+            data: { stage: 'sim_prepare', code: 'timeout', message: 'Persona generation timed out' },
+          },
+        ],
+      },
+      { id: 'u2', role: 'user', parts: [{ type: 'text', text: 'Second try' }] },
+      {
+        id: 'a2',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'data-sources',
+            data: { files: [{ id: 'f3', filename: 'pricing.csv', mediaType: 'text/csv', sizeBytes: 100 }] },
+          },
+        ],
+      },
+    ]
+    renderThread(rerun)
+    const first = screen.getByRole('group', { name: 'You: First try' })
+    expect(within(first).getByText('brief.pdf')).toBeTruthy()
+    expect(within(first).queryByText('pricing.csv')).toBeNull()
+    const second = screen.getByRole('group', { name: 'You: Second try' })
+    expect(within(second).getByText('pricing.csv')).toBeTruthy()
     expect(within(second).queryByText('brief.pdf')).toBeNull()
   })
 
@@ -77,7 +118,6 @@ describe('Thread', () => {
     view.rerender(
       <Thread
         messages={[...messages, arriving]}
-        sources={sources}
         startedAt="2026-10-28T09:30:00.000Z"
         renderAssistant={(message) => <p>{`body of ${message.id}`}</p>}
       />,
