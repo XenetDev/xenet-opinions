@@ -9,10 +9,12 @@ import { FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
 import { Kbd } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { Usage } from '@/server/usage-from'
 import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
 import { FileChips, PersonaChips } from './chips'
 import { defaultRounds, PauseToggle, RoundsPicker, type RunOptionsValue } from './run-options'
+import { UsageBar } from './usage-bar'
 import { useUploads } from './use-uploads'
 
 const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
@@ -42,6 +44,7 @@ export function BoxComposer({
   onNeedChat,
   value,
   onValueChange,
+  usage,
 }: {
   chatId?: string
   mode: 'run' | 'followUp' | 'interview'
@@ -55,6 +58,7 @@ export function BoxComposer({
   onNeedChat?: () => Promise<string>
   value?: string
   onValueChange?: (value: string) => void
+  usage?: Usage | null
 }) {
   const pendingChat = useRef<Promise<string> | null>(null)
   const resolveChatId = useCallback(() => {
@@ -160,6 +164,7 @@ export function BoxComposer({
         spacing="sm"
         className="w-full transition-[color,box-shadow] has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50"
       >
+        {mode === 'run' && usage && <UsageBar usage={usage} />}
         <FramePanel className="p-0">
           <form onSubmit={submit}>
             <FieldLabel className="sr-only" htmlFor={fieldId}>

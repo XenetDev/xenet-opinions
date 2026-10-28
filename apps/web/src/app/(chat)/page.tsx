@@ -3,10 +3,13 @@ import { getSessionUser } from '@/lib/session'
 import { HomeChat } from '@/modules/chat/home/home-chat'
 import { listChats } from '@/server/chats'
 import { getLimits } from '@/server/limits'
+import { getUsage } from '@/server/usage'
 
 export default async function Home() {
   const user = await getSessionUser(await headers())
+  const limits = getLimits()
   const chats = user ? await listChats(user.id) : []
+  const usage = user ? await getUsage(user.id, limits) : null
   const recent = chats
     .filter((chat) => chat.title)
     .slice(0, 4)
@@ -17,5 +20,5 @@ export default async function Home() {
       ...(chat.firstFile ? { firstFile: chat.firstFile } : {}),
     }))
 
-  return <HomeChat recent={recent} limits={getLimits()} />
+  return <HomeChat recent={recent} limits={limits} usage={usage} />
 }

@@ -454,3 +454,32 @@ describe('BoxComposer', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('usage bar', () => {
+  it('shows runs used, the reset time and a progress bar in run mode only', () => {
+    const usage = { used: 3, max: 10, resetAt: '2026-10-29T08:00:00.000Z' }
+    const { rerender } = render(
+      <TooltipProvider>
+        <Composer mode="run" onSend={vi.fn()} usage={usage} />
+      </TooltipProvider>,
+    )
+    expect(screen.getByTestId('usage-bar').textContent).toContain('3 of 10 runs used today')
+    expect(screen.getByTestId('usage-bar').textContent).toContain('Resets at')
+    expect(screen.getByRole('progressbar', { name: 'Runs used today' })).toBeTruthy()
+    rerender(
+      <TooltipProvider>
+        <Composer mode="followUp" onSend={vi.fn()} usage={usage} />
+      </TooltipProvider>,
+    )
+    expect(screen.queryByTestId('usage-bar')).toBeNull()
+  })
+
+  it('says no runs are left when the quota is spent', () => {
+    render(
+      <TooltipProvider>
+        <Composer mode="run" onSend={vi.fn()} usage={{ used: 10, max: 10, resetAt: '2026-10-29T08:00:00.000Z' }} />
+      </TooltipProvider>,
+    )
+    expect(screen.getByTestId('usage-bar').textContent).toContain('No runs left until')
+  })
+})

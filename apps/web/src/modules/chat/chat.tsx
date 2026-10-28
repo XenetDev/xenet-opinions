@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
+import type { Usage } from '@/server/usage-from'
 import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
@@ -44,6 +45,7 @@ export function Chat({
   latestRun,
   limits,
   startedAt,
+  usage: initialUsage = null,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
@@ -56,6 +58,7 @@ export function Chat({
   } | null
   latestRun: LatestRun | null
   limits: Limits
+  usage?: Usage | null
   startedAt?: string
 }) {
   const router = useRouter()
@@ -63,6 +66,7 @@ export function Chat({
   const { setActivity } = useChatActivity()
   const runActiveRef = useRef(!!activeRun)
   const [notice, setNotice] = useState<string | null>(null)
+  const [usage, setUsage] = useState(initialUsage)
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
@@ -228,6 +232,7 @@ export function Chat({
               maxRounds={limits.maxRounds}
               chatId={chatId}
               allowPause={limits.allowPause}
+              usage={usage}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
               busy={runActive && !interviewMode}
@@ -246,6 +251,7 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
+                setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
                 const title = chats.find((chat) => chat.id === chatId)?.title
                 upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
                 setSendCount((count) => count + 1)
