@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { bigint, boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -82,7 +82,7 @@ export const rateLimit = pgTable(
     count: integer('count').notNull(),
     lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
   },
-  (table) => [index('rate_limit_key_idx').on(table.key)],
+  (table) => [uniqueIndex('rate_limit_key_idx').on(table.key)],
 )
 
 export const userRelations = relations(user, ({ many }) => ({
