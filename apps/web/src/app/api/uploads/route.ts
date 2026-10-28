@@ -1,5 +1,6 @@
+import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
-import { getOwnedChat } from '@/server/chats'
+import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { validateUploads } from '@/server/upload-rules'
 import { createUploads } from '@/server/uploads'
 
@@ -21,11 +22,12 @@ export async function POST(request: Request) {
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
 
-  const chat = await getOwnedChat(chatId, user.id)
-  if (!chat) return Response.json({ error: 'not_found' }, { status: 404 })
+  const owned = await getOwnedChat(chatId, user.id)
+  if (!owned && !isChatId(chatId)) return Response.json({ error: 'not_found' }, { status: 404 })
 
   const validation = validateUploads(files)
   if (!validation.ok) return Response.json({ error: 'upload_rejected', reason: validation.reason }, { status: 400 })
+  if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
 
   const uploads = await createUploads({
     chatId,

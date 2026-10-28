@@ -1,8 +1,9 @@
+import { cache } from 'react'
 import { auth } from '@/lib/auth'
 
 export type SessionUser = { id: string; isAnonymous: boolean; email: string; name: string; image: string | null }
 
-export async function getSessionUser(headers: Headers): Promise<SessionUser | null> {
+export const getSessionUser = cache(async (headers: Headers): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers })
   if (!session) return null
   const { user } = session
@@ -13,4 +14,4 @@ export async function getSessionUser(headers: Headers): Promise<SessionUser | nu
     name: user.name,
     image: user.image ?? null,
   }
-}
+})

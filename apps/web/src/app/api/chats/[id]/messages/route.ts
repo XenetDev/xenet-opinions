@@ -1,7 +1,8 @@
 import { checkRunPolicy, QUOTA_WINDOW_MS, tailRunAsUIMessageStream } from '@xo/engine'
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
+import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
-import { getOwnedChat } from '@/server/chats'
+import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
@@ -16,8 +17,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!user) return Response.json({ error: 'unauthenticated' }, { status: 401 })
 
   const { id: chatId } = await params
-  const chat = await getOwnedChat(chatId, user.id)
-  if (!chat) return Response.json({ error: 'not_found' }, { status: 404 })
+  const owned = await getOwnedChat(chatId, user.id)
+  if (!owned && !isChatId(chatId)) return Response.json({ error: 'not_found' }, { status: 404 })
 
   const json = await request.json().catch(() => null)
   const body = parseMessageBody(json)
@@ -26,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const text = messageText(body)
   if (!text) return Response.json({ error: 'empty_message' }, { status: 400 })
 
-  const active = await runStore.getActiveByChat(chatId)
+  const active = owned ? await runStore.getActiveByChat(chatId) : null
   if (active?.stage === 'interviews') {
     if (body.target !== 'agents') return Response.json({ error: 'run_paused' }, { status: 409 })
     try {
@@ -40,11 +41,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
   if (active) return Response.json({ error: 'run_active' }, { status: 409 })
-  const latest = await runStore.getLatestByChat(chatId)
-  if (latest?.status === 'done') {
+  const latest = owned ? await runStore.getLatestByChat(chatId) : null
+  if (owned && latest?.status === 'done') {
     try {
       return await runFollowUp({
-        chat,
+        chat: owned,
         run: latest,
         userMessage: { id: body.message.id, parts: body.message.parts },
         text,
@@ -83,8 +84,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   if ((await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
+    if (!owned) return Response.json({ error: 'not_found' }, { status: 404 })
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
+  if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
 
   let started: Awaited<ReturnType<typeof startRun>>
   try {

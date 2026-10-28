@@ -200,7 +200,7 @@ browser ──► Vercel (apps/web) ──► managed Postgres ◄── worker 
 web + worker ──► S3-compatible bucket (R2 or S3)
 ```
 
-- Web: Vercel, root directory `apps/web` (see below).
+- Web: Vercel, root directory `apps/web` (see below). Conversation ids are generated in the browser, and the server creates the conversation on its first upload or message.
 - Postgres: managed Postgres reachable from Vercel and the container host. Run `pnpm --filter @xo/db db:migrate:prod` with its `DATABASE_URL` before each deploy that adds migrations.
 - Container host: `worker`, `mirofish-proxy` and `mirofish` on one private network, built from the same Dockerfiles as the bundle (or run from the published `ghcr.io/xenetdev/xenet-opinions-worker` and `ghcr.io/xenetdev/xenet-opinions-mirofish` images; the proxy is `caddy:2` with `infra/mirofish/Caddyfile`, or `infra/mirofish/Dockerfile.proxy` where files cannot be mounted). Their environment is listed under [Container host environment](#container-host-environment). Exactly one MiroFish replica with a persistent volume on `/app/backend/uploads` and the retention cron. MiroFish's port is never public. The proxy is the only public entry point, because Vercel needs to reach it; it requires `X-MiroFish-Token` on everything but `GET /health`. The Caddyfile serves plain HTTP on `:8080` (`auto_https off`), so the container host or platform must terminate TLS in front of it: Railway and Fly do this on their public URLs, a bare VM needs a TLS-terminating reverse proxy. Without TLS the token travels in cleartext.
 - Uploads: an S3-compatible bucket (`STORAGE_DRIVER=s3`, `S3_*`) shared by web and worker. For R2 set `S3_ENDPOINT` to the account endpoint, `S3_REGION=auto` and `S3_FORCE_PATH_STYLE=true`.

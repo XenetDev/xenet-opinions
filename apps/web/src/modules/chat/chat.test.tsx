@@ -678,3 +678,139 @@ describe('Chat', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 })
+
+describe('Chat in new mode', () => {
+  const STARTER = 'How will customers react to a 20% price increase on our Pro plan?'
+  const SSE = { 'content-type': 'text/event-stream', 'x-vercel-ai-ui-message-stream': 'v1' }
+  const usage = { used: 0, max: 2, resetAt: null }
+  const renderNew = () =>
+    render(
+      <Chat
+        mode="new"
+        chatId="n1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={null}
+        recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
+        limits={{ ...limits, demoMode: true }}
+        usage={usage}
+      />,
+    )
+  const posts = () =>
+    fetchSpy.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST').map(([url]) => url)
+
+  it('renders the welcome block and fills the composer from a starter', () => {
+    renderNew()
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Price increase/ }).getAttribute('href')).toBe('/c/old')
+    fireEvent.click(screen.getByRole('button', { name: STARTER }))
+    expect(composer.props?.value).toBe(STARTER)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('sends in place with the client id, then swaps the URL once', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    let respond: (response: Response) => void = () => {}
+    fetchSpy.mockImplementation((url: string) =>
+      url === '/api/chats/n1/messages'
+        ? new Promise<Response>((resolve) => {
+            respond = resolve
+          })
+        : Promise.resolve(Response.json({ status: 'queued' })),
+    )
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(screen.getByText('why?')).toBeTruthy())
+    expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
+    const chunks = [
+      { type: 'start', messageId: 'a1' },
+      { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'running' } },
+    ]
+    respond(new Response(chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join(''), { headers: SSE }))
+    await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
+    await act(async () => {})
+    expect(pushState).toHaveBeenCalledTimes(1)
+    expect(upsertChat).toHaveBeenCalledWith({ id: 'n1', title: 'why?', runStatus: 'queued' })
+    expect(composer.props?.usage).toMatchObject({ used: 1 })
+    expect(posts()).toEqual(['/api/chats/n1/messages'])
+    const init = fetchSpy.mock.calls.find(([url]) => url === '/api/chats/n1/messages')?.[1] as RequestInit
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      id: 'n1',
+      message: { role: 'user', parts: [{ type: 'text', text: 'why?' }] },
+      uploadIds: ['u1'],
+      runOptions: { maxRounds: 1, pauseForInterviews: false },
+    })
+    expect(await composer.sent).toBe('sent')
+    pushState.mockRestore()
+  })
+
+  it('adopts fresh usage from the server', () => {
+    const view = renderNew()
+    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    view.rerender(
+      <Chat
+        mode="new"
+        chatId="n1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={null}
+        limits={{ ...limits, demoMode: true }}
+        usage={{ used: 2, max: 2, resetAt: null }}
+      />,
+    )
+    expect(composer.props?.usage).toMatchObject({ used: 2 })
+  })
+
+  it('drops an aborted first send without claiming the URL or showing a notice', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+      url === '/api/chats/n1/run/cancel'
+        ? Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }))
+        : new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+          }),
+    )
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(screen.getByText('why?')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await composer.sent).toBe('aborted')
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy())
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
+    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    await act(async () => {})
+    expect(screen.queryAllByRole('status').filter((el) => el.textContent)).toEqual([])
+    expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/run/cancel'])
+    pushState.mockRestore()
+  })
+
+  it('stays on the welcome block with the notice when the send is refused, and retries with the same id', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    fetchSpy.mockResolvedValueOnce(Response.json({ error: 'quota_exceeded' }, { status: 429 }))
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    expect(await composer.sent).not.toBe('sent')
+    await waitFor(() =>
+      expect(screen.getAllByText("You've used today's two runs. Come back tomorrow.").length).toBeGreaterThan(0),
+    )
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
+    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    fetchSpy.mockImplementation(async (url: string) =>
+      url === '/api/chats/n1/messages'
+        ? new Response(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`, { headers: SSE })
+        : Response.json({ status: 'queued' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
+    expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/messages'])
+    pushState.mockRestore()
+  })
+})

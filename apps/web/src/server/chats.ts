@@ -1,6 +1,8 @@
 import { type Chat, type Message, type Run, schema } from '@xo/db'
 import { generateId } from 'ai'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { cache } from 'react'
+import { isChatId } from '@/lib/chat-id'
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
 import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from './runs'
@@ -19,6 +21,12 @@ export async function getOwnedChat(chatId: string, userId: string): Promise<Chat
     .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
     .limit(1)
   return chat ?? null
+}
+
+export async function ensureOwnedChat(chatId: string, userId: string): Promise<Chat | null> {
+  if (!isChatId(chatId)) return null
+  await db.insert(chats).values({ id: chatId, userId, title: '' }).onConflictDoNothing()
+  return getOwnedChat(chatId, userId)
 }
 
 export async function appendMessage(input: {
@@ -55,7 +63,7 @@ export type ChatSummary = {
   firstFile?: string
 }
 
-export async function listChats(userId: string): Promise<ChatSummary[]> {
+export const listChats = cache(async (userId: string): Promise<ChatSummary[]> => {
   const rows = await db
     .select({
       id: chats.id,
@@ -64,27 +72,15 @@ export async function listChats(userId: string): Promise<ChatSummary[]> {
       runStatus: sql<
         ChatSummary['runStatus']
       >`coalesce((select r.status from runs r where r.chat_id = chats.id order by r.queued_at desc limit 1), 'none')`,
+      firstFile: sql<
+        string | null
+      >`(select u.filename from uploads u where u.chat_id = chats.id order by u.created_at asc, u.filename asc limit 1)`,
     })
     .from(chats)
     .where(eq(chats.userId, userId))
     .orderBy(desc(chats.updatedAt))
-  if (rows.length === 0) return rows
-  const files = await db
-    .selectDistinctOn([uploads.chatId], { chatId: uploads.chatId, filename: uploads.filename })
-    .from(uploads)
-    .where(
-      inArray(
-        uploads.chatId,
-        rows.map((row) => row.id),
-      ),
-    )
-    .orderBy(uploads.chatId, asc(uploads.createdAt), asc(uploads.filename))
-  const firstFiles = new Map(files.map((file) => [file.chatId, file.filename]))
-  return rows.map((row) => {
-    const firstFile = firstFiles.get(row.id)
-    return firstFile ? { ...row, firstFile } : row
-  })
-}
+  return rows.map(({ firstFile, ...row }) => (firstFile ? { ...row, firstFile } : row))
+})
 
 export async function renameChat(chatId: string, title: string): Promise<void> {
   await db.update(chats).set({ title }).where(eq(chats.id, chatId))

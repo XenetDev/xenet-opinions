@@ -104,6 +104,7 @@ export const runs = pgTable(
   },
   (t) => [
     index('runs_status_queued_at_idx').on(t.status, t.queuedAt),
+    index('runs_chat_id_queued_at_idx').on(t.chatId, t.queuedAt),
     uniqueIndex('runs_one_active_per_chat').on(t.chatId).where(sql`${t.status} in ('queued','running')`),
   ],
 )
@@ -124,20 +125,24 @@ export const runEvents = pgTable(
   (t) => [uniqueIndex('run_events_run_id_seq_idx').on(t.runId, t.seq)],
 )
 
-export const uploads = pgTable('uploads', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  chatId: text('chat_id')
-    .notNull()
-    .references(() => chats.id, { onDelete: 'cascade' }),
-  storageKey: text('storage_key').notNull(),
-  filename: text('filename').notNull(),
-  mediaType: text('media_type').notNull(),
-  sizeBytes: integer('size_bytes').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const uploads = pgTable(
+  'uploads',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    chatId: text('chat_id')
+      .notNull()
+      .references(() => chats.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull(),
+    filename: text('filename').notNull(),
+    mediaType: text('media_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('uploads_chat_id_created_at_filename_idx').on(t.chatId, t.createdAt, t.filename)],
+)
 
 export type Run = InferSelectModel<typeof runs>
 export type NewRun = InferInsertModel<typeof runs>
