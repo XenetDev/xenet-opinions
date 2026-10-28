@@ -113,6 +113,7 @@ describe('POST /api/chats/[id]/messages', () => {
     it('creates the chat on first use and starts the run', async () => {
       authed()
       vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(countOwnedUploads).mockResolvedValue(1)
       vi.mocked(ensureOwnedChat).mockResolvedValue({ id: newId } as never)
       vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
       vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
@@ -120,17 +121,39 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(res.status).toBe(200)
       expect(ensureOwnedChat).toHaveBeenCalledWith(newId, 'user1')
       expect(runStore.getActiveByChat).not.toHaveBeenCalled()
+      expect(countOwnedUploads).toHaveBeenCalledWith({ chatId: newId, userId: 'user1', uploadIds: ['up1'] })
       expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ chatId: newId, userId: 'user1' }))
     })
 
-    it("returns 404 for another user's id and starts nothing", async () => {
+    it("returns 404 for another user's id without creating anything", async () => {
+      authed()
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(countOwnedUploads).mockResolvedValue(0)
+      const res = await send()
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: 'not_found' })
+      expect(countOwnedUploads).toHaveBeenCalledTimes(1)
+      expect(ensureOwnedChat).not.toHaveBeenCalled()
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it("returns 404 for a new id whose uploads don't match, without creating it", async () => {
+      authed()
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(countOwnedUploads).mockResolvedValue(0)
+      const res = await callBody({ id: newId, message: userMessage('hi'), uploadIds: ['up1', 'up2'] }, newId)
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: 'not_found' })
+      expect(ensureOwnedChat).not.toHaveBeenCalled()
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 when the chat cannot be claimed after the uploads check', async () => {
       authed()
       vi.mocked(getOwnedChat).mockResolvedValue(null)
       vi.mocked(ensureOwnedChat).mockResolvedValue(null)
       const res = await send()
       expect(res.status).toBe(404)
-      expect(await res.json()).toEqual({ error: 'not_found' })
-      expect(countOwnedUploads).not.toHaveBeenCalled()
       expect(startRun).not.toHaveBeenCalled()
     })
 

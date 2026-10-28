@@ -83,11 +83,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
   }
 
-  if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
-
   if ((await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
+    if (!owned) return Response.json({ error: 'not_found' }, { status: 404 })
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
+  if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
 
   let started: Awaited<ReturnType<typeof startRun>>
   try {
