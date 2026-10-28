@@ -5,8 +5,8 @@ import type { ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { ASK_QUESTION, AskScene } from './ask'
-import { InterviewScene } from './interview'
-import { ReportScene } from './report'
+import { ANSWER, InterviewScene, QUESTION } from './interview'
+import { FOLLOW_UP, REPLY, REPORT_LINES, ReportScene } from './report'
 import { WatchScene } from './watch'
 
 type SceneComponent = ComponentType<{ active: boolean }>
@@ -70,8 +70,8 @@ const FINAL: { name: string; Scene: SceneComponent; loopMs: number; expectFinal:
         expect.stringContaining('Liam Walker'),
       ])
       expect(document.querySelectorAll('[aria-pressed="false"]')).toHaveLength(2)
-      expect(screen.getByText('Ask the selected personas…')).toBeTruthy()
-      expect(screen.getByText('Still better value than the alternatives, honestly.')).toBeTruthy()
+      expect(screen.getByText(QUESTION)).toBeTruthy()
+      expect(screen.getByText(ANSWER)).toBeTruthy()
     },
   },
   {
@@ -80,17 +80,11 @@ const FINAL: { name: string; Scene: SceneComponent; loopMs: number; expectFinal:
     loopMs: 9300,
     expectFinal: () => {
       expect(screen.getByText('Public reaction to the price increase')).toBeTruthy()
-      for (const line of [
-        'Early posts criticised the timing.',
-        'Sentiment stabilised by the midpoint.',
-        'Small teams are the main churn risk.',
-      ]) {
-        expect(screen.getByText(line)).toBeTruthy()
-      }
+      for (const line of REPORT_LINES) expect(screen.getByText(line)).toBeTruthy()
       expect(screen.getByText('pricing-brief.pdf')).toBeTruthy()
       expect(screen.getByText('seed.md')).toBeTruthy()
-      expect(screen.getByText('Which segment is most at risk?')).toBeTruthy()
-      expect(screen.getByText('Small teams: they name competitors most often.')).toBeTruthy()
+      expect(screen.getByText(FOLLOW_UP)).toBeTruthy()
+      expect(screen.getByText(REPLY)).toBeTruthy()
     },
   },
 ]
@@ -132,6 +126,32 @@ describe.each(FINAL)('$name scene', ({ Scene, loopMs, expectFinal }) => {
   })
 })
 
+describe('stage scale', () => {
+  it('scales the 640x360 layer to the measured stage width', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe() {
+          this.callback([{ contentRect: { width: 320 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+        }
+        disconnect() {}
+      },
+    )
+    render(<AskScene active={false} />)
+    const layer = screen.getByTestId('guide-scene-layer')
+    expect(layer.style.transform).toBe('scale(0.5)')
+    expect(layer.className).toContain('w-[640px]')
+    expect(layer.className).toContain('h-[360px]')
+  })
+
+  it('renders at full size where ResizeObserver is unavailable', () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    render(<AskScene active={false} />)
+    expect(screen.getByTestId('guide-scene-layer').style.transform).toBe('scale(1)')
+  })
+})
+
 describe('first frames', () => {
   it('ask starts with an empty composer and no attachment', () => {
     render(<AskScene active />)
@@ -149,12 +169,13 @@ describe('first frames', () => {
   it('interview starts with no persona selected', () => {
     render(<InterviewScene active />)
     expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0)
-    expect(screen.queryByText('Still better value than the alternatives, honestly.')).toBeNull()
+    expect(screen.getByText('Ask the selected personas…')).toBeTruthy()
+    expect(screen.queryByText(ANSWER)).toBeNull()
   })
 
   it('report starts with only its heading', () => {
     render(<ReportScene active />)
     expect(screen.getByText('Public reaction to the price increase')).toBeTruthy()
-    expect(screen.queryByText('Early posts criticised the timing.')).toBeNull()
+    expect(screen.queryByText(REPORT_LINES[0] ?? '')).toBeNull()
   })
 })

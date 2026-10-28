@@ -15,7 +15,7 @@ const CARDS = [
   { name: 'Noah Ortiz', role: 'Ops manager, SaaS' },
 ]
 const PLACEHOLDER = 'Ask the selected personas…'
-const QUESTION = 'Would you stay on Pro at the new price?'
+export const QUESTION = 'Would you stay on Pro at the new price?'
 export const ANSWER = 'Still better value than the alternatives, honestly.'
 const TYPING = 10
 const TYPE_FROM = 3
@@ -54,7 +54,7 @@ export function InterviewScene({ active }: { active: boolean }) {
         })}
       </div>
       {phase >= THINKING && (
-        <div className={cn(ENTER, 'w-1/2 min-w-0')}>
+        <div className={cn(ENTER, 'w-1/2 min-w-0 [&_[data-slot=bubble-content]]:text-[13px]/5')}>
           <InterviewCard
             showQuestion={false}
             data={{
@@ -68,8 +68,8 @@ export function InterviewScene({ active }: { active: boolean }) {
         </div>
       )}
       <MiniComposer
-        text=""
-        placeholder={typed(PLACEHOLDER, phase, TYPE_FROM, TYPING)}
+        text={typed(QUESTION, phase, TYPE_FROM, TYPING)}
+        placeholder={PLACEHOLDER}
         chips={
           picked.length > 0 &&
           picked.map((card) => (

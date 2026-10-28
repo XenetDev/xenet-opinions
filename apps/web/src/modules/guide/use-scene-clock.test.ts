@@ -70,6 +70,37 @@ describe('useSceneClock', () => {
     expect(result.current).toBe(1)
   })
 
+  it('follows reduced-motion changes while mounted', () => {
+    const media = { matches: false, listeners: new Set<() => void>() }
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      get matches() {
+        return media.matches
+      },
+      media: query,
+      addEventListener: (_: string, listener: () => void) => media.listeners.add(listener),
+      removeEventListener: (_: string, listener: () => void) => media.listeners.delete(listener),
+    }))
+    const change = (matches: boolean) => {
+      media.matches = matches
+      act(() => {
+        for (const listener of media.listeners) listener()
+      })
+    }
+    const { result } = renderHook(() => useSceneClock({ active: true, steps: STEPS }))
+    expect(result.current).toBe(0)
+    expect(vi.getTimerCount()).toBe(1)
+
+    change(true)
+    expect(result.current).toBe(2)
+    expect(vi.getTimerCount()).toBe(0)
+
+    change(false)
+    expect(result.current).toBe(0)
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => vi.advanceTimersByTime(100))
+    expect(result.current).toBe(1)
+  })
+
   it('clears its timer on unmount', () => {
     const { unmount } = renderHook(() => useSceneClock({ active: true, steps: STEPS }))
     expect(vi.getTimerCount()).toBe(1)
