@@ -5,7 +5,7 @@ const url = 'https://app.test/api/auth/magic-link/verify?token=abc'
 
 describe('magicLinkEmail', () => {
   const mail = magicLinkEmail({ url })
-  it('has the subject', () => expect(mail.subject).toBe('Your Xenet Opinions sign-in link'))
+  it('has the subject', () => expect(mail.subject).toBe('Your sign-in link for Xenet Opinions'))
   it('contains the url in text and html', () => {
     expect(mail.text).toContain(url)
     expect(mail.html).toContain(url)

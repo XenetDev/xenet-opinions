@@ -16,7 +16,7 @@ function card(input: { heading: string; intro: string; button: string; url: stri
 export function magicLinkEmail({ url }: { url: string }): Body {
   const intro = 'Use the button below to sign in to Xenet Opinions. The link expires in 15 minutes.'
   return {
-    subject: 'Your Xenet Opinions sign-in link',
+    subject: 'Your sign-in link for Xenet Opinions',
     text: `${intro}\n\n${url}\n\n${IGNORE}`,
     html: card({ heading: 'Sign in to Xenet Opinions', intro, button: 'Sign in', url }),
   }
