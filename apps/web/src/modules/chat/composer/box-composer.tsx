@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { Usage } from '@/server/usage-from'
 import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
+import { FILES_REQUIRED } from '../send-notices'
 import { FileChips, PersonaChips } from './chips'
 import { defaultRounds, PauseToggle, RoundsPicker, type RunOptionsValue } from './run-options'
 import { type SignInUpsell, UsageBar } from './usage-bar'
@@ -89,6 +90,7 @@ export function BoxComposer({
   const selection = useInterviewSelection()
   const personas = mode === 'interview' ? (selection?.selected ?? []) : []
   if (notice === NO_PERSONAS && personas.length > 0) setNotice(null)
+  if (notice === FILES_REQUIRED && files.length > 0) setNotice(null)
   const routed = useAnnounce(notice)
   const fileInput = useRef<HTMLInputElement>(null)
   const field = useRef<HTMLTextAreaElement>(null)
@@ -114,6 +116,10 @@ export function BoxComposer({
     }
     if (files.some((f) => f.status === 'error')) {
       setNotice(FAILED_FILES)
+      return
+    }
+    if (files.length === 0) {
+      setNotice(FILES_REQUIRED)
       return
     }
     setNotice(null)
