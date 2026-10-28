@@ -70,6 +70,18 @@ describe('BoxComposer', () => {
     expect(container.querySelector('[data-align="block-end"]')?.contains(textarea())).toBe(false)
   })
 
+  it.each(['run', 'followUp', 'interview'] as const)('insets the toolbar like the field in %s mode', (mode) => {
+    const { container } = renderComposer({ mode })
+    expect(container.querySelector('[data-align="block-end"]')?.className).toMatch(/(^|\s)px-3(\s|$)/)
+  })
+
+  it('rings the box while the field has focus', () => {
+    const { container } = renderComposer()
+    const frame = container.querySelector('[data-slot="frame"]')?.className ?? ''
+    expect(frame).toContain('has-[[data-slot=input-group-control]:focus-visible]:ring-3')
+    expect(frame).toContain('has-[[data-slot=input-group-control]:focus-visible]:border-ring')
+  })
+
   it('sends on Enter and keeps Shift+Enter for a new line', async () => {
     const { onSend } = renderComposer({ mode: 'followUp' })
     type('why?')
@@ -180,6 +192,7 @@ describe('BoxComposer', () => {
         runOptions: { maxRounds: 3, pauseForInterviews: true },
       }),
     )
+    await waitFor(() => expect(textarea().value).toBe(''))
   })
 
   it('turns pause off again on a second press', () => {

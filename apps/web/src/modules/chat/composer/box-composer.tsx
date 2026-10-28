@@ -155,7 +155,11 @@ export function BoxComposer({
           {notice}
         </p>
       )}
-      <Frame dense spacing="sm" className="w-full">
+      <Frame
+        dense
+        spacing="sm"
+        className="w-full transition-[color,box-shadow] has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50"
+      >
         <FramePanel className="p-0">
           <form onSubmit={submit}>
             <FieldLabel className="sr-only" htmlFor={fieldId}>
@@ -209,7 +213,7 @@ export function BoxComposer({
                 rows={1}
                 className="field-sizing-content max-h-48 min-h-16 px-3 py-3"
               />
-              <InputGroupAddon align="block-end" className="flex-wrap gap-1">
+              <InputGroupAddon align="block-end" className="flex-wrap gap-1 px-3">
                 {mode === 'run' && (
                   <>
                     <DropdownMenu>
