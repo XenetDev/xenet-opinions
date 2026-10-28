@@ -464,7 +464,7 @@ describe('usage bar', () => {
       </TooltipProvider>,
     )
     expect(screen.getByTestId('usage-bar').textContent).toContain('3 of 10 runs used today')
-    expect(screen.getByTestId('usage-bar').textContent).toContain('Resets at')
+    expect(screen.getByTestId('usage-bar').textContent).toMatch(/Resets (today|tomorrow|[A-Z][a-z]+) at /)
     expect(screen.getByRole('progressbar', { name: 'Runs used today' })).toBeTruthy()
     rerender(
       <TooltipProvider>
@@ -481,5 +481,15 @@ describe('usage bar', () => {
       </TooltipProvider>,
     )
     expect(screen.getByTestId('usage-bar').textContent).toContain('No runs left until')
+  })
+})
+
+describe('resetLabel', () => {
+  it('says today, tomorrow or the weekday', async () => {
+    const { resetLabel } = await import('./usage-bar')
+    const now = new Date('2026-10-28T10:00:00')
+    expect(resetLabel('2026-10-28T16:17:00', now)).toMatch(/^today at /)
+    expect(resetLabel('2026-10-29T09:00:00', now)).toMatch(/^tomorrow at /)
+    expect(resetLabel('2026-10-31T09:00:00', now)).toMatch(/^Saturday at /)
   })
 })

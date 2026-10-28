@@ -5,14 +5,22 @@ import type { Usage } from '@/server/usage-from'
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
+export function resetLabel(iso: string, now = new Date()): string {
+  const at = new Date(iso)
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((day(at) - day(now)) / 86_400_000)
+  const when = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : at.toLocaleDateString([], { weekday: 'long' })
+  return `${when} at ${clock(iso)}`
+}
+
 export function UsageBar({ usage }: { usage: Usage }) {
   const left = Math.max(usage.max - usage.used, 0)
   const summary = `${usage.used} of ${usage.max} runs used today`
   const detail =
     left === 0 && usage.resetAt
-      ? `No runs left until ${clock(usage.resetAt)}`
+      ? `No runs left until ${resetLabel(usage.resetAt)}`
       : usage.resetAt
-        ? `Resets at ${clock(usage.resetAt)}`
+        ? `Resets ${resetLabel(usage.resetAt)}`
         : null
   return (
     <FrameHeader
