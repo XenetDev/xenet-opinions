@@ -2,11 +2,24 @@
 
 import { cleanup, render, screen, within } from '@testing-library/react'
 import type { OpinionsUIMessage } from '@xo/engine/parts'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { Thread } from './thread'
 
-afterEach(cleanup)
+const scrollToEnd = vi.hoisted(() => vi.fn())
+
+vi.mock('@/components/ui/message-scroller', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/message-scroller')>()
+  return {
+    ...actual,
+    useMessageScroller: () => ({ ...actual.useMessageScroller(), scrollToEnd }),
+  }
+})
+
+afterEach(() => {
+  cleanup()
+  scrollToEnd.mockClear()
+})
 
 const sources = {
   files: [
@@ -38,6 +51,18 @@ const renderThread = (list = messages) =>
   )
 
 describe('Thread', () => {
+  it('scrolls to the end when the user sends a new message, not on load or on replies', () => {
+    const view = renderThread()
+    expect(scrollToEnd).not.toHaveBeenCalled()
+    const reply: OpinionsUIMessage = { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'Because.' }] }
+    const props = { startedAt: '2026-10-28T09:30:00.000Z', renderAssistant: () => null }
+    view.rerender(<Thread {...props} messages={[...messages, reply]} />)
+    expect(scrollToEnd).not.toHaveBeenCalled()
+    const next: OpinionsUIMessage = { id: 'u3', role: 'user', parts: [{ type: 'text', text: 'And then?' }] }
+    view.rerender(<Thread {...props} messages={[...messages, reply, next]} />)
+    expect(scrollToEnd).toHaveBeenCalledTimes(1)
+  })
+
   it('renders user turns as end-aligned muted bubbles', () => {
     renderThread()
     const turn = screen.getByRole('group', { name: 'You: How will customers react?' })

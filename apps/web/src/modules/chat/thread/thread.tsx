@@ -1,7 +1,7 @@
 'use client'
 
 import type { OpinionsUIMessage, SourcesData } from '@xo/engine/parts'
-import { type ReactNode, useLayoutEffect, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
 import { Marker, MarkerContent } from '@/components/ui/marker'
 import {
   MessageScroller,
@@ -10,6 +10,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from '@/components/ui/message-scroller'
 import { cn } from '@/lib/utils'
 import { AssistantTurn, UserTurn } from './turn'
@@ -44,6 +45,15 @@ function sourcesByTurn(messages: OpinionsUIMessage[]): Map<string, SourcesData> 
   return byTurn
 }
 
+function FollowOnSend({ lastUserId }: { lastUserId?: string }) {
+  const { scrollToEnd } = useMessageScroller()
+  const [initial] = useState(lastUserId)
+  useEffect(() => {
+    if (lastUserId && lastUserId !== initial) scrollToEnd({ behavior: 'auto' })
+  }, [lastUserId, initial, scrollToEnd])
+  return null
+}
+
 const clock = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 export function Thread({
@@ -64,6 +74,7 @@ export function Thread({
 
   return (
     <MessageScrollerProvider autoScroll>
+      <FollowOnSend lastUserId={messages.findLast((message) => message.role === 'user')?.id} />
       <MessageScroller className={className}>
         <MessageScrollerViewport className="[--scroll-fade-b-size:2.5rem] [overflow-anchor:none]">
           <MessageScrollerContent className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-7 px-4 pt-6 pb-10 sm:px-6">
