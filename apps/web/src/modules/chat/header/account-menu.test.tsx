@@ -81,6 +81,14 @@ describe('AccountMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete account' })).toBeTruthy()
   })
 
+  it('hides the name line when the name is empty', () => {
+    auth.session = { data: { user: { ...registered.user, name: '' } }, isPending: false }
+    render(<AccountMenu signInAvailable />)
+    openMenu()
+    const label = screen.getByText('ada@example.com').parentElement
+    expect(label?.children).toHaveLength(1)
+  })
+
   it('signs out, goes home and refreshes', async () => {
     render(<AccountMenu signInAvailable />)
     openMenu()

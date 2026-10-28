@@ -26,6 +26,10 @@ describe('deleteAccountEmail', () => {
     expect(mail.text).toContain(url)
     expect(mail.html).toContain(url)
   })
+  it('asks to open the link in the signed-in browser', () => {
+    expect(mail.text).toContain("Open this link in the browser where you're signed in.")
+    expect(mail.html).toContain('Open this link in the browser where you')
+  })
   it('mentions the ignore line', () => {
     expect(mail.text).toContain('ignore this email')
     expect(mail.html).toContain('ignore this email')

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMailer, MailerError } from '@/lib/mailer'
 
 vi.mock('@/env', () => ({ env: {} }))
@@ -33,6 +33,29 @@ describe('resend mailer', () => {
     expect(error).toBeInstanceOf(MailerError)
     expect((error as MailerError).code).toBe('send_failed')
     expect((error as MailerError).message).not.toContain('secret-detail')
+  })
+})
+
+describe('resend mailer timeout', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('aborts the Resend request after 10 seconds', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    await createMailer(resendSource, 'production', fetchImpl as unknown as typeof fetch).send(mail)
+    expect(timeout).toHaveBeenCalledWith(10_000)
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.signal).toBe(timeout.mock.results[0]?.value)
+  })
+
+  it('rejects when the request times out', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new DOMException('The operation timed out.', 'TimeoutError')
+    })
+    const mailer = createMailer(resendSource, 'production', fetchImpl as unknown as typeof fetch)
+    await expect(mailer.send(mail)).rejects.toMatchObject({ name: 'TimeoutError' })
   })
 })
 

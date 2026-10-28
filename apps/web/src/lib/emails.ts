@@ -23,7 +23,8 @@ export function magicLinkEmail({ url }: { url: string }): Body {
 }
 
 export function deleteAccountEmail({ url }: { url: string }): Body {
-  const intro = 'Use the button below to permanently delete your Xenet Opinions account and its data.'
+  const intro =
+    "Use the button below to permanently delete your Xenet Opinions account and its data. Open this link in the browser where you're signed in."
   return {
     subject: 'Confirm deleting your Xenet Opinions account',
     text: `${intro}\n\n${url}\n\n${IGNORE}`,

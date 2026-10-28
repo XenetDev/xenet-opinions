@@ -28,6 +28,7 @@ export function createMailer(
           method: 'POST',
           headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
           body: JSON.stringify({ from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+          signal: AbortSignal.timeout(10_000),
         })
         if (!res.ok) throw new MailerError('send_failed', `Resend responded ${res.status}`)
       },
