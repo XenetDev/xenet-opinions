@@ -29,6 +29,7 @@ const SOCIAL: { id: Social; label: string; Logo: () => ReactNode }[] = [
 const HOSTING_DOCS = 'https://github.com/XenetDev/xenet-opinions/blob/main/docs/hosting.md'
 const RATE_LIMITED = 'Too many attempts. Try again in a minute.'
 const FAILED = 'Something went wrong. Try again.'
+const INVALID_EMAIL = 'Enter a valid email address.'
 
 export function SignInForm({ providers, next, error }: { providers: AuthProviders; next: string; error?: string }) {
   const [state, setState] = useState<State>({ status: 'idle' })
@@ -96,10 +97,11 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
         callbackURL: next,
         errorCallbackURL: `/sign-in?next=${encodeURIComponent(next)}`,
       })
-      const status = result.error?.status ?? 0
-      if (status === 429) setState({ status: 'error', message: RATE_LIMITED })
-      else if (status >= 500) setState({ status: 'error', message: FAILED })
-      else setState({ status: 'sent', email: address })
+      const { error } = result
+      if (!error || error.code === 'USER_NOT_FOUND') setState({ status: 'sent', email: address })
+      else if (error.status === 400) setState({ status: 'error', message: INVALID_EMAIL })
+      else if (error.status === 429) setState({ status: 'error', message: RATE_LIMITED })
+      else setState({ status: 'error', message: FAILED })
     } catch {
       setState({ status: 'error', message: FAILED })
     }

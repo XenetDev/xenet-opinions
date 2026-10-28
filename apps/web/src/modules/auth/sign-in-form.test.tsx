@@ -88,7 +88,7 @@ describe('SignInForm', () => {
   })
 
   it('shows the sent state even when the server reports an unknown user', async () => {
-    client.magicLink.mockResolvedValue({ data: null, error: { code: 'USER_NOT_FOUND', status: 400 } })
+    client.magicLink.mockResolvedValue({ data: null, error: { code: 'USER_NOT_FOUND', status: 404 } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeTruthy()
@@ -113,6 +113,22 @@ describe('SignInForm', () => {
 
   it('shows an alert when the server fails', async () => {
     client.magicLink.mockResolvedValue({ data: null, error: { status: 500, message: 'Internal Server Error' } })
+    render(<SignInForm providers={ALL} next="/" />)
+    submit()
+    expect((await screen.findByRole('alert')).textContent).toContain('Something went wrong. Try again.')
+    expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
+  })
+
+  it('asks for a valid email on a 400', async () => {
+    client.magicLink.mockResolvedValue({ data: null, error: { code: 'VALIDATION_ERROR', status: 400, message: 'x' } })
+    render(<SignInForm providers={ALL} next="/" />)
+    submit()
+    expect((await screen.findByRole('alert')).textContent).toContain('Enter a valid email address.')
+    expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
+  })
+
+  it('shows the generic alert on another 4xx', async () => {
+    client.magicLink.mockResolvedValue({ data: null, error: { code: 'FORBIDDEN', status: 403, message: 'x' } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
     expect((await screen.findByRole('alert')).textContent).toContain('Something went wrong. Try again.')
