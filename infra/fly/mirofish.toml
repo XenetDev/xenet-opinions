@@ -4,6 +4,7 @@ primary_region = "lhr"
 [env]
   PORT = "5001"
   FLASK_HOST = "::"
+  OASIS_DB_PATH = "/app/backend/uploads/oasis-default.db"
 
 [[mounts]]
   source = "mirofish_uploads"
