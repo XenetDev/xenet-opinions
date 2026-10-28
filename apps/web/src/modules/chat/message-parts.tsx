@@ -1,12 +1,13 @@
 import type { InterviewData, OpinionsDataParts, OpinionsUIMessage } from '@xo/engine/parts'
 import { MessageResponse } from '@/components/ai-elements/message'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { Message, MessageContent } from '@/components/ui/message'
 import { RunConsole } from './console/run-console'
 import { AgentRoster } from './parts/agent-roster'
 import { GraphPreview } from './parts/graph-preview'
 import { InterviewCard } from './parts/interview-card'
 import { OntologyCard } from './parts/ontology-card'
 import { SimulationFeed } from './parts/simulation-feed'
-import { SourcesList } from './parts/sources-list'
 
 const CONSOLE_PARTS = new Set<string>([
   'data-stage',
@@ -44,6 +45,7 @@ export function MessageParts({
   parts,
   onRetry,
   chatId,
+  title,
   windowUntil,
   reportRequested,
   windowLive,
@@ -52,13 +54,13 @@ export function MessageParts({
   parts: OpinionsUIMessage['parts']
   onRetry?: () => void
   chatId?: string
+  title?: string
   windowUntil?: string | null
   reportRequested?: boolean
   windowLive?: boolean
   onCancelRun?: () => void
 }) {
   const queue = lastData(parts, 'queue')
-  const sources = lastData(parts, 'sources')
   const ontology = lastData(parts, 'ontology')
   const graph = lastData(parts, 'graph')
   const agents = lastData(parts, 'agents')
@@ -69,16 +71,12 @@ export function MessageParts({
 
   return (
     <>
-      {sources && (
-        <div data-part="sources">
-          <SourcesList data={sources} />
-        </div>
-      )}
       {showConsole && (
         <div data-part="console">
           <RunConsole
             parts={parts}
             chatId={chatId}
+            title={title}
             windowUntil={windowUntil}
             reportRequested={reportRequested}
             windowLive={windowLive}
@@ -108,10 +106,20 @@ export function MessageParts({
         </div>
       )}
       {interviewGroups.length > 0 && (
-        <div data-part="interviews" className="flex flex-col gap-4">
+        <div data-part="interviews" className="flex flex-col gap-7">
           {interviewGroups.map(([key, group]) => (
-            <section key={key} data-testid="interview-group" className="flex flex-col gap-2">
-              {group.question && <h3 className="text-sm font-medium">{group.question}</h3>}
+            <section key={key} data-testid="interview-group" className="flex flex-col gap-4">
+              {group.question && (
+                <Message align="end">
+                  <MessageContent className="min-w-0 items-end">
+                    <Bubble variant="muted" align="end" className="max-w-[85%]">
+                      <BubbleContent>
+                        <h3 className="text-[15px]/6 font-normal">{group.question}</h3>
+                      </BubbleContent>
+                    </Bubble>
+                  </MessageContent>
+                </Message>
+              )}
               {group.interviews.map((interview) => (
                 <InterviewCard
                   key={interview.id ?? interview.agentId}

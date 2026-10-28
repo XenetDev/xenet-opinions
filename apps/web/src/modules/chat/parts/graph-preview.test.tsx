@@ -30,6 +30,13 @@ const data = {
 }
 
 describe('GraphPreview', () => {
+  it('titles the frame with the node and edge counts', () => {
+    render(<GraphPreview data={data} />)
+    const title = screen.getByText('Knowledge graph · 12 nodes · 2 edges')
+    expect(title.closest('[data-slot="frame-panel-header"]')).not.toBeNull()
+    expect(title.closest('[data-slot="frame"]')).not.toBeNull()
+  })
+
   it('describes the graph for screen readers', () => {
     render(<GraphPreview data={data} />)
     expect(screen.getByText('Graph with 12 nodes and 2 edges').className).toContain('sr-only')

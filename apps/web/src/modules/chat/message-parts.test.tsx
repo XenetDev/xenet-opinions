@@ -43,10 +43,12 @@ describe('MessageParts', () => {
       { type: 'data-graph', data: { graphId: 'g', nodeCount: 4, edgeCount: 3, nodes: [], links: [] } },
       { type: 'data-error', data: { stage: 'report', code: 'x', message: 'Something broke' } },
     ]
-    const { container } = render(<MessageParts parts={parts} />)
+    const { container } = render(<MessageParts parts={parts} title="How will customers react?" />)
 
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
-    expect(order).toEqual(['sources', 'console', 'graph', 'agents', 'text'])
+    expect(order).toEqual(['console', 'graph', 'agents', 'text'])
+    expect(screen.queryByText('a.pdf')).toBeNull()
+    expect(screen.getByText('How will customers react?')).toBeTruthy()
     expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('failed')
     expect(screen.getAllByText(/^\d+ of \d+ personas$/)).toHaveLength(1)
     expect(screen.getByText('5 of 12 personas')).toBeTruthy()
@@ -146,6 +148,15 @@ describe('MessageParts', () => {
     ).toEqual(['Price too high?', 'Would you switch?'])
     const groups = Array.from(section.querySelectorAll('[data-testid="interview-group"]')) as HTMLElement[]
     expect(groups).toHaveLength(3)
+    const question = within(groups[1]!).getByRole('heading', { name: 'Price too high?' })
+    const bubble = question.closest('[data-slot="bubble"]')
+    expect(bubble?.getAttribute('data-variant')).toBe('muted')
+    expect(bubble?.getAttribute('data-align')).toBe('end')
+    expect(
+      within(groups[1]!)
+        .getAllByRole('group')
+        .map((persona) => persona.getAttribute('aria-label')),
+    ).toEqual(['Ada', 'Bo'])
     const cards = (group: HTMLElement) =>
       Array.from(group.querySelectorAll('[data-status]')).map((card) => card.getAttribute('data-status'))
     expect(within(groups[0]!).queryByRole('heading')).toBeNull()

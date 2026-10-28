@@ -1,24 +1,44 @@
 import type { InterviewData } from '@xo/engine/parts'
 import { MessageResponse } from '@/components/ai-elements/message'
-import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { Message, MessageAvatar, MessageContent, MessageHeader } from '@/components/ui/message'
+import { Spinner } from '@/components/ui/spinner'
+import { initials } from './agent-roster'
 
 export function InterviewCard({ data, showQuestion = true }: { data: InterviewData; showQuestion?: boolean }) {
   return (
-    <div className="flex flex-col gap-2 rounded-md border p-3" data-status={data.status}>
-      <p className="text-sm font-medium">{data.agentName}</p>
-      {showQuestion && <p className="text-sm text-muted-foreground">{data.question}</p>}
-      {data.status === 'pending' && (
-        <div data-testid="interview-pending">
-          <Shimmer>Thinking…</Shimmer>
-        </div>
-      )}
-      {data.status === 'done' && data.answer && <MessageResponse>{data.answer}</MessageResponse>}
-      {data.status === 'failed' && (
-        <Alert variant="destructive">
-          <AlertDescription>{data.error ?? 'This persona could not answer.'}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+    <Message role="group" aria-label={data.agentName} data-status={data.status}>
+      <MessageAvatar aria-hidden="true" className="size-8 self-start text-xs font-medium">
+        {initials(data.agentName)}
+      </MessageAvatar>
+      <MessageContent className="min-w-0 gap-1.5">
+        <MessageHeader className="px-0 text-[13px]">
+          <span className="font-medium text-foreground">{data.agentName}</span>
+        </MessageHeader>
+        {showQuestion && <p className="text-sm text-muted-foreground">{data.question}</p>}
+        <Bubble variant="ghost" className="w-full min-w-0">
+          <BubbleContent className="w-full min-w-0 text-[15px]/6">
+            {data.status === 'pending' && (
+              <div data-testid="interview-pending" className="flex items-center gap-2 text-sm">
+                <Spinner
+                  role="presentation"
+                  aria-label={undefined}
+                  aria-hidden="true"
+                  className="text-muted-foreground motion-reduce:animate-none"
+                />
+                <span className="shimmer [--shimmer-duration:2.4s]">Thinking</span>
+              </div>
+            )}
+            {data.status === 'done' && data.answer && <MessageResponse>{data.answer}</MessageResponse>}
+            {data.status === 'failed' && (
+              <Alert variant="destructive">
+                <AlertDescription>{data.error ?? 'This persona could not answer.'}</AlertDescription>
+              </Alert>
+            )}
+          </BubbleContent>
+        </Bubble>
+      </MessageContent>
+    </Message>
   )
 }

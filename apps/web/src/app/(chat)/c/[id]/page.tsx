@@ -31,6 +31,7 @@ export default async function ChatPage({
       latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       initialText={typeof q === 'string' ? q : undefined}
       limits={getLimits()}
+      startedAt={chat.createdAt.toISOString()}
     />
   )
 }

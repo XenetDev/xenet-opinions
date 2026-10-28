@@ -5,14 +5,14 @@ import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { DefaultChatTransport, generateId } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
-import { Message, MessageContent } from '@/components/ai-elements/message'
 import { useChatList } from '@/modules/sidebar/chat-list-context'
 import type { Limits } from '@/server/limits'
 import { Composer } from './composer/composer'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
+import { Thread } from './thread/thread'
+import { messageText } from './thread/turn'
 import { useRunStatus } from './use-run-status'
 
 const CANCEL_NOTICES: Record<string, string> = {
@@ -53,6 +53,7 @@ export function Chat({
   latestRun,
   initialText,
   limits,
+  startedAt,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
@@ -66,6 +67,7 @@ export function Chat({
   latestRun: LatestRun | null
   initialText?: string
   limits: Limits
+  startedAt?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -196,66 +198,68 @@ export function Chat({
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
 
+  const sourcesPart = messages.flatMap((message) => message.parts).findLast((part) => part.type === 'data-sources')
+  const sources = sourcesPart?.type === 'data-sources' ? sourcesPart.data : undefined
+
   return (
-    <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl flex-col p-4">
+    <div className="flex h-[calc(100dvh-3rem)] w-full flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
-          <Conversation className="min-h-0 flex-1">
-            <ConversationContent>
-              {messages.map((message) => (
-                <Message key={message.id} from={message.role}>
-                  <MessageContent>
-                    <MessageParts
-                      parts={message.parts}
-                      chatId={chatId}
-                      windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
-                      reportRequested={run.stage === 'interviews' && run.reportRequested}
-                      windowLive={runActive && message.id === run.assistantMessageId}
-                      onCancelRun={interviewMode ? () => void handleStop() : undefined}
-                      onRetry={
-                        latestFailed && message === lastMessage && message.role === 'assistant'
-                          ? () => void handleRetry()
-                          : undefined
-                      }
-                    />
-                  </MessageContent>
-                </Message>
-              ))}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-          {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
-          {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
-          <Composer
-            maxRounds={limits.maxRounds}
-            chatId={chatId}
-            initialText={initialText}
-            allowPause={limits.allowPause}
-            mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
-            status={interviewMode ? undefined : status}
-            onStop={() => void handleStop()}
-            disabled={
-              !interviewMode &&
-              (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
-            }
-            onSend={async (text, submit) => {
-              setNotice(null)
-              if (submit.kind === 'followUp' && submit.target === 'agents') {
-                await sendInterview(text, submit.agentIds)
-                return
-              }
-              if (submit.kind === 'followUp') {
-                void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
-                return
-              }
-              const title = chats.find((chat) => chat.id === chatId)?.title
-              upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
-              if (initialText) window.history.replaceState(null, '', pathname)
-              setSendCount((count) => count + 1)
-              setWatching(true)
-              void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+          <Thread
+            className="min-h-0 flex-1"
+            messages={messages}
+            sources={sources}
+            startedAt={startedAt}
+            renderAssistant={(message) => {
+              const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
+              return (
+                <MessageParts
+                  parts={message.parts}
+                  chatId={chatId}
+                  title={question && messageText(question).slice(0, 60).trimEnd()}
+                  windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
+                  reportRequested={run.stage === 'interviews' && run.reportRequested}
+                  windowLive={runActive && message.id === run.assistantMessageId}
+                  onCancelRun={interviewMode ? () => void handleStop() : undefined}
+                  onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
+                />
+              )
             }}
           />
+          <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+            {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
+            {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
+            <Composer
+              maxRounds={limits.maxRounds}
+              chatId={chatId}
+              initialText={initialText}
+              allowPause={limits.allowPause}
+              mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
+              status={interviewMode ? undefined : status}
+              onStop={() => void handleStop()}
+              disabled={
+                !interviewMode &&
+                (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
+              }
+              onSend={async (text, submit) => {
+                setNotice(null)
+                if (submit.kind === 'followUp' && submit.target === 'agents') {
+                  await sendInterview(text, submit.agentIds)
+                  return
+                }
+                if (submit.kind === 'followUp') {
+                  void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
+                  return
+                }
+                const title = chats.find((chat) => chat.id === chatId)?.title
+                upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+                if (initialText) window.history.replaceState(null, '', pathname)
+                setSendCount((count) => count + 1)
+                setWatching(true)
+                void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+              }}
+            />
+          </div>
         </InterviewSelectionProvider>
       </NoticeRegion>
     </div>

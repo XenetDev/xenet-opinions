@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import type { RunStatusState } from './use-run-status'
@@ -48,11 +47,6 @@ vi.mock('@/modules/sidebar/chat-list-context', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/c/c1',
-}))
-vi.mock('@/components/ai-elements/conversation', () => ({
-  Conversation: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ConversationContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ConversationScrollButton: () => null,
 }))
 vi.mock('./composer/composer', async () => {
   const { useInterviewSelection } = await import('./interview-selection')
@@ -190,6 +184,39 @@ describe('Chat', () => {
     renderChat()
     await act(async () => chat.options!.onError(new Error('network down')))
     expect(screen.getByRole('status').textContent).toBe('Something went wrong sending your message')
+  })
+
+  it('renders the thread with source chips on the first user turn and the question as the console title', () => {
+    const question = 'How will customers react to a 20% price increase on our Pro plan next quarter, honestly?'
+    chat.messages = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: question }] },
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'data-sources',
+            data: { files: [{ id: 'f1', filename: 'brief.pdf', mediaType: 'application/pdf', sizeBytes: 10 }] },
+          },
+          { type: 'data-stage', data: { stage: 'ontology', status: 'running' } },
+        ],
+      },
+    ]
+    const { container } = renderChat()
+    const user = screen.getByRole('group', { name: `You: ${question}` })
+    expect(user.getAttribute('data-align')).toBe('end')
+    expect(within(user).getByText('brief.pdf')).toBeTruthy()
+    const assistant = screen.getByRole('group', { name: 'Xenet Opinions' })
+    expect(within(assistant).queryByText('brief.pdf')).toBeNull()
+    expect(within(assistant).getByText(question.slice(0, 60).trimEnd())).toBeTruthy()
+    expect(container.querySelector('[data-slot="message-scroller-button"]')).not.toBeNull()
+  })
+
+  it('docks the composer under a scrolling thread', () => {
+    const { container } = renderChat()
+    const root = container.firstElementChild as HTMLElement
+    expect(root.className).toContain('h-[calc(100dvh-3rem)]')
+    expect(container.querySelector('[data-slot="message-scroller"]')?.className).toContain('min-h-0 flex-1')
   })
 
   it('uses run mode until a run is done', () => {
