@@ -227,7 +227,7 @@ describe('deriveConsole', () => {
   })
 
   it.each([
-    [{ n: 1, action: 'tool_call', toolName: 'mystery_tool', summary: '调用工具' }, 'Running mystery_tool'],
+    [{ n: 1, action: 'tool_call', toolName: 'mystery_tool', summary: '调用工具' }, 'Using mystery_tool'],
     [{ n: 1, action: 'tool_result', toolName: 'insight_forge', summary: '找到事实' }, 'Digging into the simulation'],
     [{ n: 1, action: 'section_start', sectionIndex: 1, sectionTitle: 'Overview', summary: '撰写' }, 'Writing Overview'],
     [{ n: 1, action: 'planning', summary: '规划报告' }, 'Planning the report'],
@@ -244,8 +244,17 @@ describe('deriveConsole', () => {
       { type: 'data-report_event', data: { n: 2, action: 'tool_result', toolName: 'mystery_tool', summary: '结果' } },
     ]
     const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
-    expect(report?.children).toEqual([expect.objectContaining({ title: 'Called mystery_tool', chip: 'mystery_tool' })])
+    expect(report?.children).toEqual([expect.objectContaining({ title: 'Using mystery_tool', chip: 'mystery_tool' })])
     expect(report?.children?.[0]?.detail).toBeUndefined()
+  })
+
+  it('names a running unknown tool the same on its row and the live line', () => {
+    const parts: Parts = [
+      ...through('report', 'running'),
+      { type: 'data-report_event', data: { n: 1, action: 'tool_call', toolName: 'mystery_tool', summary: '调用工具' } },
+    ]
+    const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
+    expect(report?.children?.[0]?.title).toBe(report?.detail)
   })
 
   it('keeps tool events without a section on the report row', () => {

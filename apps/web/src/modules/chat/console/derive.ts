@@ -75,11 +75,11 @@ export function onlineLine(personaCount: number, until: string | null | undefine
 
 const readable = (message: string) => message.replace(/Round (\d+)\/(\d+)/g, 'Round $1 of $2')
 
-const toolTitle = (tool: string) => TOOL_TITLES[tool] ?? `Called ${tool}`
+const toolTitle = (tool: string) => TOOL_TITLES[tool] ?? `Using ${tool}`
 
 function reportStepLabel(event: ReportEventData | undefined) {
   if (event?.toolName && (event.action === 'tool_call' || event.action === 'tool_result'))
-    return TOOL_TITLES[event.toolName] ?? `Running ${event.toolName}`
+    return toolTitle(event.toolName)
   if (event?.sectionTitle) return `Writing ${event.sectionTitle}`
   return 'Planning the report'
 }
