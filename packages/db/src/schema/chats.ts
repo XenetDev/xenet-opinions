@@ -2,15 +2,19 @@ import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { user } from './auth'
 
-export const chats = pgTable('chats', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull().default(''),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const chats = pgTable(
+  'chats',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('chats_user_id_updated_at_idx').on(t.userId, t.updatedAt)],
+)
 
 export const messages = pgTable(
   'messages',

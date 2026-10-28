@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 import { createDb } from '../client'
 import * as schema from './index'
@@ -55,6 +55,24 @@ it.skipIf(!process.env.DATABASE_URL)('enforces run constraints and cascades', as
     expect(await db.select().from(schema.uploads).where(eq(schema.uploads.chatId, chatId))).toHaveLength(0)
   } finally {
     await db.delete(schema.user).where(eq(schema.user.id, userId))
+    await db.$client.end()
+  }
+})
+
+it.skipIf(!process.env.DATABASE_URL)('indexes the chat list, latest run and uploads lookups', async () => {
+  const db = createDb(process.env.DATABASE_URL!)
+  try {
+    const rows = await db.execute<{ indexname: string }>(
+      sql`select indexname from pg_indexes where tablename in ('chats', 'runs', 'uploads')`,
+    )
+    expect(rows.map((row) => row.indexname)).toEqual(
+      expect.arrayContaining([
+        'chats_user_id_updated_at_idx',
+        'runs_chat_id_queued_at_idx',
+        'uploads_chat_id_created_at_filename_idx',
+      ]),
+    )
+  } finally {
     await db.$client.end()
   }
 })
