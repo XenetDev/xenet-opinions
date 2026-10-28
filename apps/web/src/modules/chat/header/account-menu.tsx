@@ -70,6 +70,7 @@ export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
           <DropdownMenuItem
             onSelect={async () => {
               await authClient.signOut()
+              await authClient.signIn.anonymous().catch(() => {})
               router.push('/')
               router.refresh()
             }}

@@ -8,6 +8,7 @@ const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn(
 const auth = vi.hoisted(() => ({
   session: { data: null, isPending: false } as { data: unknown; isPending: boolean },
   signOut: vi.fn(),
+  anonymous: vi.fn(),
   deleteUser: vi.fn(),
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -17,7 +18,12 @@ vi.mock('next/navigation', () => ({
   usePathname: () => nav.pathname,
 }))
 vi.mock('@/lib/auth-client', () => ({
-  authClient: { useSession: () => auth.session, signOut: auth.signOut, deleteUser: auth.deleteUser },
+  authClient: {
+    useSession: () => auth.session,
+    signOut: auth.signOut,
+    signIn: { anonymous: auth.anonymous },
+    deleteUser: auth.deleteUser,
+  },
 }))
 vi.mock('sonner', () => ({ toast: toasts }))
 
@@ -39,6 +45,7 @@ beforeEach(() => {
   nav.push.mockReset()
   nav.refresh.mockReset()
   auth.signOut.mockReset().mockResolvedValue({ data: null, error: null })
+  auth.anonymous.mockReset().mockResolvedValue({ data: {}, error: null })
   auth.deleteUser.mockReset().mockResolvedValue({ data: {}, error: null })
   toasts.success.mockReset()
   toasts.error.mockReset()
@@ -89,12 +96,23 @@ describe('AccountMenu', () => {
     expect(label?.children).toHaveLength(1)
   })
 
-  it('signs out, goes home and refreshes', async () => {
+  it('signs out, creates the guest session, then goes home and refreshes', async () => {
     render(<AccountMenu signInAvailable />)
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalled())
-    expect(auth.signOut).toHaveBeenCalled()
+    expect(nav.push).toHaveBeenCalledWith('/')
+    const order = [auth.signOut, auth.anonymous, nav.push, nav.refresh].map((fn) => fn.mock.invocationCallOrder[0])
+    expect(order).toEqual([...order].sort((a, b) => (a ?? 0) - (b ?? 0)))
+    expect(order.every((n) => n !== undefined)).toBe(true)
+  })
+
+  it('still navigates when the guest sign-in fails', async () => {
+    auth.anonymous.mockRejectedValue(new Error('offline'))
+    render(<AccountMenu signInAvailable />)
+    openMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
+    await waitFor(() => expect(nav.refresh).toHaveBeenCalled())
     expect(nav.push).toHaveBeenCalledWith('/')
   })
 
