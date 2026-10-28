@@ -53,7 +53,11 @@ export function continueRunStream(
   })
 }
 
-export function runTransport(chatId: string): ChatTransport<OpinionsUIMessage> {
+export function runTransport(
+  chatId: string,
+  { replayFirstResume = false }: { replayFirstResume?: boolean } = {},
+): ChatTransport<OpinionsUIMessage> {
+  let replayNext = replayFirstResume
   const base = new DefaultChatTransport<OpinionsUIMessage>({
     api: `/api/chats/${chatId}/messages`,
     prepareSendMessagesRequest: ({ id, messages, body }) => ({ body: { ...body, id, message: messages.at(-1) } }),
@@ -68,7 +72,9 @@ export function runTransport(chatId: string): ChatTransport<OpinionsUIMessage> {
     resumeStreamIsReplay: true,
     sendMessages: async (options) => continued(await base.sendMessages(options), options.chatId, options.abortSignal),
     reconnectToStream: async (options) => {
-      const stream = await base.reconnectToStream({ ...options, metadata: undefined })
+      const metadata = replayNext ? { after: 0 } : undefined
+      replayNext = false
+      const stream = await base.reconnectToStream({ ...options, metadata })
       return stream && continued(stream, options.chatId, options.abortSignal)
     },
   }

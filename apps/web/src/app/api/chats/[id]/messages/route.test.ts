@@ -59,7 +59,8 @@ const callBody = (body: unknown) =>
     }),
     { params: Promise.resolve({ id: 'c1' }) },
   )
-const call = (message: unknown, extra: Record<string, unknown> = {}) => callBody({ id: 'c1', message, ...extra })
+const call = (message: unknown, extra: Record<string, unknown> = {}) =>
+  callBody({ id: 'c1', message, uploadIds: ['up1'], ...extra })
 
 const authed = () => {
   vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
@@ -68,6 +69,7 @@ const authed = () => {
   vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
   limits()
   vi.mocked(runsStartedSince).mockResolvedValue({ count: 0, oldestQueuedAt: null })
+  vi.mocked(countOwnedUploads).mockResolvedValue(1)
 }
 
 const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
@@ -147,6 +149,16 @@ describe('POST /api/chats/[id]/messages', () => {
     })
   })
 
+  it('sends a follow-up on a done run without uploads, not files_required', async () => {
+    authed()
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
+    vi.mocked(runFollowUp).mockResolvedValue(new Response('ok'))
+    const res = await call(userMessage('why?'), { uploadIds: [] })
+    expect(res.status).toBe(200)
+    expect(runFollowUp).toHaveBeenCalledTimes(1)
+    expect(startRun).not.toHaveBeenCalled()
+  })
+
   it('defaults follow-up target to report', async () => {
     authed()
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
@@ -203,6 +215,17 @@ describe('POST /api/chats/[id]/messages', () => {
     expect(startRun).not.toHaveBeenCalled()
   })
 
+  it('returns 400 files_required for a run without uploads before counting quota', async () => {
+    authed()
+    limits({ demoMode: true })
+    const res = await call(userMessage('hi'), { uploadIds: [] })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'files_required' })
+    expect(runsStartedSince).not.toHaveBeenCalled()
+    expect(checkRunPolicy).not.toHaveBeenCalled()
+    expect(startRun).not.toHaveBeenCalled()
+  })
+
   it('returns 409 run_active when startRun loses the race', async () => {
     authed()
     vi.mocked(startRun).mockRejectedValue(new RunActiveError())
@@ -239,7 +262,7 @@ describe('POST /api/chats/[id]/messages', () => {
       expect.objectContaining({
         chatId: 'c1',
         userId: 'user1',
-        uploadIds: [],
+        uploadIds: ['up1'],
         maxRounds: 3,
         pauseForInterviews: false,
       }),
@@ -266,6 +289,16 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(createInterviewQuestion).toHaveBeenCalledWith({ run: paused, agentIds: ['1', '2'], text: 'why?' })
       expect(startRun).not.toHaveBeenCalled()
       expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    })
+
+    it('accepts an interview question without uploads, not files_required', async () => {
+      authed()
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue(paused as never)
+      vi.mocked(createInterviewQuestion).mockResolvedValue({ questionId: 'q1', interviewIds: ['i1'] })
+      const res = await call(userMessage('why?'), { target: 'agents', agentIds: ['1'], uploadIds: [] })
+      expect(res.status).toBe(202)
+      expect(createInterviewQuestion).toHaveBeenCalledTimes(1)
+      expect(startRun).not.toHaveBeenCalled()
     })
 
     it('refuses other targets with 409 run_paused', async () => {

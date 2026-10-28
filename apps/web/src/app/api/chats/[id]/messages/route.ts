@@ -58,6 +58,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   }
 
+  const uploadIds = [...new Set(body.uploadIds)]
+  if (uploadIds.length === 0) return Response.json({ error: 'files_required' }, { status: 400 })
+
   const limits = getLimits(user)
   const now = new Date()
   const window = limits.demoMode
@@ -79,8 +82,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
   }
 
-  const uploadIds = [...new Set(body.uploadIds)]
-  if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
+  if ((await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
 

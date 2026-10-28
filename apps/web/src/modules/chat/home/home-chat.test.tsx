@@ -69,6 +69,11 @@ function stubFetch(handlers: Record<string, Handler>) {
 }
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
+const UPLOAD = { '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }) }
+const attach = () =>
+  fireEvent.change(screen.getByTestId('file-input'), {
+    target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
+  })
 const STARTER = 'How will customers react to a 20% price increase on our Pro plan?'
 
 describe('HomeChat', () => {
@@ -85,19 +90,21 @@ describe('HomeChat', () => {
     const cancel = vi.fn()
     const { calls, fetchStub } = stubFetch({
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+      ...UPLOAD,
       '/api/chats/new/messages': () => new Response(new ReadableStream({ cancel }), { status: 200 }),
     })
     renderHome()
     fireEvent.click(screen.getByRole('button', { name: STARTER }))
+    attach()
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/c/new'))
     expect(router.refresh).toHaveBeenCalled()
-    expect(calls).toEqual(['POST /api/chats', 'POST /api/chats/new/messages'])
-    const body = JSON.parse(String(fetchStub.mock.calls[1]?.[1]?.body))
+    expect(calls).toEqual(['POST /api/chats', 'POST /api/uploads', 'POST /api/chats/new/messages'])
+    const body = JSON.parse(String(fetchStub.mock.calls[2]?.[1]?.body))
     expect(body).toMatchObject({
       id: 'new',
       message: { role: 'user', parts: [{ type: 'text', text: STARTER }] },
-      uploadIds: [],
+      uploadIds: ['u1'],
       runOptions: { maxRounds: 3, pauseForInterviews: false },
     })
     expect(typeof body.message.id).toBe('string')
@@ -152,9 +159,11 @@ describe('HomeChat', () => {
   ])('words the anonymous quota notice by sign-in availability (%s)', async (available, notice) => {
     stubFetch({
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+      ...UPLOAD,
       '/api/chats/new/messages': () => Response.json({ error: 'quota_exceeded' }, { status: 429 }),
     })
     renderHome({ anonymous: true, maxRunsPerDay: 1, demoMode: true }, available ? { max: 3 } : undefined)
+    attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(screen.getAllByText(notice).length).toBeGreaterThan(0))
@@ -164,6 +173,7 @@ describe('HomeChat', () => {
     let first = true
     const { calls } = stubFetch({
       '/api/chats': () => Response.json({ id: 'new' }, { status: 201 }),
+      ...UPLOAD,
       '/api/chats/new/messages': () => {
         const response = first ? Response.json({ error: 'run_active' }, { status: 409 }) : new Response('ok')
         first = false
@@ -171,9 +181,10 @@ describe('HomeChat', () => {
       },
     })
     renderHome()
+    attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(calls).toHaveLength(3))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false),
     )

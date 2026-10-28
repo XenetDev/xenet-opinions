@@ -46,6 +46,15 @@ function renderComposer(props: Partial<Props> = {}) {
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
 const type = (value: string) => fireEvent.change(textarea(), { target: { value } })
+const stubUpload = () =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 })),
+  )
+const attach = () =>
+  fireEvent.change(screen.getByTestId('file-input'), {
+    target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
+  })
 const openMenu = (name: string | RegExp) => fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' })
 
 describe('BoxComposer', () => {
@@ -177,7 +186,9 @@ describe('BoxComposer', () => {
   })
 
   it('toggles the pause chip, swaps its icon for a check and sends the choice', async () => {
+    stubUpload()
     const { onSend } = renderComposer()
+    attach()
     const chip = screen.getByRole('button', { name: 'Pause for interviews' })
     expect(chip.getAttribute('aria-pressed')).toBe('false')
     expect(chip.querySelector('svg.lucide-pause')).toBeTruthy()
@@ -191,7 +202,7 @@ describe('BoxComposer', () => {
     await waitFor(() =>
       expect(onSend).toHaveBeenCalledWith('hello', {
         kind: 'run',
-        uploadIds: [],
+        uploadIds: ['u1'],
         runOptions: { maxRounds: 3, pauseForInterviews: true },
       }),
     )
@@ -222,7 +233,9 @@ describe('BoxComposer', () => {
   })
 
   it('reads the default rounds and offers 1 to maxRounds', async () => {
+    stubUpload()
     const { onSend } = renderComposer({ maxRounds: 5 })
+    attach()
     openMenu('3 rounds')
     const items = screen.getAllByRole('menuitemradio').map((item) => item.textContent)
     expect(items).toEqual(['1 round', '2 rounds', '3 rounds', '4 rounds', '5 rounds'])
@@ -233,7 +246,7 @@ describe('BoxComposer', () => {
     await waitFor(() =>
       expect(onSend).toHaveBeenCalledWith('hello', {
         kind: 'run',
-        uploadIds: [],
+        uploadIds: ['u1'],
         runOptions: { maxRounds: 1, pauseForInterviews: false },
       }),
     )
@@ -311,6 +324,36 @@ describe('BoxComposer', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Select at least one persona to interview'))
     expect(onSend).not.toHaveBeenCalled()
     expect(textarea().value).toBe('why?')
+  })
+
+  it('refuses a run without a document and keeps the text', async () => {
+    const { onSend } = renderComposer()
+    type('hello')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Attach at least one document (.pdf, .md or .txt) to start a run.',
+      ),
+    )
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('hello')
+    attach()
+    expect(screen.queryByText('Attach at least one document (.pdf, .md or .txt) to start a run.')).toBeNull()
+  })
+
+  it('acknowledges a send at once: spinner, disabled send and a read-only field until it settles', async () => {
+    stubUpload()
+    const onSend = vi.fn(() => new Promise<void>(() => {}))
+    renderComposer({ onSend })
+    attach()
+    type('hello')
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    const send = screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement
+    expect(send.disabled).toBe(true)
+    expect(send.getAttribute('aria-busy')).toBe('true')
+    expect(send.querySelector('[data-slot="spinner"]')).toBeTruthy()
+    expect(textarea().readOnly).toBe(true)
   })
 
   it('creates the chat on attach when there is no chat yet and uploads into it', async () => {

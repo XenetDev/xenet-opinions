@@ -143,6 +143,8 @@ Check worker logs: `railway logs --service worker --lines 50`.
 
 ## 3. Vercel
 
+`apps/web/vercel.json` pins the functions to London (`"regions": ["lhr1"]`) so they sit next to the database and the MiroFish proxy; a self-hoster whose database and proxy run in another region should change it to the nearest Vercel region.
+
 ### 3.1 Create and link the project
 
 Link from the repo root rather than `apps/web`: the project's root directory is `apps/web`, and Vercel applies it to whatever the CLI uploads, so uploading from `apps/web` would look for `apps/web/apps/web`.

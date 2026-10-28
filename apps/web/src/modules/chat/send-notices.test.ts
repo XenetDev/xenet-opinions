@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sendNotices } from './send-notices'
+import { FILES_REQUIRED, sendNotices } from './send-notices'
 
 const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3 }
 
@@ -30,5 +30,14 @@ describe('sendNotices quota_exceeded', () => {
     expect(sendNotices({ ...limits, maxRunsPerDay: 2, anonymous: false }, true).quota_exceeded).toBe(
       "You've used today's two runs. Come back tomorrow.",
     )
+  })
+})
+
+describe('sendNotices files_required', () => {
+  it('asks for a document', () => {
+    expect(sendNotices(limits, true).files_required).toBe(
+      'Attach at least one document (.pdf, .md or .txt) to start a run.',
+    )
+    expect(FILES_REQUIRED).toBe(sendNotices(limits, false).files_required)
   })
 })

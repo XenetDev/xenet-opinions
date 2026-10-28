@@ -1,1 +1,5 @@
-{ "$schema": "https://openapi.vercel.sh/vercel.json", "functions": { "src/app/api/**/*.ts": { "maxDuration": 300 } } }
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["lhr1"],
+  "functions": { "src/app/api/**/*.ts": { "maxDuration": 300 } }
+}
