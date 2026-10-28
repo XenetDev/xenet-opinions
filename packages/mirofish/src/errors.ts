@@ -4,6 +4,7 @@ export class MiroFishError extends Error {
   code: MiroFishErrorCode
   status?: number
   traceback?: string
+  raw?: string
   path: string
 
   constructor(init: {
@@ -12,6 +13,7 @@ export class MiroFishError extends Error {
     path: string
     status?: number
     traceback?: string
+    raw?: string
     cause?: unknown
   }) {
     super(init.message, init.cause === undefined ? undefined : { cause: init.cause })
@@ -20,5 +22,6 @@ export class MiroFishError extends Error {
     this.path = init.path
     this.status = init.status
     this.traceback = init.traceback
+    this.raw = init.raw
   }
 }

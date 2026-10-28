@@ -572,6 +572,28 @@ describe('failures', () => {
     ])
   })
 
+  it('stores an English message when MiroFish reports a Chinese error', async () => {
+    const { deps, run } = await setup(
+      {
+        graph: {
+          getTask: vi.fn(async () => ({
+            task_id: 'gtask_1',
+            status: 'failed' as const,
+            progress: 30,
+            error: 'ZEP_API_KEY未配置',
+          })),
+        },
+      },
+      { stage: 'graph_build', ids: { projectId: 'proj_1', graphTaskId: 'gtask_1' } },
+    )
+    const next = await tick(run, deps)
+    expect(next.error).toEqual({
+      stage: 'graph_build',
+      code: 'api',
+      message: 'The MiroFish Zep API key is not configured.',
+    })
+  })
+
   it('retries a timeout on runStatus three times with backoff, then fails', async () => {
     const err = new MiroFishError({
       code: 'timeout',

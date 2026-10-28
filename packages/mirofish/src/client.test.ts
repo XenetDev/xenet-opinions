@@ -33,6 +33,17 @@ describe('createHttp', () => {
     expect(err.message).not.toContain('Traceback')
   })
 
+  it('translates a hard-coded Chinese api error and keeps the raw text', async () => {
+    const raw = '没有找到符合条件的实体，请检查图谱是否正确构建'
+    const http = make(async () => json({ success: false, error: raw }, 400))
+    const err = await caught(http.getJson('/x', z.unknown()))
+    expect(err.code).toBe('api')
+    expect(err.message).toBe(
+      'MiroFish found no people or groups in the knowledge graph to simulate. Add more detail about who is involved and retry.',
+    )
+    expect(err.raw).toBe(raw)
+  })
+
   it('maps non-JSON body to http error with status', async () => {
     const http = make(
       async () => new Response('<html>bad gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }),

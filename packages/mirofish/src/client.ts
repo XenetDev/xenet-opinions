@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import { MiroFishError } from './errors'
+import { englishMessage } from './messages'
 import { Envelope } from './schemas/common'
 
 export const MIROFISH_LOCALES = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'de'] as const
@@ -99,10 +100,11 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     if (!envelope.data.success) {
       throw new MiroFishError({
         code: 'api',
-        message: envelope.data.error ?? 'MiroFish request failed',
+        message: envelope.data.error ? englishMessage(envelope.data.error) : 'MiroFish request failed',
         path,
         status: res.status,
         traceback: envelope.data.traceback,
+        raw: envelope.data.error,
       })
     }
 

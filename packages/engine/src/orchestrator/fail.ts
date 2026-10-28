@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { MiroFishError } from '@xo/mirofish'
+import { englishMessage, MiroFishError } from '@xo/mirofish'
 import type { Stage } from '../parts'
 import { event, StageError } from './emit'
 import { cleanupEnv } from './env'
@@ -14,7 +14,7 @@ export const messageOf = (err: unknown) => {
     .split('\n')
     .map((l) => l.trim())
     .find(Boolean)
-  return line ? line.slice(0, MAX_MESSAGE) : 'Internal error'
+  return line ? englishMessage(line).slice(0, MAX_MESSAGE) : 'Internal error'
 }
 
 export const isRetriable = (err: unknown) =>
