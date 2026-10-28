@@ -256,7 +256,7 @@ describe('Chat', () => {
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/cancel', { method: 'POST' }))
-      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Run cancelled'))
+      await waitFor(() => expect(screen.getByText('Run cancelled', { selector: '[role="status"]' })).toBeTruthy())
     })
 
     it('shows the personas offline when the run failed without closing the window', () => {

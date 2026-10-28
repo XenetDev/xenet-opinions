@@ -1,16 +1,20 @@
 import type { InterviewData, OpinionsDataParts, OpinionsUIMessage } from '@xo/engine/parts'
 import { MessageResponse } from '@/components/ai-elements/message'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RunConsole } from './console/run-console'
 import { AgentRoster } from './parts/agent-roster'
 import { GraphPreview } from './parts/graph-preview'
 import { InterviewCard } from './parts/interview-card'
-import { InterviewWindowCard } from './parts/interview-window-card'
 import { OntologyCard } from './parts/ontology-card'
-import { PipelineTimeline } from './parts/pipeline-timeline'
-import { QueueCard } from './parts/queue-card'
-import { ReportWorkbench } from './parts/report-workbench'
 import { SimulationFeed } from './parts/simulation-feed'
 import { SourcesList } from './parts/sources-list'
+
+const CONSOLE_PARTS = new Set<string>([
+  'data-stage',
+  'data-interview_window',
+  'data-report_outline',
+  'data-report_event',
+  'data-error',
+])
 
 function lastData<K extends keyof OpinionsDataParts>(
   parts: OpinionsUIMessage['parts'],
@@ -53,38 +57,34 @@ export function MessageParts({
   windowLive?: boolean
   onCancelRun?: () => void
 }) {
-  const stages = parts.flatMap((part) => (part.type === 'data-stage' ? [part.data] : []))
   const queue = lastData(parts, 'queue')
   const sources = lastData(parts, 'sources')
   const ontology = lastData(parts, 'ontology')
   const graph = lastData(parts, 'graph')
   const agents = lastData(parts, 'agents')
   const feed = lastData(parts, 'sim_feed')
-  const outline = lastData(parts, 'report_outline')
-  const reportEvents = parts
-    .flatMap((part) => (part.type === 'data-report_event' ? [part.data] : []))
-    .sort((a, b) => a.n - b.n)
   const texts = parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
-  const errors = parts.flatMap((part) => (part.type === 'data-error' ? [part.data] : []))
-  const interviewWindow = lastData(parts, 'interview_window')
   const interviewGroups = groupInterviews(parts)
-  const hasText = texts.length > 0
+  const showConsole = (queue !== undefined && queue.position >= 1) || parts.some((part) => CONSOLE_PARTS.has(part.type))
 
   return (
     <>
-      {queue && queue.position >= 1 && stages.length === 0 && (
-        <div data-part="queue">
-          <QueueCard data={queue} />
-        </div>
-      )}
       {sources && (
         <div data-part="sources">
           <SourcesList data={sources} />
         </div>
       )}
-      {stages.length > 0 && (
-        <div data-part="timeline">
-          <PipelineTimeline stages={stages} onRetry={onRetry} />
+      {showConsole && (
+        <div data-part="console">
+          <RunConsole
+            parts={parts}
+            chatId={chatId}
+            windowUntil={windowUntil}
+            reportRequested={reportRequested}
+            windowLive={windowLive}
+            onCancelRun={onCancelRun}
+            onRetry={onRetry}
+          />
         </div>
       )}
       {ontology && (
@@ -107,18 +107,8 @@ export function MessageParts({
           <SimulationFeed data={feed} />
         </div>
       )}
-      {(interviewWindow || interviewGroups.length > 0) && (
+      {interviewGroups.length > 0 && (
         <div data-part="interviews" className="flex flex-col gap-4">
-          {interviewWindow && (
-            <InterviewWindowCard
-              data={interviewWindow}
-              chatId={chatId}
-              until={windowUntil}
-              reportRequested={reportRequested}
-              live={windowLive}
-              onCancel={onCancelRun}
-            />
-          )}
           {interviewGroups.map(([key, group]) => (
             <section key={key} data-testid="interview-group" className="flex flex-col gap-2">
               {group.question && <h3 className="text-sm font-medium">{group.question}</h3>}
@@ -133,23 +123,10 @@ export function MessageParts({
           ))}
         </div>
       )}
-      {(outline || reportEvents.length > 0) && (
-        <div data-part="workbench">
-          <ReportWorkbench outline={outline} events={reportEvents} collapsed={hasText} />
-        </div>
-      )}
       {texts.map((text, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
         <div key={i} data-part="text">
           <MessageResponse>{text}</MessageResponse>
-        </div>
-      ))}
-      {errors.map((error, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: error parts have no id and keep their order
-        <div key={i} data-part="error">
-          <Alert variant="destructive">
-            <AlertDescription>{error.message}</AlertDescription>
-          </Alert>
         </div>
       ))}
     </>
