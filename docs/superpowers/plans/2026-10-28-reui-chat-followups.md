@@ -26,6 +26,7 @@ Deferred findings from the task reviews and the whole-branch review of `ui/reui-
 - Focus order: the "+" button sits after the textarea in the DOM but is drawn first.
 - `composer.test.tsx` and `pill-composer.test.tsx` test the same component; merge them.
 - The sr-only upload status words are not a live region.
+- The home send test checks the unread response body is cancelled but not that it happens before `router.push`.
 - Starter focus reaches into the DOM with `querySelector`; expose a focus handle.
 - `/` and the layout each call `listChats`; share one query.
 - Resume rows and stored chat titles are cut at 60 characters without an ellipsis (server-side title rule).
