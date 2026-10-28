@@ -63,6 +63,7 @@ export function PauseToggle({
       size="sm"
       variant={checked ? 'secondary' : 'ghost'}
       aria-pressed={checked}
+      aria-label="Pause for interviews"
       disabled={disabled}
       onClick={() => onChange(!checked)}
     >
@@ -71,7 +72,8 @@ export function PauseToggle({
       ) : (
         <PauseIcon data-icon="inline-start" aria-hidden="true" />
       )}
-      Pause for interviews
+      <span className="sm:hidden">Pause</span>
+      <span className="max-sm:hidden">Pause for interviews</span>
     </InputGroupButton>
   )
 }

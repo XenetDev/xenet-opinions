@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
 import { ChatOptions } from './chat-options'
+import { ThemeToggle } from './theme-toggle'
 import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
 
 export function ChatHeader() {
@@ -37,6 +38,7 @@ export function ChatHeader() {
           </Badge>
         )}
       </div>
+      {chat && <ChatOptions chat={chat} />}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label="New chat" onClick={goHome}>
@@ -45,7 +47,7 @@ export function ChatHeader() {
         </TooltipTrigger>
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
-      {chat && <ChatOptions chat={chat} />}
+      <ThemeToggle />
     </header>
   )
 }
