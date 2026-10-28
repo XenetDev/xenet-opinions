@@ -17,9 +17,23 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 })
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const description = 'See how people react before you decide. Ask a question, add a brief, and watch a simulated public react on Twitter and Reddit. Interview the personas, then read the report. Open source.'
+
 export const metadata: Metadata = {
-  title: 'Xenet Opinions',
-  description: 'Xenet Opinions',
+  metadataBase: new URL(appUrl),
+  title: { default: 'Xenet Opinions', template: '%s · Xenet Opinions' },
+  description,
+  applicationName: 'Xenet Opinions',
+  openGraph: {
+    type: 'website',
+    siteName: 'Xenet Opinions',
+    title: 'Xenet Opinions',
+    description,
+    url: '/',
+    locale: 'en_GB',
+  },
+  twitter: { card: 'summary_large_image', title: 'Xenet Opinions', description },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
