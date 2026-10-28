@@ -18,7 +18,7 @@ export function InterviewCard({ data, showQuestion = true }: { data: InterviewDa
         </MessageHeader>
         {showQuestion && <p className="text-sm text-muted-foreground">{data.question}</p>}
         <Bubble variant="ghost" className="w-full min-w-0">
-          <BubbleContent className="w-full min-w-0 text-[15px]/6">
+          <BubbleContent className="w-full min-w-0 text-sm/6 sm:text-[15px]/6">
             {data.status === 'pending' && (
               <div data-testid="interview-pending" className="flex items-center gap-2 text-sm">
                 <Spinner

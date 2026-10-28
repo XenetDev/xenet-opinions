@@ -114,7 +114,7 @@ export function MessageParts({
                   <MessageContent className="min-w-0 items-end">
                     <Bubble variant="muted" align="end" className="max-w-[85%]">
                       <BubbleContent>
-                        <h3 className="text-[15px]/6 font-normal">{group.question}</h3>
+                        <h3 className="text-sm/6 font-normal sm:text-[15px]/6">{group.question}</h3>
                       </BubbleContent>
                     </Bubble>
                   </MessageContent>

@@ -345,11 +345,19 @@ describe('RunConsole', () => {
     expect(container.querySelector('[data-band] [data-slot="spinner"]')).toBeNull()
   })
 
-  it('reveals a tool result as a note on the row', () => {
-    render(<RunConsole parts={reporting} chatId="c1" />)
-    expect(screen.queryByText('Found 12 facts')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Show result/ }))
-    expect(screen.getByText('Found 12 facts')).toBeTruthy()
+  it('never renders raw tool summaries, only friendly labels', () => {
+    const chinese = reporting.map((part) =>
+      part.type === 'data-report_event'
+        ? { ...part, data: { ...part.data, summary: `工具调用结果 ${part.data.n}` } }
+        : part,
+    )
+    const { container } = render(<RunConsole parts={chinese} chatId="c1" />)
+    expect(container.textContent).not.toMatch(/[一-鿿]/)
+    expect(screen.queryByRole('button', { name: /Show result/ })).toBeNull()
+    const tools = Array.from(container.querySelectorAll('[data-testid="tool-row"]')) as HTMLElement[]
+    expect(within(tools[0]!).getByText('Digging into the simulation')).toBeTruthy()
+    expect(within(tools[1]!).getByText('Searching across the run')).toBeTruthy()
+    expect(within(screen.getByRole('status')).getByText('Searching across the run')).toBeTruthy()
   })
 
   it.each([

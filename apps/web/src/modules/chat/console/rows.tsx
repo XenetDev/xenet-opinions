@@ -1,10 +1,8 @@
 'use client'
 
-import { BanIcon, CheckIcon, ChevronRightIcon, UsersIcon, XIcon } from 'lucide-react'
+import { BanIcon, CheckIcon, UsersIcon, XIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/reui/badge'
-import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
@@ -113,38 +111,15 @@ export function ToolRow({ row }: { row: ConsoleRow }) {
           {row.title}
         </span>
         <StateWord kind={row.kind} />
-        {row.detail && (
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Show result of ${row.chip ?? row.title}`}
-              className="group/note"
-            >
-              <ChevronRightIcon className="transition-transform group-data-[state=open]/note:rotate-90 motion-reduce:transition-none" />
-            </Button>
-          </CollapsibleTrigger>
-        )}
       </MarkerContent>
       <StepClock seconds={row.seconds} />
     </Marker>
   )
   return (
-    <Collapsible data-testid={row.chip ? 'tool-row' : 'section-row'} data-kind={row.kind}>
+    <div data-testid={row.chip ? 'tool-row' : 'section-row'} data-kind={row.kind}>
       {head}
-      {row.detail && (
-        <CollapsibleContent
-          className={cn(
-            TEXT_INDENT,
-            'pb-1 text-xs leading-5 text-muted-foreground data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1 motion-reduce:animate-none',
-          )}
-        >
-          {row.detail}
-        </CollapsibleContent>
-      )}
       {row.children && <ChildRows rows={row.children} />}
-    </Collapsible>
+    </div>
   )
 }
 

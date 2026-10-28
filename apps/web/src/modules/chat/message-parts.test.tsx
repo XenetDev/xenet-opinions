@@ -149,6 +149,7 @@ describe('MessageParts', () => {
     const groups = Array.from(section.querySelectorAll('[data-testid="interview-group"]')) as HTMLElement[]
     expect(groups).toHaveLength(3)
     const question = within(groups[1]!).getByRole('heading', { name: 'Price too high?' })
+    expect(question.className.split(' ')).toEqual(expect.arrayContaining(['text-sm/6', 'sm:text-[15px]/6']))
     const bubble = question.closest('[data-slot="bubble"]')
     expect(bubble?.getAttribute('data-variant')).toBe('muted')
     expect(bubble?.getAttribute('data-align')).toBe('end')

@@ -97,6 +97,15 @@ describe('Thread', () => {
     expect(within(turn).getByText('Xenet Opinions')).toBeTruthy()
     const body = within(turn).getByText('body of a1')
     expect(body.closest('[data-slot="bubble"]')?.getAttribute('data-variant')).toBe('ghost')
+    expect(body.closest('[data-slot="bubble-content"]')?.className.split(' ')).toEqual(
+      expect.arrayContaining(['text-sm/6', 'sm:text-[15px]/6']),
+    )
+  })
+
+  it('sets user turn copy at 14px on mobile and 15px from sm', () => {
+    renderThread()
+    const bubble = screen.getByText('How will customers react?').closest('[data-slot="bubble-content"]')
+    expect(bubble?.className.split(' ')).toEqual(expect.arrayContaining(['text-sm/6', 'sm:text-[15px]/6']))
   })
 
   it('opens with a date separator', () => {

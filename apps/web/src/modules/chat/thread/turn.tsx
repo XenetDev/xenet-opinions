@@ -45,7 +45,7 @@ export function UserTurn({ message, sources }: { message: OpinionsUIMessage; sou
           </AttachmentGroup>
         )}
         <Bubble variant="muted" align="end" className="max-w-[85%]">
-          <BubbleContent className="text-[15px]/6 whitespace-pre-wrap">{text}</BubbleContent>
+          <BubbleContent className="text-sm/6 whitespace-pre-wrap sm:text-[15px]/6">{text}</BubbleContent>
         </Bubble>
       </MessageContent>
     </Message>
@@ -66,7 +66,7 @@ export function AssistantTurn({ time, children }: { time?: string; children: Rea
           )}
         </MessageHeader>
         <Bubble variant="ghost" className="w-full min-w-0">
-          <BubbleContent className="w-full min-w-0 space-y-3 text-[15px]/6">{children}</BubbleContent>
+          <BubbleContent className="w-full min-w-0 space-y-3 text-sm/6 sm:text-[15px]/6">{children}</BubbleContent>
         </Bubble>
       </MessageContent>
     </Message>

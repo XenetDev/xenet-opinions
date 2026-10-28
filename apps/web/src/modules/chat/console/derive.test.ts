@@ -200,12 +200,11 @@ describe('deriveConsole', () => {
     const model = deriveConsole(parts, live)
     const report = model.rows.find((row) => row.title === 'Writing the report')
     expect(report?.kind).toBe('live')
-    expect(report?.detail).toBe('Called panorama_search')
+    expect(report?.detail).toBe('Searching across the run')
     const [overview, findings] = report?.children ?? []
     expect(overview).toMatchObject({ kind: 'done', title: 'Overview', seconds: 30 })
-    expect(overview?.children).toEqual([
-      expect.objectContaining({ kind: 'done', chip: 'insight_forge', seconds: 17, detail: 'Found 12 facts' }),
-    ])
+    expect(overview?.children).toEqual([expect.objectContaining({ kind: 'done', chip: 'insight_forge', seconds: 17 })])
+    expect(overview?.children?.[0]?.detail).toBeUndefined()
     expect(findings).toMatchObject({ kind: 'live', title: 'Findings' })
     expect(findings?.children).toEqual([expect.objectContaining({ kind: 'live', chip: 'panorama_search' })])
     expect(findings?.children?.[0]?.seconds).toBeUndefined()
@@ -224,7 +223,29 @@ describe('deriveConsole', () => {
       },
     ]
     const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
-    expect(report?.detail).toBe('Called panorama_search')
+    expect(report?.detail).toBe('Searching across the run')
+  })
+
+  it.each([
+    [{ n: 1, action: 'tool_call', toolName: 'mystery_tool', summary: '调用工具' }, 'Running mystery_tool'],
+    [{ n: 1, action: 'tool_result', toolName: 'insight_forge', summary: '找到事实' }, 'Digging into the simulation'],
+    [{ n: 1, action: 'section_start', sectionIndex: 1, sectionTitle: 'Overview', summary: '撰写' }, 'Writing Overview'],
+    [{ n: 1, action: 'planning', summary: '规划报告' }, 'Planning the report'],
+  ])('labels the live report line from the latest event without its summary', (event, label) => {
+    const parts: Parts = [...through('report', 'running'), { type: 'data-report_event', data: event }]
+    const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
+    expect(report?.detail).toBe(label)
+  })
+
+  it('titles an unknown tool row without its summary', () => {
+    const parts: Parts = [
+      ...through('report', 'running'),
+      { type: 'data-report_event', data: { n: 1, action: 'tool_call', toolName: 'mystery_tool', summary: '调用工具' } },
+      { type: 'data-report_event', data: { n: 2, action: 'tool_result', toolName: 'mystery_tool', summary: '结果' } },
+    ]
+    const report = deriveConsole(parts, live).rows.find((row) => row.title === 'Writing the report')
+    expect(report?.children).toEqual([expect.objectContaining({ title: 'Called mystery_tool', chip: 'mystery_tool' })])
+    expect(report?.children?.[0]?.detail).toBeUndefined()
   })
 
   it('keeps tool events without a section on the report row', () => {

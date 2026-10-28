@@ -75,6 +75,15 @@ export function onlineLine(personaCount: number, until: string | null | undefine
 
 const readable = (message: string) => message.replace(/Round (\d+)\/(\d+)/g, 'Round $1 of $2')
 
+const toolTitle = (tool: string) => TOOL_TITLES[tool] ?? `Called ${tool}`
+
+function reportStepLabel(event: ReportEventData | undefined) {
+  if (event?.toolName && (event.action === 'tool_call' || event.action === 'tool_result'))
+    return TOOL_TITLES[event.toolName] ?? `Running ${event.toolName}`
+  if (event?.sectionTitle) return `Writing ${event.sectionTitle}`
+  return 'Planning the report'
+}
+
 const delta = (from?: number, to?: number) =>
   from !== undefined && to !== undefined && to >= from ? Math.round(to - from) : undefined
 
@@ -87,7 +96,7 @@ function toolRows(events: ReportEventData[], running: boolean): ConsoleRow[] {
       const row: ConsoleRow = {
         id: `tool:${event.n}`,
         kind: running ? 'live' : 'done',
-        title: TOOL_TITLES[tool] ?? event.summary,
+        title: toolTitle(tool),
         chip: tool,
       }
       rows.push(row)
@@ -95,10 +104,9 @@ function toolRows(events: ReportEventData[], running: boolean): ConsoleRow[] {
     } else if (event.action === 'tool_result') {
       const index = open.findIndex((entry) => entry.row.chip === tool)
       const entry = index >= 0 ? open.splice(index, 1)[0] : undefined
-      const row = entry?.row ?? { id: `tool:${event.n}`, kind: 'done', title: TOOL_TITLES[tool] ?? tool, chip: tool }
+      const row = entry?.row ?? { id: `tool:${event.n}`, kind: 'done', title: toolTitle(tool), chip: tool }
       if (!entry) rows.push(row)
       row.kind = 'done'
-      row.detail = event.summary
       const seconds = delta(entry?.started, event.elapsedSeconds)
       if (seconds !== undefined) row.seconds = seconds
     }
@@ -206,8 +214,7 @@ export function deriveConsole(parts: Parts, live: ConsoleLive): ConsoleModel {
     if (stage === 'report' && (outline || events.length > 0)) {
       const children = reportChildren(outline, events, row.kind === 'live')
       if (children.length > 0) row.children = children
-      if (row.kind === 'live' && !row.detail)
-        row.detail = events.findLast((event) => event.action !== 'tool_result')?.summary
+      if (row.kind === 'live' && !row.detail) row.detail = reportStepLabel(events.at(-1))
       const last = events.findLast((event) => event.elapsedSeconds !== undefined)?.elapsedSeconds
       if (row.kind === 'done' && last !== undefined) row.seconds = Math.round(last)
     }

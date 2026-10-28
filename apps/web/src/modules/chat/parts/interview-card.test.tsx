@@ -33,6 +33,9 @@ describe('InterviewCard', () => {
     render(<InterviewCard data={{ ...base, status: 'done', answer: 'I like it' }} />)
     expect(screen.getByText('I like it').closest('[data-slot="bubble"]')?.getAttribute('data-variant')).toBe('ghost')
     expect(screen.queryByTestId('interview-pending')).toBeNull()
+    expect(screen.getByText('I like it').closest('[data-slot="bubble-content"]')?.className.split(' ')).toEqual(
+      expect.arrayContaining(['text-sm/6', 'sm:text-[15px]/6']),
+    )
   })
 
   it('renders an alert when failed', () => {
