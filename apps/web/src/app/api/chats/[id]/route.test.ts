@@ -5,6 +5,7 @@ vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn(), renameChat: vi.fn(), d
 
 import { getSessionUser } from '@/lib/session'
 import { deleteChat, getOwnedChat, renameChat } from '@/server/chats'
+import { sessionUser } from '@/test/session-user'
 import { DELETE, PATCH } from './route'
 
 const params = { params: Promise.resolve({ id: 'c1' }) }
@@ -20,7 +21,7 @@ const patch = (body: unknown) =>
 const del = () => DELETE(new Request('http://localhost/api/chats/c1', { method: 'DELETE' }), params)
 
 const owned = () => {
-  vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+  vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
   vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
 }
 
@@ -35,7 +36,7 @@ describe('PATCH /api/chats/[id]', () => {
   })
 
   it('returns 404 when not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await patch({ title: 'x' })
     expect(res.status).toBe(404)
@@ -76,7 +77,7 @@ describe('DELETE /api/chats/[id]', () => {
   })
 
   it('returns 404 when not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     expect((await del()).status).toBe(404)
     expect(deleteChat).not.toHaveBeenCalled()

@@ -9,6 +9,7 @@ vi.mock('@/server/runs', () => ({
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { runStore } from '@/server/runs'
+import { sessionUser } from '@/test/session-user'
 import { GET } from './route'
 
 const call = () => GET(new Request('http://localhost/api/chats/c1/run'), { params: Promise.resolve({ id: 'c1' }) })
@@ -26,7 +27,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('returns 404 json when the chat is not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await call()
     expect(res.status).toBe(404)
@@ -36,7 +37,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('returns status none when the chat has no runs', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
     const res = await call()
@@ -45,7 +46,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('returns the latest run with its last event seq', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({
       id: 'r1',
@@ -77,7 +78,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('narrows unknown env state to none and null deadline', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({
       id: 'r1',
@@ -94,7 +95,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('reports the queue position of a queued run', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({
       id: 'r1',
@@ -111,7 +112,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('reports pausedAhead for a queued run behind a paused run', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({
       id: 'r1',
@@ -129,7 +130,7 @@ describe('GET /api/chats/[id]/run', () => {
   })
 
   it('reports stage interviews and reportRequested from cursors', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({
       id: 'r1',

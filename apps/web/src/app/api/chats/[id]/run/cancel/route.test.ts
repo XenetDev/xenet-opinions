@@ -11,6 +11,7 @@ vi.mock('@/server/runs', () => ({
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from '@/server/runs'
+import { sessionUser } from '@/test/session-user'
 import { POST } from './route'
 
 const call = () =>
@@ -19,7 +20,7 @@ const call = () =>
   })
 
 const owned = () => {
-  vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+  vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
   vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
 }
 
@@ -36,7 +37,7 @@ describe('POST /api/chats/[id]/run/cancel', () => {
   })
 
   it('returns 404 json when the chat is not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await call()
     expect(res.status).toBe(404)

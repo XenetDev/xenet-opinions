@@ -12,6 +12,7 @@ import { tailRunAsUIMessageStream } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { runStore } from '@/server/runs'
+import { sessionUser } from '@/test/session-user'
 import { GET } from './route'
 
 const call = (request = new Request('http://localhost/api/chats/c1/stream')) =>
@@ -31,7 +32,7 @@ describe('GET /api/chats/[id]/stream', () => {
   })
 
   it('returns 404 json, not an event stream, for a chat the user does not own', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await call()
     expect(res.status).toBe(404)
@@ -42,7 +43,7 @@ describe('GET /api/chats/[id]/stream', () => {
   })
 
   it('returns 204 with an empty body when no run is active', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
     const res = await call()
@@ -54,7 +55,7 @@ describe('GET /api/chats/[id]/stream', () => {
   })
 
   it('tails the active run starting with the assistant message id', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
     vi.mocked(tailRunAsUIMessageStream).mockImplementation(({ messageId }) =>
@@ -85,7 +86,7 @@ describe('GET /api/chats/[id]/stream', () => {
   it.each(['x', '-1', '1.5', '', '1e3', '99999999999999999999'])(
     'rejects after=%j with 400 invalid_after',
     async (after) => {
-      vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+      vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
       vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
       vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
       const res = await call(new Request(`http://localhost/api/chats/c1/stream?after=${after}`))
@@ -100,7 +101,7 @@ describe('GET /api/chats/[id]/stream', () => {
     ['?after=0', 0],
     ['', 0],
   ])('tails from the seq in %j', async (query, afterSeq) => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
     vi.mocked(tailRunAsUIMessageStream).mockImplementation(() => createUIMessageStream({ execute: () => {} }))
@@ -110,7 +111,7 @@ describe('GET /api/chats/[id]/stream', () => {
   })
 
   it('drains the latest run from the cursor when a continuation finds the run already ended', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
@@ -124,7 +125,7 @@ describe('GET /api/chats/[id]/stream', () => {
   })
 
   it('returns 204 for a continuation when the chat has no run', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
     vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
     vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)

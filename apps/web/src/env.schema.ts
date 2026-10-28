@@ -38,6 +38,7 @@ export const envSchema = z
     GITHUB_CLIENT_SECRET: optionalString,
     APPLE_CLIENT_ID: optionalString,
     APPLE_CLIENT_SECRET: optionalString,
+    APPLE_APP_BUNDLE_IDENTIFIER: optionalString,
     DEMO_MAX_ROUNDS: z.coerce.number().int().min(1).max(40).default(3),
   })
   .superRefine((env, ctx) => {

@@ -1,6 +1,16 @@
 import { auth } from '@/lib/auth'
 
-export async function getSessionUser(headers: Headers): Promise<{ id: string } | null> {
+export type SessionUser = { id: string; isAnonymous: boolean; email: string; name: string; image: string | null }
+
+export async function getSessionUser(headers: Headers): Promise<SessionUser | null> {
   const session = await auth.api.getSession({ headers })
-  return session ? { id: session.user.id } : null
+  if (!session) return null
+  const { user } = session
+  return {
+    id: user.id,
+    isAnonymous: user.isAnonymous === true,
+    email: user.email,
+    name: user.name,
+    image: user.image ?? null,
+  }
 }

@@ -46,6 +46,7 @@ import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { sessionUser } from '@/test/session-user'
 import { POST } from './route'
 
 const userMessage = (text: string) => ({ id: 'u1', role: 'user', parts: [{ type: 'text', text }] })
@@ -61,7 +62,7 @@ const callBody = (body: unknown) =>
 const call = (message: unknown, extra: Record<string, unknown> = {}) => callBody({ id: 'c1', message, ...extra })
 
 const authed = () => {
-  vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+  vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
   vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
   vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
   vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
@@ -92,7 +93,7 @@ describe('POST /api/chats/[id]/messages', () => {
   })
 
   it('returns 404 when chat is not owned', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(getOwnedChat).mockResolvedValue(null)
     const res = await call(userMessage('hello'))
     expect(res.status).toBe(404)

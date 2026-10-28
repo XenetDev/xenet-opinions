@@ -1,13 +1,96 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { schema } from '@xo/db'
-import { betterAuth } from 'better-auth'
-import { anonymous } from 'better-auth/plugins'
+import { type BetterAuthOptions, betterAuth } from 'better-auth'
+import { anonymous, magicLink } from 'better-auth/plugins'
 import { env } from '@/env'
+import type { Env } from '@/env.schema'
+import { authProvidersFrom } from '@/lib/auth-providers'
 import { db } from '@/lib/db'
+import { deleteAccountEmail, magicLinkEmail } from '@/lib/emails'
+import { getMailer, type Mailer } from '@/lib/mailer'
+import { deleteUserStorage, relinkAnonymousUser } from '@/server/account'
 
-export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg', schema }),
-  plugins: [anonymous()],
-  secret: env.BETTER_AUTH_SECRET,
-  baseURL: env.BETTER_AUTH_URL,
-})
+type AuthDeps = {
+  env: Env
+  nodeEnv: string | undefined
+  db: Parameters<typeof drizzleAdapter>[0]
+  schema: Record<string, unknown>
+  mailer: () => Mailer
+  relink: typeof relinkAnonymousUser
+  deleteStorage: typeof deleteUserStorage
+}
+
+export function buildAuthOptions(deps: AuthDeps) {
+  const { env, nodeEnv, mailer, relink, deleteStorage } = deps
+  const providers = authProvidersFrom(env, nodeEnv)
+  const socialProviders: NonNullable<BetterAuthOptions['socialProviders']> = {}
+  if (providers.google && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)
+    socialProviders.google = { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+  if (providers.github && env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
+    socialProviders.github = { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET }
+  if (providers.apple && env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET)
+    socialProviders.apple = {
+      clientId: env.APPLE_CLIENT_ID,
+      clientSecret: env.APPLE_CLIENT_SECRET,
+      appBundleIdentifier: env.APPLE_APP_BUNDLE_IDENTIFIER,
+    }
+  return {
+    database: drizzleAdapter(deps.db, { provider: 'pg', schema: deps.schema }),
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL,
+    trustedOrigins: [env.NEXT_PUBLIC_APP_URL, ...(providers.apple ? ['https://appleid.apple.com'] : [])],
+    session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      storage: 'database',
+      customRules: {
+        '/sign-in/magic-link': { window: 60, max: 3 },
+        '/sign-in/anonymous': { window: 60, max: 10 },
+        '/delete-user': { window: 60, max: 3 },
+      },
+    },
+    advanced: {
+      useSecureCookies: nodeEnv === 'production',
+      ipAddress: { ipAddressHeaders: ['x-forwarded-for', 'x-real-ip'] },
+    },
+    socialProviders,
+    user: {
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: ({ user, url }) =>
+          mailer().send({ to: user.email, ...deleteAccountEmail({ url }) }),
+        beforeDelete: (user) => deleteStorage(user.id),
+      },
+    },
+    plugins: [
+      anonymous({
+        onLinkAccount: async ({ anonymousUser, newUser }) => {
+          await relink({ fromUserId: anonymousUser.user.id, toUserId: newUser.user.id })
+        },
+      }),
+      ...(providers.magicLink
+        ? [
+            magicLink({
+              expiresIn: 900,
+              storeToken: 'hashed',
+              sendMagicLink: ({ email, url }) => mailer().send({ to: email, ...magicLinkEmail({ url }) }),
+            }),
+          ]
+        : []),
+    ],
+  } satisfies BetterAuthOptions
+}
+
+export const auth = betterAuth(
+  buildAuthOptions({
+    env,
+    nodeEnv: process.env.NODE_ENV,
+    db,
+    schema,
+    mailer: getMailer,
+    relink: relinkAnonymousUser,
+    deleteStorage: deleteUserStorage,
+  }),
+)

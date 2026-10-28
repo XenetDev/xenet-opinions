@@ -5,6 +5,7 @@ vi.mock('@/server/chats', () => ({ createChat: vi.fn(), listChats: vi.fn() }))
 
 import { getSessionUser } from '@/lib/session'
 import { createChat, listChats } from '@/server/chats'
+import { sessionUser } from '@/test/session-user'
 import { GET, POST } from './route'
 
 beforeEach(() => {
@@ -20,7 +21,7 @@ describe('GET /api/chats', () => {
   })
 
   it('returns the owned chats in the order listChats gives them', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     const updatedAt = new Date('2026-01-02T00:00:00Z')
     vi.mocked(listChats).mockResolvedValue([
       { id: 'c2', title: 'Newer', updatedAt, runStatus: 'running' },
@@ -42,7 +43,7 @@ describe('GET /api/chats', () => {
 
 describe('POST /api/chats', () => {
   it('creates a chat', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
     vi.mocked(createChat).mockResolvedValue({ id: 'c9' } as never)
     const res = await POST(new Request('http://localhost/api/chats', { method: 'POST' }))
     expect(res.status).toBe(201)
