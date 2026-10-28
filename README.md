@@ -6,6 +6,10 @@ Xenet Opinions is an open-source, chat-first interface for [MiroFish](https://gi
 
 Turn on "Pause for interviews" in the composer when you start a run. After the simulation rounds the personas stay online for 20 minutes. Pick up to 5 of them from the roster and ask a question; the answers arrive one by one, usually within seconds each with real MiroFish (a persona that does not answer within 4 minutes is marked failed), and every question you ask extends the window (5 minutes per persona, up to 60 minutes in total). Press Generate report when you are done, or wait for the window to end; the report is written either way. Runs without it go straight to the report. Report follow-up questions work after the run as before. Interviews are not possible after the report, because upstream MiroFish writes the report only after the simulation process exits and personas exist only while it runs; the background is in the [Phase 5 follow-ups](docs/superpowers/plans/2026-10-23-phase-5-followups.md) and the [design](docs/superpowers/specs/2026-10-27-interview-window-design.md).
 
+## Signing in
+
+Every visitor starts with an anonymous session. `/sign-in` offers a magic link by email, Google and GitHub; each option appears only when its environment variables are set. Signing in from an anonymous session moves that visitor's chats, uploads and runs to the account. In demo mode guests get 1 run a day and signed-in users get 3. Signed-in users can sign out or delete their account from the avatar menu in the header. Setup is in [docs/hosting.md](docs/hosting.md#sign-in-providers).
+
 ## Architecture
 
 ```

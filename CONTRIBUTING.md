@@ -26,6 +26,8 @@ pnpm mock   # mock MiroFish on :5001
 pnpm dev    # web on :3000 and the worker
 ```
 
+Without `RESEND_API_KEY` the dev server prints magic links to its terminal. In demo mode `MAX_RUNS_PER_DAY` defaults to 3 per signed-in user and `MAX_RUNS_PER_DAY_ANONYMOUS` to 1.
+
 The mock is stateful and needs no keys. Its switches:
 
 - `MOCK_SPEED` divides its delays (higher is faster), for example `MOCK_SPEED=5 pnpm mock`.

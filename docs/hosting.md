@@ -90,7 +90,14 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `MOCK_SPEED` | `5` | Mock MiroFish |
 | `DEMO_MODE` | `0` | `1` enables per-user quotas and the rounds cap |
 | `DEMO_PAUSED` | `0` | `1` refuses new runs (follow-ups still work) |
-| `MAX_RUNS_PER_DAY` | `2` | New runs per anonymous user per 24 h; retries of a failed run are free. Demo mode only |
+| `MAX_RUNS_PER_DAY_ANONYMOUS` | `1` | New runs per guest (not signed in) per 24 h; retries of a failed run are free. Demo mode only |
+| `MAX_RUNS_PER_DAY` | `3` | New runs per signed-in user per 24 h; retries of a failed run are free. Demo mode only |
+| `RESEND_API_KEY` | blank | Enables the magic link by email. Needs `EMAIL_FROM` |
+| `EMAIL_FROM` | blank | Sender, `Name <address>` or a bare address on a domain verified in Resend |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | blank | Enable Google sign-in; set both |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | blank | Enable GitHub sign-in; set both |
+| `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET` | blank | Enable Apple sign-in; set both. Not tested yet |
+| `APPLE_APP_BUNDLE_IDENTIFIER` | blank | Optional, for native Apple sign-in |
 | `DEMO_MAX_ROUNDS` | `3` | Rounds cap, demo mode only |
 | `DEMO_ALLOW_PAUSE` | `1` | Read by `web`. `0` hides the "Pause for interviews before the report" checkbox and forces the option off |
 | `MOCK_INTERVIEW_DELAY_MS` | `1500` | Mock MiroFish only: delay per interview call, so answers visibly arrive one by one |
@@ -110,6 +117,24 @@ With `DEMO_PAUSED=1` new runs are refused (`demo_paused`) and the composer is di
 ```sh
 infra/docker/up.sh up -d web
 ```
+
+### Sign-in providers
+
+Every visitor gets an anonymous session; `/sign-in` adds accounts. Each provider is shown only when its variables are set, and sessions last 30 days. Signing in from an anonymous session moves its chats, uploads and runs to the account, so the 24-hour quota window carries over. Set the variables in `.env.selfhost` (or in Vercel) and recreate `web`.
+
+- Redirect URIs: register `<APP_URL>/api/auth/callback/google` with Google and `<APP_URL>/api/auth/callback/github` with GitHub, where `<APP_URL>` is `BETTER_AUTH_URL`. A GitHub OAuth app allows one callback URL, so use one app per origin.
+- Magic link: set `RESEND_API_KEY` and `EMAIL_FROM`; the sender's domain must be verified in Resend. Without a key the app prints the link to the server log in development and refuses to send in production, and the magic-link option is hidden.
+- Account deletion is confirmed by email and removes the user's uploads from storage.
+
+Rate limits are stored in the `rate_limit` table, per client IP:
+
+| Scope | Limit |
+| --- | --- |
+| All requests | 60 per minute |
+| Magic-link requests and account deletion | 3 per minute |
+| Anonymous sign-ins | 10 per minute |
+
+The client IP is read from `x-forwarded-for` or `x-real-ip`. Vercel sets the header itself. A self-hosted `web` exposed directly, without a reverse proxy that sets these headers, lets a client choose its own bucket.
 
 ### Interview window
 
@@ -179,7 +204,7 @@ web + worker ──► S3-compatible bucket (R2 or S3)
 - Postgres: managed Postgres reachable from Vercel and the container host. Run `pnpm --filter @xo/db db:migrate:prod` with its `DATABASE_URL` before each deploy that adds migrations.
 - Container host: `worker`, `mirofish-proxy` and `mirofish` on one private network, built from the same Dockerfiles as the bundle (or run from the published `ghcr.io/xenetdev/xenet-opinions-worker` and `ghcr.io/xenetdev/xenet-opinions-mirofish` images; the proxy is `caddy:2` with `infra/mirofish/Caddyfile`, or `infra/mirofish/Dockerfile.proxy` where files cannot be mounted). Their environment is listed under [Container host environment](#container-host-environment). Exactly one MiroFish replica with a persistent volume on `/app/backend/uploads` and the retention cron. MiroFish's port is never public. The proxy is the only public entry point, because Vercel needs to reach it; it requires `X-MiroFish-Token` on everything but `GET /health`. The Caddyfile serves plain HTTP on `:8080` (`auto_https off`), so the container host or platform must terminate TLS in front of it: Railway and Fly do this on their public URLs, a bare VM needs a TLS-terminating reverse proxy. Without TLS the token travels in cleartext.
 - Uploads: an S3-compatible bucket (`STORAGE_DRIVER=s3`, `S3_*`) shared by web and worker. For R2 set `S3_ENDPOINT` to the account endpoint, `S3_REGION=auto` and `S3_FORCE_PATH_STYLE=true`.
-- Policy: `DEMO_MODE=1` enables the per-anonymous-user quota (`MAX_RUNS_PER_DAY=2` runs per rolling 24 h) and the rounds cap (`DEMO_MAX_ROUNDS=3`). Runs queue FIFO with one at a time (`MAX_CONCURRENT_RUNS=1`) and the chat shows the queue position.
+- Policy: `DEMO_MODE=1` enables the quotas per rolling 24 h (`MAX_RUNS_PER_DAY_ANONYMOUS=1` for guests, `MAX_RUNS_PER_DAY=3` per signed-in user) and the rounds cap (`DEMO_MAX_ROUNDS=3`). Runs queue FIFO with one at a time (`MAX_CONCURRENT_RUNS=1`) and the chat shows the queue position.
 - Kill switch: set `DEMO_PAUSED=1` on Vercel and redeploy (or promote) to refuse new runs with `demo_paused`; follow-ups on finished runs keep working. Set it back to `0` to resume.
 - Monitoring: poll `GET /api/health` on the public URL. It returns 200 with `{"ok":true,"db":"ok","mirofish":"ok"}` and 503 when Postgres or the proxy (and through it MiroFish) is down. Set `HEALTH_CHECK_MIROFISH=0` to drop the MiroFish probe. Monitor the worker by its container status and logs.
 
@@ -244,7 +269,9 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `DEMO_MODE` | `1` |
 | `DEMO_PAUSED` | `0` (`1` to pause) |
 | `DEMO_ALLOW_PAUSE` | `0` |
-| `MAX_RUNS_PER_DAY` | `2` |
+| `MAX_RUNS_PER_DAY_ANONYMOUS` | `1` |
+| `MAX_RUNS_PER_DAY` | `3` |
+| `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_*`, `GITHUB_*`, `APPLE_*` | Optional sign-in providers, see [Sign-in providers](#sign-in-providers) |
 | `DEMO_MAX_ROUNDS` | `3` |
 | `HEALTH_CHECK_MIROFISH` | `1` |
 
