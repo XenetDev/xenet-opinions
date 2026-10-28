@@ -21,6 +21,9 @@ export class Timeline {
   }
 }
 
+// MiroFish's clock starts at midnight with one hour per round, and no persona is active before 8am.
+export const NIGHT_ROUNDS = 8
+
 export const hexId = (prefix: string) => `${prefix}_${randomBytes(6).toString('hex')}`
 
 export type Failable = { failed?: boolean }

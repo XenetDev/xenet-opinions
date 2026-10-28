@@ -12,7 +12,7 @@ import {
   PROFILE_COUNT,
   reportMarkdown,
 } from './fixtures'
-import { createStore, FAIL_STAGES, type Failable, type FailStage, hexId, Timeline } from './state'
+import { createStore, FAIL_STAGES, type Failable, type FailStage, hexId, NIGHT_ROUNDS, Timeline } from './state'
 
 export type MockOptions = {
   port?: number
@@ -186,6 +186,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       }
     const failed = fails(run, 'sim_run')
     const round = run.timeline.done ? run.maxRounds : Math.floor(run.timeline.progress * run.maxRounds)
+    const active = Math.max(0, round - NIGHT_ROUNDS)
     const runner = failed
       ? 'failed'
       : run.stopped
@@ -204,9 +205,9 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       reddit_running: runner === 'running' && !roundsDone,
       twitter_completed: roundsDone,
       reddit_completed: roundsDone,
-      twitter_actions_count: round * 3,
-      reddit_actions_count: round * 2,
-      total_actions_count: round * 5,
+      twitter_actions_count: active * 3,
+      reddit_actions_count: active * 2,
+      total_actions_count: active * 5,
       error: failed ? FAILURE : null,
     }
   }
@@ -330,7 +331,11 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       const sim = need(store.simulations.get(String(body.simulation_id ?? '')), 'simulation')
       const requested = Number(body.max_rounds)
       const maxRounds = Number.isInteger(requested) && requested > 0 ? requested : DEFAULT_MAX_ROUNDS
-      sim.run = { maxRounds, timeline: new Timeline(scale(maxRounds * 1000)), stopped: false }
+      sim.run = {
+        maxRounds,
+        timeline: new Timeline(scale(Math.max(0, maxRounds - NIGHT_ROUNDS) * 1000)),
+        stopped: false,
+      }
       return {
         simulation_id: sim.id,
         runner_status: 'starting',
@@ -346,8 +351,8 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       const platform = query.get('platform')
       if (platform !== 'twitter' && platform !== 'reddit')
         throw new HttpError(400, 'platform must be twitter or reddit')
-      const round = sim.run ? (runView(sim.id).current_round as number) : 0
-      const all = Array.from({ length: round }, (_, r) => [0, 1].map((k) => buildPost(platform, r + 1, k))).flat()
+      const active = sim.run ? Math.max(0, (runView(sim.id).current_round as number) - NIGHT_ROUNDS) : 0
+      const all = Array.from({ length: active }, (_, r) => [0, 1].map((k) => buildPost(platform, r + 1, k))).flat()
       const offset = Math.max(0, Number(query.get('offset')) || 0)
       const limit = Number(query.get('limit')) || all.length
       return {
@@ -362,9 +367,9 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       const platform = query.get('platform')
       if (platform !== 'twitter' && platform !== 'reddit')
         throw new HttpError(400, 'platform must be twitter or reddit')
-      const round = sim.run ? (runView(sim.id).current_round as number) : 0
+      const active = sim.run ? Math.max(0, (runView(sim.id).current_round as number) - NIGHT_ROUNDS) : 0
       const postId = query.get('post_id')
-      const all = Array.from({ length: round }, (_, r) => [0, 1].flatMap((k) => buildComments(platform, r + 1, k)))
+      const all = Array.from({ length: active }, (_, r) => [0, 1].flatMap((k) => buildComments(platform, r + 1, k)))
         .flat()
         .filter((c) => !postId || c.post_id === postId)
       const offset = Math.max(0, Number(query.get('offset')) || 0)

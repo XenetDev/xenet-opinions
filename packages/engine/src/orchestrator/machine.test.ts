@@ -93,7 +93,7 @@ describe('tick', () => {
       files: [{ name: 'brief.md', bytes: new Uint8Array([1]), type: 'text/markdown' }],
       requirement: 'React?',
     })
-    expect(mf.simulation.start).toHaveBeenCalledWith({ simulationId: 'sim_1', maxRounds: 2 })
+    expect(mf.simulation.start).toHaveBeenCalledWith({ simulationId: 'sim_1', maxRounds: 10 })
     for (const c of vi.mocked(mf.simulation.posts).mock.calls)
       expect(c[1]).toMatchObject({ platform: expect.any(String), limit: 50 })
     expect(vi.mocked(mf.simulation.posts).mock.calls.map((c) => [c[1].platform, c[1].offset])).toEqual([
@@ -339,7 +339,7 @@ describe('tick', () => {
   it('closes the env once after the last round and stays in sim_run through stopping', async () => {
     const roundsDone = {
       runner_status: 'running' as const,
-      current_round: 1,
+      current_round: 9,
       total_rounds: 1,
       twitter_completed: true,
       reddit_completed: true,
@@ -424,7 +424,7 @@ describe('tick', () => {
     const { store, deps, run } = await setup(
       {
         simulation: {
-          runStatus: vi.fn(async () => ({ runner_status: 'completed' as const, current_round: 6, total_rounds: 6 })),
+          runStatus: vi.fn(async () => ({ runner_status: 'completed' as const, current_round: 14, total_rounds: 6 })),
           posts: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) => ({
             posts: q.offset ? page(q.platform, q.offset, 10) : page(q.platform, 0, 50),
           })),
@@ -438,11 +438,11 @@ describe('tick', () => {
     expect(next.cursors.postsOffsetReddit).toBe(60)
     expect(deps.mirofish.simulation.posts).toHaveBeenCalledTimes(4)
     const feed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'sim_feed')?.payload as {
-      posts: Array<{ round: number }>
+      posts: Array<{ id: string; round: number }>
     }
     expect(feed.posts).toHaveLength(50)
-    expect(feed.posts.every((p) => p.round >= 2)).toBe(true)
-    expect(feed.posts.at(-1)?.round).toBe(6)
+    expect(feed.posts.every((p) => p.round === 2)).toBe(true)
+    expect(feed.posts.at(-1)?.id).toBe('reddit_59')
   })
 
   it('fetches replies per platform, advances their cursors and emits them in the feed', async () => {
@@ -455,7 +455,7 @@ describe('tick', () => {
     const { store, deps, run } = await setup(
       {
         simulation: {
-          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 3, total_rounds: 6 })),
+          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 11, total_rounds: 6 })),
           posts: vi.fn(async () => ({ posts: [] })),
           comments: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) => ({
             comments: [comment(q.platform, q.offset ?? 0)],
@@ -468,7 +468,7 @@ describe('tick', () => {
         cursors: {
           simStarted: true,
           commentsOffsetTwitter: 4,
-          feed: { round: 3, totalRounds: 6, twitterActs: 0, redditActs: 0, posts: [] },
+          feed: { round: 1, totalRounds: 2, twitterActs: 0, redditActs: 0, posts: [] },
         },
       },
     )
@@ -483,8 +483,8 @@ describe('tick', () => {
     expect(feeds).toHaveLength(1)
     expect(feeds.at(0)?.payload).toMatchObject({
       replies: [
-        { id: 'reddit_c0', postId: 'reddit_0', platform: 'reddit', agent: '1', content: 'reply', round: 3 },
-        { id: 'twitter_c4', postId: 'twitter_4', platform: 'twitter', agent: '5', content: 'reply', round: 3 },
+        { id: 'reddit_c0', postId: 'reddit_0', platform: 'reddit', agent: '1', content: 'reply', round: 2 },
+        { id: 'twitter_c4', postId: 'twitter_4', platform: 'twitter', agent: '5', content: 'reply', round: 2 },
       ],
     })
   })
@@ -494,7 +494,7 @@ describe('tick', () => {
     const { store, deps, run } = await setup(
       {
         simulation: {
-          runStatus: vi.fn(async () => ({ runner_status: 'completed' as const, current_round: 2, total_rounds: 2 })),
+          runStatus: vi.fn(async () => ({ runner_status: 'completed' as const, current_round: 10, total_rounds: 2 })),
           comments: vi.fn(async () => {
             throw notFound
           }),
@@ -524,7 +524,7 @@ describe('tick', () => {
     const { deps, run } = await setup(
       {
         simulation: {
-          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 1, total_rounds: 2 })),
+          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 9, total_rounds: 2 })),
           comments: vi.fn(async () => {
             throw new FenceError('r')
           }),
@@ -722,7 +722,7 @@ describe('failures', () => {
           runStatus: vi
             .fn()
             .mockRejectedValueOnce(err)
-            .mockResolvedValue({ runner_status: 'running', current_round: 1, total_rounds: 2 }),
+            .mockResolvedValue({ runner_status: 'running', current_round: 9, total_rounds: 2 }),
         },
       },
       { stage: 'sim_run', ids, cursors: { simStarted: true } },
@@ -986,10 +986,10 @@ describe('interview window', () => {
       simulation: {
         runStatus: vi
           .fn()
-          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
           .mockResolvedValueOnce({
             runner_status: 'running',
-            current_round: 2,
+            current_round: 10,
             total_rounds: 2,
             twitter_completed: true,
             reddit_completed: true,
@@ -1025,10 +1025,10 @@ describe('interview window', () => {
       simulation: {
         runStatus: vi
           .fn()
-          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
           .mockResolvedValueOnce({
             runner_status: 'running',
-            current_round: 2,
+            current_round: 10,
             total_rounds: 2,
             twitter_completed: true,
             reddit_completed: true,
@@ -1053,10 +1053,10 @@ describe('interview window', () => {
       simulation: {
         runStatus: vi
           .fn()
-          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
           .mockResolvedValueOnce({
             runner_status: 'running',
-            current_round: 2,
+            current_round: 10,
             total_rounds: 2,
             twitter_completed: true,
             reddit_completed: true,
@@ -1076,10 +1076,10 @@ describe('interview window', () => {
       simulation: {
         runStatus: vi
           .fn()
-          .mockResolvedValueOnce({ runner_status: 'running', current_round: 1, total_rounds: 2 })
+          .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
           .mockResolvedValueOnce({
             runner_status: 'running',
-            current_round: 2,
+            current_round: 10,
             total_rounds: 2,
             twitter_completed: true,
             reddit_completed: true,
