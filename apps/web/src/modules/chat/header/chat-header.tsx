@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
+import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
 import { ThemeToggle } from './theme-toggle'
 import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
@@ -47,6 +48,7 @@ export function ChatHeader() {
         </TooltipTrigger>
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
+      <AccountMenu />
       <ThemeToggle />
     </header>
   )

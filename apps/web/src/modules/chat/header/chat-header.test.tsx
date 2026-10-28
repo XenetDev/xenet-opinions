@@ -12,6 +12,15 @@ vi.mock('next/navigation', () => ({
   usePathname: () => nav.pathname,
 }))
 
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    useSession: () => ({
+      data: { user: { id: 'g', name: 'Guest', email: 'g@x.y', isAnonymous: true } },
+      isPending: false,
+    }),
+  },
+}))
+
 import { type ChatActivity, ChatActivityProvider, useChatActivity } from '../chat-activity'
 import { type ChatListItem, ChatListProvider, type ChatUpsert, useChatList } from '../chat-list-context'
 import { ChatHeader } from './chat-header'
@@ -79,6 +88,11 @@ describe('ChatHeader', () => {
     renderHeader()
     expect(screen.getByRole('button', { name: 'Switch chat, New chat' })).toBeTruthy()
     expect(screen.getByRole('banner').textContent).toContain('New chat')
+  })
+
+  it('offers sign in to anonymous visitors', () => {
+    renderHeader()
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in?next=%2Fc%2Fa')
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {
