@@ -52,7 +52,7 @@ function SignInCard({
           aria-hidden="true"
           className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"
         >
-          <XoMark className="w-6" />
+          <XoMark className="h-auto w-6" />
         </div>
         <div className="flex flex-col gap-1.5">
           <h1
