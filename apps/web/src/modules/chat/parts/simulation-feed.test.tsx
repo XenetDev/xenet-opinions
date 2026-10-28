@@ -41,7 +41,7 @@ describe('SimulationFeed', () => {
 
   it('switches to reddit posts', () => {
     render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
-    fireEvent.mouseDown(screen.getByRole('tab', { name: /Reddit/ }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /reddit/ }))
     expect(screen.getAllByTestId('feed-post')).toHaveLength(1)
     expect(screen.getByText('reddit one')).toBeTruthy()
   })
@@ -146,7 +146,7 @@ describe('SimulationFeed', () => {
     )
     expect(screen.queryByText('orphan')).toBeNull()
     expect(screen.queryAllByTestId('feed-reply')).toHaveLength(0)
-    fireEvent.mouseDown(screen.getByRole('tab', { name: /Reddit/ }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /reddit/ }))
     expect(screen.getAllByTestId('feed-reply')).toHaveLength(1)
   })
 
