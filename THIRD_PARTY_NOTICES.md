@@ -7,7 +7,7 @@ This repository includes material from the following third-party projects.
 - Source: https://github.com/vercel/ai-elements
 - Copyright 2023 Vercel, Inc.
 - License: Apache License 2.0
-- Used in: files vendored under `apps/web/src/components/ai-elements/`
+- Used in: `apps/web/src/modules/chat/markdown.tsx` (derived from AI Elements' `MessageResponse`)
 
 ## shadcn/ui
 
