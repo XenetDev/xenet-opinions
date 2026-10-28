@@ -58,10 +58,10 @@ export function Welcome({ recent, onUseStarter }: { recent: RecentChat[]; onUseS
                     type="button"
                     variant="outline"
                     onClick={() => onUseStarter(starter.prompt)}
-                    className="h-auto w-full justify-start gap-3 px-3 py-2.5 text-start font-normal"
+                    className="h-auto w-full justify-start gap-3 px-3 py-2.5 text-start font-normal whitespace-normal"
                   >
                     <span className="shrink-0 text-muted-foreground [&>svg]:size-4">{starter.icon}</span>
-                    <span className="min-w-0 truncate text-sm">{starter.prompt}</span>
+                    <span className="min-w-0 text-sm">{starter.prompt}</span>
                   </Button>
                 </li>
               ))}

@@ -182,7 +182,7 @@ export function PillComposer({
             placeholder={PLACEHOLDERS[mode]}
             disabled={disabled}
             rows={1}
-            className="field-sizing-content max-h-40 min-h-12 px-0 py-3"
+            className="field-sizing-content max-h-40 min-h-12 px-0 py-3 placeholder:truncate"
           />
           {mode === 'run' && (
             <InputGroupAddon align="inline-start" className="me-1">
