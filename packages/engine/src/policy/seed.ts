@@ -10,15 +10,14 @@ export function needsSeedContext(text: string, uploadCount: number): boolean {
 }
 
 const DEFAULT_BACKGROUND =
-  'A present-day, realistic setting for the question above. The organisation behind the decision is established, with existing customers, staff, competitors and press coverage.'
+  "A present-day, realistic setting for the question above. The people and organisations involved already exist, know each other's positions, and talk about the decision in public."
 
 const DEFAULT_ACTORS = [
-  '- Existing customers who use the product or service today, including individuals, small teams and larger accounts',
-  '- Prospective customers comparing alternatives',
-  "- The organisation's leadership, product team and front-line support staff",
-  '- Two or three competing providers in the same market',
-  '- Trade press, industry analysts and local media',
-  '- Online communities and social media where customers discuss the product',
+  '- The people directly affected by the decision, across different ages, budgets and levels of dependence on what is changing',
+  '- The organisation or authority making the decision, including its leadership and front-line staff',
+  '- Organisations with a competing or opposing interest',
+  '- Journalists, analysts and commentators who cover the topic',
+  '- Online communities and social media where the decision is discussed',
 ].join('\n')
 
 const DEFAULT_CHANGE =
