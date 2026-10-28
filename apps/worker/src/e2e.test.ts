@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createDb, schema } from '@xo/db'
 import { cancelRun, createDrizzleStore, type Deps } from '@xo/engine'
+import type { SimFeedData } from '@xo/engine/parts'
 import { createMiroFishClient } from '@xo/mirofish'
 import { startMockMiroFish } from '@xo/mirofish/mock'
 import { createLocalStorage, uploadKey } from '@xo/storage'
@@ -126,6 +127,9 @@ e2e('drives a queued run to done and materialises the report', { timeout: 90_000
     .orderBy(asc(schema.runEvents.seq))
   expect(events.map((e) => e.seq)).toEqual(events.map((_, i) => i + 1))
   expect(events.at(-1)?.kind).toBe('done')
+  const feed = events.filter((e) => e.kind === 'sim_feed').at(-1)?.payload as SimFeedData
+  const postIds = new Set(feed.posts.map((p) => p.id))
+  expect(feed.replies?.some((r) => postIds.has(r.postId))).toBe(true)
   const [message] = await db.select().from(schema.messages).where(eq(schema.messages.id, messageId))
   const text = (message!.parts as Array<{ type: string; text?: string }>)
     .filter((p) => p.type === 'text')

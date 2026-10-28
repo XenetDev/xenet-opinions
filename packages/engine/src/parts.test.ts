@@ -91,6 +91,9 @@ describe('parts', () => {
       posts: [{ id: 'x', platform: 'twitter' as const, agent: 'Ann', content: 'hi', round: 1 }],
     }
     expect(SimFeedDataSchema.parse(d)).toEqual(d)
+    const replies = [{ id: 'c1', postId: 'x', platform: 'twitter' as const, agent: '3', content: 'yes', round: 1 }]
+    expect(SimFeedDataSchema.parse({ ...d, replies })).toEqual({ ...d, replies })
+    expect(SimFeedDataSchema.safeParse({ ...d, replies: [{ ...replies[0], postId: 1 }] }).success).toBe(false)
   })
 
   it('parses report outline data', () => {

@@ -73,6 +73,18 @@ export const SimFeedDataSchema = z.object({
       round: z.number(),
     }),
   ),
+  replies: z
+    .array(
+      z.object({
+        id: z.string(),
+        postId: z.string(),
+        platform: z.enum(['twitter', 'reddit']),
+        agent: z.string(),
+        content: z.string(),
+        round: z.number(),
+      }),
+    )
+    .optional(),
 })
 export type SimFeedData = z.infer<typeof SimFeedDataSchema>
 

@@ -104,6 +104,14 @@ describe('tick', () => {
       ['twitter', 2],
       ['reddit', 2],
     ])
+    expect(vi.mocked(mf.simulation.comments).mock.calls.map((c) => c[1].platform)).toEqual([
+      'twitter',
+      'reddit',
+      'twitter',
+      'reddit',
+      'twitter',
+      'reddit',
+    ])
     expect(mf.simulation.closeEnv).toHaveBeenCalledTimes(1)
     expect(mf.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
     expect(vi.mocked(mf.report.agentLog).mock.calls.map((c) => c[1])).toEqual([0, 3, 6])
@@ -435,6 +443,50 @@ describe('tick', () => {
     expect(feed.posts).toHaveLength(50)
     expect(feed.posts.every((p) => p.round >= 2)).toBe(true)
     expect(feed.posts.at(-1)?.round).toBe(6)
+  })
+
+  it('fetches replies per platform, advances their cursors and emits them in the feed', async () => {
+    const comment = (platform: 'twitter' | 'reddit', i: number) => ({
+      comment_id: `${platform}_c${i}`,
+      post_id: `${platform}_${i}`,
+      user_id: i + 1,
+      content: 'reply',
+    })
+    const { store, deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 3, total_rounds: 6 })),
+          posts: vi.fn(async () => ({ posts: [] })),
+          comments: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) => ({
+            comments: [comment(q.platform, q.offset ?? 0)],
+          })),
+        },
+      },
+      {
+        stage: 'sim_run',
+        ids,
+        cursors: {
+          simStarted: true,
+          commentsOffsetTwitter: 4,
+          feed: { round: 3, totalRounds: 6, twitterActs: 0, redditActs: 0, posts: [] },
+        },
+      },
+    )
+    const next = await tick(run, deps)
+    expect(vi.mocked(deps.mirofish.simulation.comments).mock.calls.map((c) => c[1])).toEqual([
+      { platform: 'twitter', limit: 50, offset: 4 },
+      { platform: 'reddit', limit: 50, offset: 0 },
+    ])
+    expect(next.cursors.commentsOffsetTwitter).toBe(5)
+    expect(next.cursors.commentsOffsetReddit).toBe(1)
+    const feeds = (store.events.get(run.id) ?? []).filter((e) => e.kind === 'sim_feed')
+    expect(feeds).toHaveLength(1)
+    expect(feeds.at(0)?.payload).toMatchObject({
+      replies: [
+        { id: 'reddit_c0', postId: 'reddit_0', platform: 'reddit', agent: '1', content: 'reply', round: 3 },
+        { id: 'twitter_c4', postId: 'twitter_4', platform: 'twitter', agent: '5', content: 'reply', round: 3 },
+      ],
+    })
   })
 
   it('does not emit the report text until a drain after completion reaches an empty page', async () => {

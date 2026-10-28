@@ -68,6 +68,9 @@ export type SimulationConfig = z.infer<typeof SimulationConfig>
 export const Posts = z.object({}).loose()
 export type Posts = z.infer<typeof Posts>
 
+export const Comments = z.object({}).loose()
+export type Comments = z.infer<typeof Comments>
+
 export const InterviewEntry = z
   .object({
     agent_id: z.union([z.number(), z.string()]),

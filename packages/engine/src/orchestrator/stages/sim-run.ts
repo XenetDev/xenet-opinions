@@ -3,25 +3,56 @@ import { MiroFishError, type Platform } from '@xo/mirofish'
 import { advance, emit, need, remoteFailure, running } from '../emit'
 import { closeEnvAndWait } from '../env'
 import { fail, isRetriable, messageOf } from '../fail'
-import { postsToFeed, rawPosts, runStatusToFeed } from '../mirofish-map'
+import { commentsToReplies, postsToFeed, rawComments, rawPosts, runStatusToFeed } from '../mirofish-map'
 import type { Deps, StageHandler } from '../types'
 
 const PAGE = 50
 const MAX_PAGES = 20
 const MAX_START_ATTEMPTS = 3
 
-const fetchPosts = async (deps: Deps, simulationId: string, platform: Platform, from: number, backlog: boolean) => {
+const fetchPages = async <T>(
+  page: (offset: number) => Promise<unknown>,
+  rows: (res: unknown) => unknown[],
+  map: (res: unknown) => T[],
+  from: number,
+  backlog: boolean,
+) => {
   let offset = from
-  const posts = []
+  const items: T[] = []
   for (let i = 0; i < MAX_PAGES; i++) {
-    const res = await deps.mirofish.simulation.posts(simulationId, { platform, limit: PAGE, offset })
-    const count = rawPosts(res).length
-    posts.push(...postsToFeed(res, platform))
+    const res = await page(offset)
+    const count = rows(res).length
+    items.push(...map(res))
     offset += count
     if (!backlog || count < PAGE) break
   }
-  return { offset, posts }
+  return { offset, items }
 }
+
+const fetchPosts = (deps: Deps, simulationId: string, platform: Platform, from: number, backlog: boolean) =>
+  fetchPages(
+    (offset) => deps.mirofish.simulation.posts(simulationId, { platform, limit: PAGE, offset }),
+    rawPosts,
+    (res) => postsToFeed(res, platform),
+    from,
+    backlog,
+  )
+
+const fetchReplies = (
+  deps: Deps,
+  simulationId: string,
+  platform: Platform,
+  from: number,
+  backlog: boolean,
+  round: number,
+) =>
+  fetchPages(
+    (offset) => deps.mirofish.simulation.comments(simulationId, { platform, limit: PAGE, offset }),
+    rawComments,
+    (res) => commentsToReplies(res, platform, round),
+    from,
+    backlog,
+  )
 
 const IDLE_POLLS_BEFORE_RESTART = 2
 
@@ -79,10 +110,32 @@ export const simRun: StageHandler = {
     const backlog = finished || pause
     const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, backlog)
     const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, backlog)
-    const added = twitter.posts.length + reddit.posts.length
-    const totalRounds = status.total_rounds || run.config.maxRounds
     const prev = run.cursors.feed
-    const feed = runStatusToFeed(prev, { ...status, total_rounds: totalRounds }, [...twitter.posts, ...reddit.posts])
+    const round = status.current_round ?? prev?.round ?? 0
+    const twitterReplies = await fetchReplies(
+      deps,
+      simulationId,
+      'twitter',
+      run.cursors.commentsOffsetTwitter ?? 0,
+      backlog,
+      round,
+    )
+    const redditReplies = await fetchReplies(
+      deps,
+      simulationId,
+      'reddit',
+      run.cursors.commentsOffsetReddit ?? 0,
+      backlog,
+      round,
+    )
+    const added = twitter.items.length + reddit.items.length + twitterReplies.items.length + redditReplies.items.length
+    const totalRounds = status.total_rounds || run.config.maxRounds
+    const feed = runStatusToFeed(
+      prev,
+      { ...status, total_rounds: totalRounds },
+      [...twitter.items, ...reddit.items],
+      [...twitterReplies.items, ...redditReplies.items],
+    )
     if (!prev || feed.round !== prev.round || added > 0) await emit(deps, run, 'sim_feed', feed)
     if (!backlog) {
       const progress = status.progress_percent ?? Math.round((feed.round / totalRounds) * 100)
@@ -95,6 +148,8 @@ export const simRun: StageHandler = {
           feed,
           postsOffsetTwitter: twitter.offset,
           postsOffsetReddit: reddit.offset,
+          commentsOffsetTwitter: twitterReplies.offset,
+          commentsOffsetReddit: redditReplies.offset,
           idlePolls: 0,
         },
       },

@@ -86,6 +86,7 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       posts: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) =>
         q.offset ? { posts: q.offset === 1 ? [post(q.platform, 2)] : [] } : { posts: [post(q.platform, 1)] },
       ),
+      comments: vi.fn(async () => ({ comments: [] })),
       configRealtime: vi.fn(async () => ({ config: { platform_configs: { reddit: {}, twitter: {} } } })),
       stop: vi.fn(),
       closeEnv: vi.fn(),

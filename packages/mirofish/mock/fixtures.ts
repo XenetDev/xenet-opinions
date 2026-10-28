@@ -153,10 +153,31 @@ const POST_TEXT = [
   'Will annual plans keep the old price?',
 ]
 
+const postAuthor = (platform: Platform, round: number, k: number) =>
+  (round * 2 + k + (platform === 'reddit' ? 5 : 0)) % PROFILE_COUNT
+
 export const buildPost = (platform: Platform, round: number, k: number) => ({
   post_id: `${platform}_${round}_${k}`,
-  agent_name: buildProfile((round * 2 + k + (platform === 'reddit' ? 5 : 0)) % PROFILE_COUNT).name,
+  user_id: postAuthor(platform, round, k),
+  agent_name: buildProfile(postAuthor(platform, round, k)).name,
   content: POST_TEXT[(round + k) % POST_TEXT.length] as string,
   round,
   platform,
 })
+
+const REPLY_TEXT = [
+  'Agreed, the timing makes it worse.',
+  'I see it differently, the product still earns it.',
+  'Has anyone actually priced the alternatives?',
+  'This is exactly why I switched to annual.',
+  'Fair point, but support has been slipping too.',
+]
+
+export const buildComments = (platform: Platform, round: number, k: number) =>
+  [0, 1].map((j) => ({
+    comment_id: `${platform}_${round}_${k}_c${j}`,
+    post_id: `${platform}_${round}_${k}`,
+    user_id: (postAuthor(platform, round, k) + 3 + j) % PROFILE_COUNT,
+    content: REPLY_TEXT[(round + k + j) % REPLY_TEXT.length] as string,
+    created_at: round,
+  }))

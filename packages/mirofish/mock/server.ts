@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { pathToFileURL } from 'node:url'
 import {
   agentLogFixture,
+  buildComments,
   buildGraphData,
   buildPost,
   buildProfile,
@@ -354,6 +355,25 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         total: all.length,
         count: Math.min(limit, Math.max(0, all.length - offset)),
         posts: all.slice(offset, offset + limit),
+      }
+    }),
+    compile('GET', '/api/simulation/:id/comments', ({ params, query }) => {
+      const sim = need(store.simulations.get(params.id as string), 'simulation')
+      const platform = query.get('platform')
+      if (platform !== 'twitter' && platform !== 'reddit')
+        throw new HttpError(400, 'platform must be twitter or reddit')
+      const round = sim.run ? (runView(sim.id).current_round as number) : 0
+      const postId = query.get('post_id')
+      const all = Array.from({ length: round }, (_, r) => [0, 1].flatMap((k) => buildComments(platform, r + 1, k)))
+        .flat()
+        .filter((c) => !postId || c.post_id === postId)
+      const offset = Math.max(0, Number(query.get('offset')) || 0)
+      const limit = Number(query.get('limit')) || all.length
+      return {
+        platform,
+        total: all.length,
+        count: Math.min(limit, Math.max(0, all.length - offset)),
+        comments: all.slice(offset, offset + limit),
       }
     }),
     compile('POST', '/api/simulation/stop', ({ body }) => {

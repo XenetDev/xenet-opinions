@@ -83,6 +83,27 @@ describe('mock MiroFish pipeline', () => {
     expect((await client.simulation.runStatus(ids.sim!)).runner_status).toBe('completed')
     const posts = (await client.simulation.posts(ids.sim!, { platform: 'twitter' })) as { posts: unknown[] }
     expect(posts.posts).toHaveLength(10)
+    const comments = (await client.simulation.comments(ids.sim!, { platform: 'twitter' })) as {
+      total: number
+      comments: Array<{ comment_id: string; post_id: string; user_id: number }>
+    }
+    expect(comments.total).toBe(20)
+    const authors = new Map(
+      (posts.posts as Array<{ post_id: string; user_id: number }>).map((p) => [p.post_id, p.user_id]),
+    )
+    for (const c of comments.comments) {
+      expect(authors.has(c.post_id)).toBe(true)
+      expect(c.user_id).not.toBe(authors.get(c.post_id))
+    }
+    const page = (await client.simulation.comments(ids.sim!, { platform: 'reddit', limit: 3, offset: 18 })) as {
+      count: number
+      comments: Array<{ comment_id: string }>
+    }
+    expect(page.count).toBe(2)
+    expect(page.comments.map((c) => c.comment_id)).toEqual(['reddit_5_1_c0', 'reddit_5_1_c1'])
+    const one = await fetch(`${mock.url}/api/simulation/${ids.sim}/comments?platform=twitter&post_id=twitter_2_0`)
+    const body = (await one.json()) as { data: { comments: Array<{ post_id: string }> } }
+    expect(body.data.comments.map((c) => c.post_id)).toEqual(['twitter_2_0', 'twitter_2_0'])
     expect(mock.calls['POST /api/simulation/start']).toBe(1)
     expect(mock.calls['GET /api/simulation/:id/run-status']).toBeGreaterThan(0)
   })

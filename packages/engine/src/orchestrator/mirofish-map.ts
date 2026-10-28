@@ -10,9 +10,11 @@ import type { AgentsData, GraphData, OntologyData, ReportEventData, ReportOutlin
 
 type Rec = Record<string, unknown>
 type FeedPost = SimFeedData['posts'][number]
+type FeedReply = NonNullable<SimFeedData['replies']>[number]
 
 const MAX_NODES = 400
 const MAX_POSTS = 50
+const MAX_REPLIES = 300
 const RESULT_SUMMARY_CHARS = 160
 
 const rec = (v: unknown): Rec => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Rec) : {})
@@ -108,10 +110,30 @@ export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>
     }
   })
 
+export const rawComments = (res: unknown): unknown[] => (Array.isArray(res) ? res : list(rec(res).comments))
+
+export const commentsToReplies = (res: unknown, platform: Platform, round: number): FeedReply[] =>
+  rawComments(res).flatMap((raw, i) => {
+    const c = rec(raw)
+    const postId = str(c.post_id)
+    if (!postId) return []
+    return [
+      {
+        id: str(c.comment_id, c.id) ?? `${platform}_reply_${round}_${i}`,
+        postId,
+        platform,
+        agent: str(c.user_id, c.agent_id, c.user_name) ?? 'Agent',
+        content: str(c.content, c.text) ?? '',
+        round,
+      },
+    ]
+  })
+
 export const runStatusToFeed = (
   prev: SimFeedData | undefined,
   status: RunStatus,
   newPosts: FeedPost[],
+  newReplies: FeedReply[] = [],
 ): SimFeedData => {
   const s = status as RunStatus & Rec
   const added = (platform: Platform) => newPosts.filter((p) => p.platform === platform).length
@@ -121,6 +143,9 @@ export const runStatusToFeed = (
     twitterActs: num(s.twitter_actions_count) ?? (prev?.twitterActs ?? 0) + added('twitter'),
     redditActs: num(s.reddit_actions_count) ?? (prev?.redditActs ?? 0) + added('reddit'),
     posts: [...(prev?.posts ?? []), ...newPosts].sort((a, b) => a.round - b.round).slice(-MAX_POSTS),
+    replies: [...(prev?.replies ?? []), ...newReplies]
+      .sort((a, b) => a.round - b.round || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .slice(-MAX_REPLIES),
   }
 }
 
