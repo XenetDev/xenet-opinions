@@ -2,6 +2,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createMiroFishClient, MiroFishError } from '../src/index'
 import { startMockMiroFish } from './server'
+import { NIGHT_ROUNDS } from './state'
 
 type Mock = Awaited<ReturnType<typeof startMockMiroFish>>
 
@@ -66,13 +67,13 @@ describe('mock MiroFish pipeline', () => {
   })
 
   it('runs the simulation', async () => {
-    await client.simulation.start({ simulationId: ids.sim!, maxRounds: 5 })
+    await client.simulation.start({ simulationId: ids.sim!, maxRounds: NIGHT_ROUNDS + 5 })
     const status = await poll(
       () => client.simulation.runStatus(ids.sim!),
       (s) => s.twitter_completed === true && s.reddit_completed === true,
     )
     expect(status.runner_status).toBe('running')
-    expect(status.current_round).toBe(5)
+    expect(status.current_round).toBe(NIGHT_ROUNDS + 5)
     const early = await fetch(`${mock.url}/api/report/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

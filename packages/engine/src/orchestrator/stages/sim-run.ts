@@ -5,6 +5,7 @@ import { advance, emit, need, remoteFailure, running } from '../emit'
 import { closeEnvAndWait } from '../env'
 import { fail, isRetriable, messageOf } from '../fail'
 import { commentsToReplies, postsToFeed, rawComments, rawPosts, runStatusToFeed } from '../mirofish-map'
+import { requestedRounds, visibleRound } from '../rounds'
 import type { Deps, StageHandler } from '../types'
 
 const PAGE = 50
@@ -30,11 +31,18 @@ const fetchPages = async <T>(
   return { offset, items }
 }
 
-const fetchPosts = (deps: Deps, simulationId: string, platform: Platform, from: number, backlog: boolean) =>
+const fetchPosts = (
+  deps: Deps,
+  simulationId: string,
+  platform: Platform,
+  from: number,
+  backlog: boolean,
+  round: number,
+) =>
   fetchPages(
     (offset) => deps.mirofish.simulation.posts(simulationId, { platform, limit: PAGE, offset }),
     rawPosts,
-    (res) => postsToFeed(res, platform),
+    (res) => postsToFeed(res, platform, round),
     from,
     backlog,
   )
@@ -93,7 +101,7 @@ export const simRun: StageHandler = {
     const simulationId = need(run.ids.simulationId, 'simulationId')
     const entered = await deps.store.update(run.id, { cursors: { simStarted: true } }, deps.fence)
     try {
-      await deps.mirofish.simulation.start({ simulationId, maxRounds: run.config.maxRounds })
+      await deps.mirofish.simulation.start({ simulationId, maxRounds: requestedRounds(run.config.maxRounds) })
     } catch (err) {
       if (!isRetriable(err)) throw err
       deps.log('simulation start failed transiently, polling status', { runId: run.id, message: messageOf(err) })
@@ -117,10 +125,11 @@ export const simRun: StageHandler = {
     const pause = waiting && run.config.pauseForInterviews === true && !run.cursors.envCloseRequested
     if (!finished && !pause && (waiting || run.cursors.envCloseRequested)) await closeEnvAndWait(run, deps, status)
     const backlog = finished || pause
-    const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, backlog)
-    const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, backlog)
     const prev = run.cursors.feed
-    const round = status.current_round ?? prev?.round ?? 0
+    const totalRounds = run.config.maxRounds
+    const round = visibleRound(status.current_round, totalRounds) ?? prev?.round ?? 0
+    const twitter = await fetchPosts(deps, simulationId, 'twitter', run.cursors.postsOffsetTwitter ?? 0, backlog, round)
+    const reddit = await fetchPosts(deps, simulationId, 'reddit', run.cursors.postsOffsetReddit ?? 0, backlog, round)
     const twitterReplies = await fetchReplies(
       run,
       deps,
@@ -140,16 +149,15 @@ export const simRun: StageHandler = {
       round,
     )
     const added = twitter.items.length + reddit.items.length + twitterReplies.items.length + redditReplies.items.length
-    const totalRounds = status.total_rounds || run.config.maxRounds
     const feed = runStatusToFeed(
       prev,
-      { ...status, total_rounds: totalRounds },
+      { ...status, current_round: round, total_rounds: totalRounds },
       [...twitter.items, ...reddit.items],
       [...twitterReplies.items, ...redditReplies.items],
     )
     if (!prev || feed.round !== prev.round || added > 0) await emit(deps, run, 'sim_feed', feed)
     if (!backlog) {
-      const progress = status.progress_percent ?? Math.round((feed.round / totalRounds) * 100)
+      const progress = Math.round((feed.round / totalRounds) * 100)
       await running(deps, run, 'sim_run', { progress, message: `Round ${feed.round}/${totalRounds}` })
     }
     const next = await deps.store.update(

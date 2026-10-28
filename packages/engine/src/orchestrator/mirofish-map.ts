@@ -98,7 +98,7 @@ export const configToPlatform = (raw: unknown): Platform => {
 
 export const rawPosts = (res: unknown): unknown[] => (Array.isArray(res) ? res : list(rec(res).posts))
 
-export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>
+export const postsToFeed = (res: unknown, platform: Platform, round = 0): FeedPost[] =>
   rawPosts(res).map((raw, i) => {
     const p = rec(raw)
     return {
@@ -106,7 +106,7 @@ export const postsToFeed = (res: unknown, platform: Platform): FeedPost[] =>
       platform,
       agent: str(p.agent_name, p.user_name, p.name, p.agent_id, p.user_id) ?? 'Agent',
       content: str(p.content, p.text) ?? '',
-      round: num(p.round) ?? 0,
+      round,
     }
   })
 

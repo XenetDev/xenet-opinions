@@ -116,8 +116,8 @@ describe('configToPlatform', () => {
 describe('posts and feed', () => {
   it('accepts a posts envelope or a bare array', () => {
     const post = { post_id: 'twitter_1_0', agent_name: 'Maya', content: 'hi', round: 1, platform: 'twitter' }
-    expect(postsToFeed({ posts: [post], total: 1 }, 'twitter')).toEqual([
-      { id: 'twitter_1_0', platform: 'twitter', agent: 'Maya', content: 'hi', round: 1 },
+    expect(postsToFeed({ posts: [post], total: 1 }, 'twitter', 2)).toEqual([
+      { id: 'twitter_1_0', platform: 'twitter', agent: 'Maya', content: 'hi', round: 2 },
     ])
     expect(postsToFeed([post], 'reddit')[0]?.platform).toBe('reddit')
     expect(postsToFeed({}, 'twitter')).toEqual([])
