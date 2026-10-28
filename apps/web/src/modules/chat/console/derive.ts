@@ -33,7 +33,7 @@ export type ConsoleModel = {
   folded: boolean
 }
 
-export type ConsoleLive = { until?: string | null; reportRequested?: boolean; windowLive?: boolean; now: number }
+export type ConsoleLive = { until?: string | null; windowLive?: boolean }
 
 type Parts = OpinionsUIMessage['parts']
 
@@ -212,6 +212,14 @@ export function deriveConsole(parts: Parts, live: ConsoleLive): ConsoleModel {
     }
     return row
   })
+
+  for (const [stage, error] of errors) {
+    if (shown.includes(stage)) continue
+    const stopped = rows.find((row) => row.kind !== 'done')
+    if (stopped) Object.assign(stopped, { kind: 'failed', detail: error.message, action: 'retry' })
+    else
+      rows.push({ id: `error:${stage}`, kind: 'failed', title: 'Run failed', detail: error.message, action: 'retry' })
+  }
 
   const status: ConsoleStatus = rows.some((row) => row.kind === 'failed')
     ? 'failed'

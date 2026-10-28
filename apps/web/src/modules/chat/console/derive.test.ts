@@ -5,7 +5,7 @@ import { deriveConsole } from './derive'
 type Parts = OpinionsUIMessage['parts']
 
 const NOW = Date.parse('2026-10-28T10:00:00Z')
-const live = { now: NOW }
+const live = {}
 
 const stage = (name: Stage, status: StageStatus, message?: string): Parts[number] => ({
   type: 'data-stage',
@@ -245,5 +245,36 @@ describe('deriveConsole', () => {
     const model = deriveConsole(through('graph_build', 'cancelled', 'Cancelled by the user'), live)
     expect(model.status).toBe('cancelled')
     expect(model.rows[1]).toMatchObject({ kind: 'cancelled', detail: 'Cancelled by the user' })
+  })
+
+  it('attaches an error for a stage without a row to the row where the run stopped', () => {
+    const parts: Parts = [
+      ...through('sim_run', 'done'),
+      { type: 'data-error', data: { stage: 'interviews', code: 'x', message: 'Agents went offline' } },
+    ]
+    const model = deriveConsole(parts, live)
+    expect(model.status).toBe('failed')
+    expect(model.rows.some((row) => row.title === 'Personas online')).toBe(false)
+    expect(model.rows[5]).toMatchObject({
+      kind: 'failed',
+      title: 'Writing the report',
+      detail: 'Agents went offline',
+      action: 'retry',
+    })
+  })
+
+  it('appends a generic failed row when every shown row is done', () => {
+    const parts: Parts = [
+      ...through('finished', 'done'),
+      { type: 'data-error', data: { stage: 'interviews', code: 'x', message: 'Agents went offline' } },
+    ]
+    const model = deriveConsole(parts, live)
+    expect(model.status).toBe('failed')
+    expect(model.rows.at(-1)).toMatchObject({
+      kind: 'failed',
+      title: 'Run failed',
+      detail: 'Agents went offline',
+      action: 'retry',
+    })
   })
 })

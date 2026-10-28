@@ -226,6 +226,76 @@ describe('RunConsole', () => {
     expect(fold.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(fold)
     expect(container.querySelectorAll('[data-kind="done"]')).toHaveLength(7)
+    const toggle = screen.getByRole('button', { name: 'Finished · 7 steps' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(toggle)
+    expect(container.querySelectorAll('[data-kind="done"]')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Finished · 7 steps' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  describe('the live region', () => {
+    it('keeps one status node across steps', () => {
+      const { rerender } = render(<RunConsole parts={working} chatId="c1" />)
+      const region = screen.getByRole('status')
+      expect(region.getAttribute('aria-live')).toBe('polite')
+      expect(region.getAttribute('aria-busy')).toBe('true')
+      rerender(<RunConsole parts={through('report', 'running')} chatId="c1" />)
+      expect(screen.getByRole('status')).toBe(region)
+      expect(within(region).getByText('Writing the report')).toBeTruthy()
+      rerender(<RunConsole parts={through('finished', 'done')} chatId="c1" />)
+      expect(screen.getByRole('status')).toBe(region)
+    })
+
+    it('settles on the outcome when nothing is live', () => {
+      const { rerender } = render(<RunConsole parts={through('finished', 'done')} chatId="c1" />)
+      expect(within(screen.getByRole('status')).getByText('Run complete')).toBeTruthy()
+      expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('false')
+      rerender(<RunConsole parts={finished} chatId="c1" />)
+      expect(within(screen.getByRole('status')).getByText('Run complete')).toBeTruthy()
+      rerender(<RunConsole parts={through('sim_prepare', 'failed', 'Persona generation timed out')} chatId="c1" />)
+      expect(within(screen.getByRole('status')).getByText('Persona generation timed out')).toBeTruthy()
+      expect(screen.getByRole('status').getAttribute('aria-busy')).toBe('false')
+      rerender(<RunConsole parts={through('sim_create', 'cancelled', 'Cancelled by the user')} chatId="c1" />)
+      expect(within(screen.getByRole('status')).getByText('Cancelled')).toBeTruthy()
+      rerender(<RunConsole parts={[{ type: 'data-queue', data: { position: 2 } }]} chatId="c1" />)
+      expect(within(screen.getByRole('status')).getByText(/^Waiting for a free slot/)).toBeTruthy()
+      expect(screen.getAllByRole('status')).toHaveLength(1)
+    })
+  })
+
+  it('honours reduced motion on the shimmer, spinners and row entrances', () => {
+    const { container } = render(<RunConsole parts={reporting} chatId="c1" />)
+    expect(within(screen.getByRole('status')).getByText('Writing the report').className).toContain('shimmer')
+    const spinners = Array.from(container.querySelectorAll('[data-slot="spinner"]'))
+    expect(spinners.length).toBeGreaterThan(1)
+    for (const spinner of spinners) expect(spinner.getAttribute('class')).toContain('motion-reduce:animate-none')
+    const entering = Array.from(container.querySelectorAll('.animate-in'))
+    expect(entering.length).toBeGreaterThan(0)
+    for (const el of entering) expect(el.className).toContain('motion-reduce:animate-none')
+  })
+
+  it('exposes status as text on every row', () => {
+    const { container } = render(<RunConsole parts={working} chatId="c1" />)
+    const word = (el: Element) => el.querySelector('.sr-only')?.textContent
+    expect(Array.from(container.querySelectorAll('[data-kind]')).map(word)).toEqual([
+      'Done',
+      'Done',
+      'Done',
+      'Done',
+      'Running',
+      'Pending',
+      'Pending',
+    ])
+    cleanup()
+    const report = render(<RunConsole parts={reporting} chatId="c1" />)
+    const tools = Array.from(report.container.querySelectorAll('[data-testid="tool-row"]'))
+    expect(tools.map(word)).toEqual(['Done', 'Running'])
+    cleanup()
+    const failed = render(<RunConsole parts={through('sim_create', 'failed', 'Boom')} chatId="c1" />)
+    expect(failed.container.querySelector('[data-kind="failed"] .sr-only')?.textContent).toBe('Failed')
+    cleanup()
+    const cancelled = render(<RunConsole parts={through('sim_create', 'cancelled')} chatId="c1" />)
+    expect(cancelled.container.querySelector('[data-kind="cancelled"] .sr-only')?.textContent).toBe('Cancelled')
   })
 
   it('renders report tool rows with the tool chip, a check when done and a spinner while running', () => {

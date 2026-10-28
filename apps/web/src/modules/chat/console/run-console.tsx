@@ -2,7 +2,7 @@
 
 import type { OpinionsUIMessage } from '@xo/engine/parts'
 import { ChevronRightIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Badge } from '@/components/reui/badge'
 import { Frame, FrameFooter, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { Marker, MarkerIcon } from '@/components/ui/marker'
 import { cn } from '@/lib/utils'
 import { useAnnounce } from '../notice-region'
 import { type ConsoleRow, type ConsoleStatus, deriveConsole } from './derive'
-import { DoneRow, FailedRow, LABEL, LiveRow, QueuedRow, ROW_X } from './rows'
+import { type BandMode, DoneRow, FailedRow, LABEL, LiveRow, QueuedRow, ROW_X } from './rows'
 
 const TICK_MS = 30_000
 
@@ -57,15 +57,12 @@ export function RunConsole({
   const [now, setNow] = useState(() => Date.now())
   const [requested, setRequested] = useState(false)
   const [expanded, setExpanded] = useState(false)
-  const model = deriveConsole(parts, { until: windowUntil, reportRequested, windowLive, now })
+  const model = deriveConsole(parts, { until: windowUntil, windowLive })
   const windowOpen = model.rows.some((row) => row.action === 'window')
   const windowPart = parts.findLast((part) => part.type === 'data-interview_window')
   const until = windowUntil ?? (windowPart?.type === 'data-interview_window' ? windowPart.data.until : null)
   const generating = windowOpen && (requested || reportRequested)
   const routedReport = useAnnounce(generating ? 'Generating report…' : null)
-  const queueRow = model.status === 'queued' ? model.rows[0] : undefined
-  const queueText = queueRow && [queueRow.title, queueRow.detail].filter(Boolean).join('. ')
-  const routedQueue = useAnnounce(queueText ?? null)
 
   useEffect(() => {
     if (!windowOpen) return
@@ -118,25 +115,68 @@ export function RunConsole({
     </Button>
   )
 
-  const renderRow = (row: ConsoleRow) => {
-    if (row.kind === 'done') return <DoneRow key={row.id} row={row} />
-    if (row.kind === 'live')
-      return (
-        <LiveRow
-          key={row.id}
-          row={row}
-          waiting={row.action === 'window'}
-          action={row.action === 'window' ? windowAction : undefined}
-        />
-      )
-    if (row.kind === 'failed' || row.kind === 'cancelled')
-      return <FailedRow key={row.id} row={row} action={row.action === 'retry' ? retryAction : undefined} />
-    return <QueuedRow key={row.id} row={row} announce={row === queueRow && !routedQueue} />
-  }
+  const liveIndex = model.rows.findIndex((row) => row.kind === 'live')
+  const failedIndex = model.rows.findIndex((row) => row.kind === 'failed')
+  const cancelledIndex = model.rows.findIndex((row) => row.kind === 'cancelled')
+  const pendingIndex = model.rows.findIndex((row) => row.kind !== 'done')
+  const band: { index: number; mode: BandMode } =
+    liveIndex >= 0
+      ? { index: liveIndex, mode: model.rows[liveIndex]?.action === 'window' ? 'waiting' : 'live' }
+      : failedIndex >= 0
+        ? { index: failedIndex, mode: 'failed' }
+        : cancelledIndex >= 0
+          ? { index: cancelledIndex, mode: 'cancelled' }
+          : pendingIndex >= 0
+            ? { index: pendingIndex, mode: 'queued' }
+            : { index: model.rows.length, mode: 'settled' }
+  const bandRow = model.rows[band.index] ?? { id: 'settled', kind: 'done', title: 'Run complete' }
+  const bandAction = band.mode === 'waiting' ? windowAction : bandRow.action === 'retry' ? retryAction : undefined
 
   const doneCount = model.rows.filter((row) => row.kind === 'done').length
-  const fold = model.folded && !expanded && doneCount > 0
+  const foldable = model.folded && doneCount > 0
   const firstDone = model.rows.findIndex((row) => row.kind === 'done')
+
+  const renderRow = (row: ConsoleRow, index: number) => {
+    if (index === band.index) return null
+    if (row.kind === 'done') {
+      if (foldable && !expanded) return null
+      return <DoneRow key={row.id} row={row} />
+    }
+    if (row.kind === 'failed' || row.kind === 'cancelled')
+      return <FailedRow key={row.id} row={row} action={row.action === 'retry' ? retryAction : undefined} />
+    return <QueuedRow key={row.id} row={row} />
+  }
+
+  const items: ReactNode[] = []
+  model.rows.forEach((row, index) => {
+    if (foldable && index === firstDone) {
+      items.push(
+        <Marker
+          key="fold"
+          asChild
+          className={cn(
+            'cursor-pointer py-3 transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none motion-reduce:transition-none',
+            ROW_X,
+          )}
+        >
+          <button type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+            <MarkerIcon className="h-5 w-4" />
+            <span
+              className={cn(LABEL, 'font-medium leading-5 text-foreground')}
+            >{`Finished · ${doneCount} steps`}</span>
+            <ChevronRightIcon
+              aria-hidden
+              className={cn('ms-auto transition-transform motion-reduce:transition-none', expanded && 'rotate-90')}
+            />
+          </button>
+        </Marker>,
+      )
+    }
+    if (index === band.index) items.push(<LiveRow key="band" row={bandRow} mode={band.mode} action={bandAction} />)
+    else items.push(renderRow(row, index))
+  })
+  if (band.mode === 'settled') items.push(<LiveRow key="band" row={bandRow} mode="settled" />)
+
   const badge = BADGES[model.status]
 
   return (
@@ -147,30 +187,7 @@ export function RunConsole({
           {badge.label}
         </Badge>
       </FrameHeader>
-      <FramePanel className="flex flex-col p-0">
-        {model.rows.map((row, index) => {
-          if (!fold || row.kind !== 'done') return renderRow(row)
-          if (index !== firstDone) return null
-          return (
-            <Marker
-              key="fold"
-              asChild
-              className={cn(
-                'cursor-pointer py-3 transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none motion-reduce:transition-none',
-                ROW_X,
-              )}
-            >
-              <button type="button" aria-expanded={false} onClick={() => setExpanded(true)}>
-                <MarkerIcon className="h-5 w-4" />
-                <span className={cn(LABEL, 'font-medium leading-5 text-foreground')}>
-                  {`Finished · ${doneCount} steps`}
-                </span>
-                <ChevronRightIcon aria-hidden className="ms-auto" />
-              </button>
-            </Marker>
-          )
-        })}
-      </FramePanel>
+      <FramePanel className="flex flex-col p-0">{items}</FramePanel>
       {model.step.n > 0 && (
         <FrameFooter className="flex-row items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground tabular-nums">

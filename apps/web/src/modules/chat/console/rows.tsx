@@ -2,7 +2,6 @@
 
 import { BanIcon, CheckIcon, ChevronRightIcon, UsersIcon, XIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Badge } from '@/components/reui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -27,7 +26,21 @@ const GLYPH_TONE = {
 
 const QUEUED_RING = <span className="size-4 rounded-full border border-dashed border-current" />
 
-const LIVE_SPINNER = <Spinner role="presentation" aria-label={undefined} aria-hidden="true" />
+const LIVE_SPINNER = (
+  <Spinner role="presentation" aria-label={undefined} aria-hidden="true" className="motion-reduce:animate-none" />
+)
+
+const STATE_WORD: Record<ConsoleRow['kind'], string> = {
+  done: 'Done',
+  live: 'Running',
+  queued: 'Pending',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+}
+
+function StateWord({ kind }: { kind: ConsoleRow['kind'] }) {
+  return <span className="sr-only">{STATE_WORD[kind]}</span>
+}
 
 export const formatClock = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
@@ -99,6 +112,7 @@ export function ToolRow({ row }: { row: ConsoleRow }) {
         <span className={cn('min-w-0', row.kind === 'queued' ? 'text-muted-foreground' : 'text-foreground')}>
           {row.title}
         </span>
+        <StateWord kind={row.kind} />
         {row.detail && (
           <CollapsibleTrigger asChild>
             <Button
@@ -153,6 +167,7 @@ export function DoneRow({ row }: { row: ConsoleRow }) {
         </Glyph>
         <MarkerContent className={cn('flex min-w-0 flex-1 flex-col gap-0.5', LABEL)}>
           <span className="leading-5 text-foreground">{row.title}</span>
+          <StateWord kind="done" />
           {row.detail && <span className="text-xs leading-5 text-muted-foreground">{row.detail}</span>}
         </MarkerContent>
         <StepClock seconds={row.seconds} />
@@ -162,17 +177,57 @@ export function DoneRow({ row }: { row: ConsoleRow }) {
   )
 }
 
-export function LiveRow({ row, waiting, action }: { row: ConsoleRow; waiting: boolean; action?: ReactNode }) {
+export type BandMode = 'live' | 'waiting' | 'failed' | 'cancelled' | 'queued' | 'settled'
+
+const BAND_GLYPH: Record<BandMode, ReactNode> = {
+  live: <Glyph name="spinner">{LIVE_SPINNER}</Glyph>,
+  waiting: (
+    <Glyph name="waiting" tone="waiting">
+      <UsersIcon />
+    </Glyph>
+  ),
+  failed: (
+    <Glyph name="failed" tone="failed">
+      <XIcon />
+    </Glyph>
+  ),
+  cancelled: (
+    <Glyph name="cancelled" tone="queued">
+      <BanIcon />
+    </Glyph>
+  ),
+  queued: (
+    <Glyph name="queued" tone="queued">
+      {QUEUED_RING}
+    </Glyph>
+  ),
+  settled: (
+    <Glyph name="check" tone="done">
+      <CheckIcon />
+    </Glyph>
+  ),
+}
+
+const BAND_KIND: Record<BandMode, ConsoleRow['kind']> = {
+  live: 'live',
+  waiting: 'live',
+  failed: 'failed',
+  cancelled: 'cancelled',
+  queued: 'queued',
+  settled: 'done',
+}
+
+export function LiveRow({ row, mode, action }: { row: ConsoleRow; mode: BandMode; action?: ReactNode }) {
+  const kind = BAND_KIND[mode]
+  const failed = mode === 'failed'
   return (
-    <div data-kind="live" className={cn('flex flex-col gap-2 border-y border-border bg-muted/50 py-2.5', ROW_X)}>
-      <Marker role="status" aria-live="polite" aria-busy={!waiting} className="items-start">
-        {waiting ? (
-          <Glyph name="waiting" tone="waiting">
-            <UsersIcon />
-          </Glyph>
-        ) : (
-          <Glyph name="spinner">{LIVE_SPINNER}</Glyph>
-        )}
+    <div
+      data-kind={mode === 'settled' ? undefined : kind}
+      data-band={mode}
+      className={cn('flex flex-col gap-2 border-y border-border bg-muted/50 py-2.5', ROW_X)}
+    >
+      <Marker role="status" aria-live="polite" aria-busy={mode === 'live'} className="items-start">
+        {BAND_GLYPH[mode]}
         <MarkerContent
           key={row.id}
           className={cn(
@@ -180,16 +235,30 @@ export function LiveRow({ row, waiting, action }: { row: ConsoleRow; waiting: bo
             LABEL,
           )}
         >
-          <span className="font-medium leading-5 text-foreground">
-            {waiting ? row.title : <Shimmer as="span">{row.title}</Shimmer>}
+          <span
+            className={cn(
+              'font-medium leading-5',
+              failed
+                ? 'text-destructive'
+                : mode === 'queued' || mode === 'cancelled'
+                  ? 'text-muted-foreground'
+                  : 'text-foreground',
+              mode === 'live' && 'shimmer [--shimmer-duration:2.4s]',
+            )}
+          >
+            {row.title}
           </span>
+          <StateWord kind={kind} />
           {row.detail && (
-            <span className="text-sm leading-5 text-muted-foreground" suppressHydrationWarning>
+            <span
+              className={cn('text-sm leading-5', failed ? 'text-destructive' : 'text-muted-foreground')}
+              suppressHydrationWarning
+            >
               {row.detail}
             </span>
           )}
         </MarkerContent>
-        {typeof row.percent === 'number' && (
+        {mode === 'live' && typeof row.percent === 'number' && (
           <span
             aria-hidden="true"
             className={cn('flex h-5 shrink-0 items-center self-start font-medium tabular-nums', LABEL)}
@@ -198,7 +267,7 @@ export function LiveRow({ row, waiting, action }: { row: ConsoleRow; waiting: bo
           </span>
         )}
       </Marker>
-      {!waiting && (
+      {mode === 'live' && (
         <div className={TEXT_INDENT}>
           {typeof row.percent === 'number' ? (
             <Progress value={row.percent} aria-label={`${row.title} progress`} className="bg-muted-foreground/15" />
@@ -217,15 +286,16 @@ export function LiveRow({ row, waiting, action }: { row: ConsoleRow; waiting: bo
   )
 }
 
-export function QueuedRow({ row, announce = false }: { row: ConsoleRow; announce?: boolean }) {
+export function QueuedRow({ row }: { row: ConsoleRow }) {
   return (
     <div data-kind="queued" className={cn('flex flex-col py-2', ROW_X)}>
-      <Marker className="items-start" role={announce ? 'status' : undefined}>
+      <Marker className="items-start">
         <Glyph name="queued" tone="queued">
           {QUEUED_RING}
         </Glyph>
         <MarkerContent className={cn('flex min-w-0 flex-1 flex-col gap-0.5 leading-5', LABEL)}>
           <span className="text-muted-foreground">{row.title}</span>
+          <StateWord kind="queued" />
           {row.detail && <span className="text-xs text-muted-foreground">{row.detail}</span>}
         </MarkerContent>
       </Marker>
@@ -243,10 +313,8 @@ export function FailedRow({ row, action }: { row: ConsoleRow; action?: ReactNode
           {cancelled ? <BanIcon /> : <XIcon />}
         </Glyph>
         <MarkerContent className={cn('flex min-w-0 flex-1 flex-col gap-0.5', LABEL)}>
-          <span className={cn('leading-5', cancelled ? 'text-muted-foreground' : 'text-destructive')}>
-            {row.title}
-            <span className="sr-only">{cancelled ? ' (cancelled)' : ' (failed)'}</span>
-          </span>
+          <span className={cn('leading-5', cancelled ? 'text-muted-foreground' : 'text-destructive')}>{row.title}</span>
+          <StateWord kind={row.kind} />
           {row.detail && (
             <span className={cn('text-xs leading-5', cancelled ? 'text-muted-foreground' : 'text-destructive')}>
               {row.detail}
