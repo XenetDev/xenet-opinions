@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import type { MiroFishClient } from '@xo/mirofish'
+import type { MiroFishClient, MiroFishLocale } from '@xo/mirofish'
 import type { Storage } from '@xo/storage'
 import type { Stage } from '../parts'
 import type { RunStore } from '../store/types'
@@ -13,6 +13,7 @@ export type Deps = {
   log(msg: string, meta?: Record<string, unknown>): void
   fence?: { owner: string }
   envKeepaliveMs?: number
+  locale?: MiroFishLocale
 }
 
 export type ActiveStage = Exclude<Stage, 'finished'>

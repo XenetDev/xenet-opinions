@@ -7,6 +7,7 @@ import {
   INTERVIEW_MIROFISH_TIMEOUT_S,
   INTERVIEW_WINDOW_MS,
 } from '../../follow-up/keepalive'
+import { withLanguage } from '../../follow-up/language'
 import { AgentsDataSchema, type InterviewData, type InterviewWindowData } from '../../parts'
 import { advance, emit, event, need, running } from '../emit'
 import { closeEnvAndWait } from '../env'
@@ -45,7 +46,7 @@ const interviewOne = async (run: Run, deps: Deps, row: Interview): Promise<Outco
     const result = await deps.mirofish.simulation.interviewBatch(
       {
         simulationId: need(run.ids.simulationId, 'simulationId'),
-        interviews: [{ agentId: mirofishAgentId(row.agentId), prompt: row.question }],
+        interviews: [{ agentId: mirofishAgentId(row.agentId), prompt: withLanguage(row.question, deps.locale) }],
         platform: run.cursors.agentsPlatform ?? 'reddit',
         timeout: INTERVIEW_MIROFISH_TIMEOUT_S,
       },

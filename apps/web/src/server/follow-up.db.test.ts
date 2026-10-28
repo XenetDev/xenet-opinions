@@ -7,6 +7,7 @@ vi.mock('@/lib/db', async () => {
   const { createDb } = await import('@xo/db')
   return { db: createDb(process.env.DATABASE_URL ?? 'postgresql://localhost:1/none') }
 })
+vi.mock('@/env', () => ({ env: { MIROFISH_LOCALE: 'en' } }))
 vi.mock('@/lib/mirofish', () => ({ mirofish: {} }))
 vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
 
