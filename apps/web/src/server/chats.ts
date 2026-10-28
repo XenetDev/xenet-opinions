@@ -78,7 +78,7 @@ export async function listChats(userId: string): Promise<ChatSummary[]> {
         rows.map((row) => row.id),
       ),
     )
-    .orderBy(uploads.chatId, asc(uploads.createdAt))
+    .orderBy(uploads.chatId, asc(uploads.createdAt), asc(uploads.filename))
   const firstFiles = new Map(files.map((file) => [file.chatId, file.filename]))
   return rows.map((row) => {
     const firstFile = firstFiles.get(row.id)

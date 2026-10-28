@@ -190,4 +190,30 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
       await db.delete(schema.user).where(eq(schema.user.id, owner))
     }
   })
+
+  it('breaks a first-file timestamp tie by file name', async () => {
+    const owner = `ut_${crypto.randomUUID()}`
+    await mkUser(owner)
+    try {
+      const chatId = `c_${crypto.randomUUID()}`
+      await db.insert(schema.chats).values({ id: chatId, userId: owner, title: 'tie' })
+      const createdAt = new Date('2026-01-01T00:00:00Z')
+      await db.insert(schema.uploads).values(
+        ['b.md', 'c.md', 'a.pdf'].map((filename) => ({
+          id: `up_${crypto.randomUUID()}`,
+          userId: owner,
+          chatId,
+          storageKey: `key-${filename}`,
+          filename,
+          mediaType: 'text/plain',
+          sizeBytes: 1,
+          createdAt,
+        })),
+      )
+      const [chat] = await listChats(owner)
+      expect(chat?.firstFile).toBe('a.pdf')
+    } finally {
+      await db.delete(schema.user).where(eq(schema.user.id, owner))
+    }
+  })
 })

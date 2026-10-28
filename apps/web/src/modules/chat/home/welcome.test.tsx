@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { Welcome } from './welcome'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 const STARTERS = [
   'How will customers react to a 20% price increase on our Pro plan?',
@@ -37,7 +40,7 @@ describe('Welcome', () => {
     expect(fetchStub).not.toHaveBeenCalled()
     expect(screen.queryByRole('heading', { name: 'Recent chats' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Start' })).toBeNull()
-    vi.unstubAllGlobals()
+    for (const button of buttons) expect(button.className).toContain('dark:hover:bg-transparent')
   })
 
   it('lists at most four recent chats with title, file badge, time and link', () => {
@@ -51,6 +54,9 @@ describe('Welcome', () => {
     expect(within(first).getByText('pricing.pdf').closest('[data-slot="badge"]')).toBeTruthy()
     expect(within(first).getByText('just now').className).toContain('w-14')
     expect(links[1]!.querySelector('[data-slot="badge"]')).toBeNull()
+    const list = screen.getByRole('list')
+    expect(within(list).getAllByRole('listitem')).toHaveLength(4)
+    for (const link of links) expect(link.parentElement?.tagName).toBe('LI')
   })
 
   it('has no axe violations', async () => {

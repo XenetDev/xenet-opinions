@@ -32,7 +32,7 @@ export function Welcome({ recent, onUseStarter }: { recent: RecentChat[]; onUseS
               type="button"
               variant="ghost"
               onClick={() => onUseStarter(prompt)}
-              className="group/prompt h-auto w-full justify-start gap-3 rounded-none border-x-0 border-t-0 border-b border-border px-0 py-2.5 text-start font-normal whitespace-normal last:border-b-0 hover:bg-transparent"
+              className="group/prompt h-auto w-full justify-start gap-3 rounded-none border-x-0 border-t-0 border-b border-border px-0 py-2.5 text-start font-normal whitespace-normal last:border-b-0 hover:bg-transparent dark:hover:bg-transparent"
             >
               <span className="min-w-0 flex-1">{prompt}</span>
               <CornerDownLeftIcon
@@ -45,36 +45,37 @@ export function Welcome({ recent, onUseStarter }: { recent: RecentChat[]; onUseS
         {shortcuts.length > 0 && (
           <section className="-mx-2 mt-6 flex flex-col gap-1.5">
             <h2 className="px-2 text-xs font-medium text-muted-foreground">Recent chats</h2>
-            <div className="flex flex-col">
+            <ul className="flex flex-col">
               {shortcuts.map((chat) => (
-                <Button
-                  key={chat.id}
-                  asChild
-                  variant="ghost"
-                  className="h-8 w-full justify-start gap-2.5 px-2 font-normal [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
-                >
-                  <Link href={`/c/${chat.id}`}>
-                    <MessageSquareIcon aria-hidden="true" />
-                    <span className="min-w-0 flex-1 truncate text-start">{chat.title}</span>
-                    {chat.firstFile && (
-                      <Badge
-                        variant="outline"
-                        size="sm"
-                        className="max-w-32 min-w-0 font-mono font-normal text-muted-foreground"
+                <li key={chat.id}>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="h-8 w-full justify-start gap-2.5 px-2 font-normal [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
+                  >
+                    <Link href={`/c/${chat.id}`}>
+                      <MessageSquareIcon aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-start">{chat.title}</span>
+                      {chat.firstFile && (
+                        <Badge
+                          variant="outline"
+                          size="sm"
+                          className="max-w-32 min-w-0 font-mono font-normal text-muted-foreground"
+                        >
+                          <span className="min-w-0 truncate">{chat.firstFile}</span>
+                        </Badge>
+                      )}
+                      <span
+                        suppressHydrationWarning
+                        className="w-14 shrink-0 text-end text-xs text-muted-foreground tabular-nums"
                       >
-                        <span className="min-w-0 truncate">{chat.firstFile}</span>
-                      </Badge>
-                    )}
-                    <span
-                      suppressHydrationWarning
-                      className="w-14 shrink-0 text-end text-xs text-muted-foreground tabular-nums"
-                    >
-                      {relativeTime(chat.updatedAt)}
-                    </span>
-                  </Link>
-                </Button>
+                        {relativeTime(chat.updatedAt)}
+                      </span>
+                    </Link>
+                  </Button>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
       </div>
