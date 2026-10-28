@@ -32,3 +32,11 @@ Deferred findings from the task reviews and the whole-branch review of `ui/reui-
 - Resume rows and stored chat titles are cut at 60 characters without an ellipsis (server-side title rule).
 - Magic numbers: the 60-character title cut in three places plus the server; `slice(0, 5)` for resume rows; `[--shimmer-duration:2.4s]` repeated.
 - `h-svh` leaves a strip under the composer if a mobile browser arrives with its address bar already minimised; check on a device.
+
+## Round 2 (2026-10-28)
+
+- "@" mentions in the composer to tag personas for an interview, as an alternative to selecting roster cards: a mention palette on `@` listing the run's personas, chips on pick, same `agentIds` payload.
+- Switcher: Tab out of the last row closes the popover without restoring focus to the trigger; Cmd-click on a row closes the popover.
+- Header badge and switcher row disagree when a run is active with no live step yet.
+- Index on `uploads(chat_id, created_at)` for the first-file lookup; `listChats` runs twice per home render.
+- Round-2 browser verification was cut short by a session interruption after five visual fix commits (composer focus ring and inset, home list semantics and stable first file, unknown-tool naming, scroll on send, toolbar glyph alignment); the theme toggle and the short pause label shipped with unit tests only. Re-run the Task 5 checklist of `docs/superpowers/plans/2026-10-28-reui-chat-round2.md` on the hosted app.
