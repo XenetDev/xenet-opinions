@@ -355,7 +355,8 @@ describe('Chat', () => {
       expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true, busy: true })
     })
 
-    it('posts the question as plain JSON, then reattaches once, never through sendMessage', async () => {
+    it('posts the question as plain JSON, then reattaches once when the stream is closed, never through sendMessage', async () => {
+      chat.status = 'ready'
       fetchSpy.mockResolvedValue(Response.json({ questionId: 'q1', interviewIds: ['i1', 'i2'] }, { status: 202 }))
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
@@ -376,6 +377,16 @@ describe('Chat', () => {
       expect(chat.sendMessage).not.toHaveBeenCalled()
       expect(upsertChat).not.toHaveBeenCalled()
       expect(screen.getByRole('status').textContent).toBe('')
+    })
+
+    it('relies on the live tail and does not reattach when the stream is already open', async () => {
+      chat.status = 'streaming'
+      fetchSpy.mockResolvedValue(Response.json({ questionId: 'q1', interviewIds: ['i1', 'i2'] }, { status: 202 }))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send interview' }))
+      expect(await composer.sent).toBe('sent')
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(chat.resumeStream).not.toHaveBeenCalled()
     })
 
     it.each([

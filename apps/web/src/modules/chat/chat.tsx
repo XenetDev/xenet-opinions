@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
-import { DefaultChatTransport, generateId } from 'ai'
+import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
@@ -14,6 +14,7 @@ import { liveStepLabel, STAGE_TITLES } from './console/derive'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
+import { runTransport } from './run-transport'
 import { SEND_FAILED, sendNotices } from './send-notices'
 import { Thread } from './thread/thread'
 import { messageText } from './thread/turn'
@@ -78,11 +79,7 @@ export function Chat({
     },
     messages: initialMessages,
     resume: !!activeRun,
-    transport: new DefaultChatTransport({
-      api: `/api/chats/${chatId}/messages`,
-      prepareSendMessagesRequest: ({ id, messages, body }) => ({ body: { ...body, id, message: messages.at(-1) } }),
-      prepareReconnectToStreamRequest: ({ id }) => ({ api: `/api/chats/${id}/stream` }),
-    }),
+    transport: runTransport(chatId),
   })
   const run = useRunStatus(chatId, {
     enabled: watching,
@@ -171,7 +168,7 @@ export function Chat({
       setNotice(INTERVIEW_NOTICES[code] ?? SEND_FAILED)
       throw new Error(code)
     }
-    void resumeStream()
+    if (status !== 'streaming' && status !== 'submitted') void resumeStream()
   }
 
   const handleRetry = async () => {

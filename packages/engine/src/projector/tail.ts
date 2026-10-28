@@ -31,6 +31,7 @@ export function tailRunAsUIMessageStream(input: {
   store: RunStore
   runId: string
   messageId: string
+  afterSeq?: number
   pollMs?: number
   maxDurationMs?: number
   signal?: AbortSignal
@@ -54,11 +55,11 @@ export function tailRunAsUIMessageStream(input: {
           writer.write({ type: 'finish' })
           return
         }
-        let afterSeq = 0
+        let afterSeq = input.afterSeq ?? 0
         let lastEventAt = Date.now()
         let lastPosition: number | null = null
         let lastPaused: boolean | undefined
-        let seenEvent = false
+        let seenEvent = afterSeq > 0
         const writeQueue = (position: number, paused?: boolean) => {
           lastPosition = position
           lastPaused = paused
@@ -82,6 +83,7 @@ export function tailRunAsUIMessageStream(input: {
             seenEvent = true
             if (writeRunEvents((chunk) => writer.write(chunk), events)) return
             afterSeq = events[events.length - 1]!.seq
+            writer.write({ type: 'data-cursor', id: 'cursor', data: { seq: afterSeq }, transient: true })
             lastEventAt = Date.now()
           }
           await sleep(Date.now() - lastEventAt >= IDLE_BACKOFF_MS ? 2 * pollMs : pollMs, stop.signal)

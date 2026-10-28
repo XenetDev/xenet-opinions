@@ -68,4 +68,14 @@ describe('toUIMessages', () => {
     const rows = [{ id: 'a', role: 'assistant', parts: [part, { type: 'data-queue', data: { position: -1 } }] }]
     expect(toUIMessages(rows as never)[0]!.parts).toEqual([part])
   })
+
+  it('drops transient cursor parts without logging', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const parts = [
+      { type: 'data-cursor', id: 'cursor', data: { seq: 4 } },
+      { type: 'text', text: 'hi' },
+    ]
+    expect(toUIMessages([row(parts)])[0]?.parts).toEqual([{ type: 'text', text: 'hi' }])
+    expect(error).not.toHaveBeenCalled()
+  })
 })

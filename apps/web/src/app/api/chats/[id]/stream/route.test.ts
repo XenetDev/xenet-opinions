@@ -80,4 +80,31 @@ describe('GET /api/chats/[id]/stream', () => {
     const first = (await res.text()).split('\n').find((line) => line.startsWith('data:'))
     expect(JSON.parse(first!.slice(5).trim())).toEqual({ type: 'start', messageId: 'a1' })
   })
+
+  it.each(['x', '-1', '1.5', '', '1e3', '99999999999999999999'])(
+    'rejects after=%j with 400 invalid_after',
+    async (after) => {
+      vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+      vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
+      const res = await call(new Request(`http://localhost/api/chats/c1/stream?after=${after}`))
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'invalid_after' })
+      expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    ['?after=42', 42],
+    ['?after=0', 0],
+    ['', 0],
+  ])('tails from the seq in %j', async (query, afterSeq) => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
+    vi.mocked(tailRunAsUIMessageStream).mockImplementation(() => createUIMessageStream({ execute: () => {} }))
+    const res = await call(new Request(`http://localhost/api/chats/c1/stream${query}`))
+    expect(res.status).toBe(200)
+    expect(tailRunAsUIMessageStream).toHaveBeenCalledWith(expect.objectContaining({ afterSeq }))
+  })
 })

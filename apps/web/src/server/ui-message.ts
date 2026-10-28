@@ -45,6 +45,7 @@ function validPart(part: unknown, rowId: string): boolean {
     console.error('Dropping malformed part', rowId)
     return false
   }
+  if (type.data.type === 'data-cursor') return false
   if (type.data.type === 'text') {
     const ok = textPartSchema.safeParse(part).success
     if (!ok) console.error('Dropping invalid text part', rowId)
