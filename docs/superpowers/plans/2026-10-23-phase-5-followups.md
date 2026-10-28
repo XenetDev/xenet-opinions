@@ -128,3 +128,7 @@ Branch `ui/reui-chat`, images built locally (`up-mock.sh up -d --build`, then `u
 - Resume rows and stored chat titles are cut at 60 characters without an ellipsis (server title).
 - The footer has no run clock (Task 1 ruling).
 - After reload, the first click on a roster card sometimes hit the feed because the thread was still settling its scroll position (seen once, not reproduced).
+
+## Round 3 verification (2026-10-28)
+
+Graph checked in the browser on the mock stack after the mock graph was rewritten with typed clusters, hubs and relation names (the old generator produced disconnected 4-cycles of one type, which is what the owner saw): labelled coloured nodes, legend, edge labels on by default, hover highlight, Refresh, Fullscreen fitting the viewport, dark mode links visible. Interview language and the resumable stream were verified by unit tests only in this round; the browser pass was interrupted twice by session resets. Check on the hosted app: an interview answer in English on the real stack, and no re-stream after the 280-second tail boundary.
