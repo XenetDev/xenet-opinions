@@ -233,7 +233,7 @@ describe('mock MiroFish env lifecycle', () => {
         .catch((e: unknown) => e)
       expect(err).toBeInstanceOf(MiroFishError)
       expect((err as MiroFishError).status).toBe(400)
-      expect((err as MiroFishError).message).toContain('模拟环境未运行或已关闭')
+      expect((err as MiroFishError).raw).toContain('模拟环境未运行或已关闭')
       const chat = await client.report.chat({ simulationId: sim.simulation_id, message: 'hi', history: [] })
       expect(chat.response).toBe('Mock report agent reply.')
     } finally {

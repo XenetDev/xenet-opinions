@@ -40,9 +40,9 @@ describe('buildSeedDocument', () => {
     )
   })
 
-  it('marks missing sections as not provided', () => {
+  it('fills missing sections with stakeholder defaults', () => {
     expect(buildSeedDocument({ question: 'Should we raise prices?' })).toBe(
-      '# Scenario\n\nShould we raise prices?\n\n## Background and constraints\nNot provided.\n\n## Who is involved\nNot provided.\n\n## What is changing\nNot provided.\n',
+      "# Scenario\n\nShould we raise prices?\n\n## Background and constraints\nA present-day, realistic setting for the question above. The people and organisations involved already exist, know each other's positions, and talk about the decision in public.\n\n## Who is involved\n- The people directly affected by the decision, across different ages, budgets and levels of dependence on what is changing\n- The organisation or authority making the decision, including its leadership and front-line staff\n- Organisations with a competing or opposing interest\n- Journalists, analysts and commentators who cover the topic\n- Online communities and social media where the decision is discussed\n\n## What is changing\nThe decision described in the question is announced publicly and takes effect within the next month.\n",
     )
   })
 })
