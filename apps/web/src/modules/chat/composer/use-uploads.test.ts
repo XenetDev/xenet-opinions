@@ -79,4 +79,40 @@ describe('useUploads', () => {
     const body = (fetchStub.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData
     expect(body.getAll('files')).toHaveLength(5)
   })
+
+  it('resolves a lazy chat id at upload time', async () => {
+    const fetchStub = okFetch()
+    const resolve = vi.fn(async () => 'lazy-chat')
+    const { result } = renderHook(() => useUploads(resolve, { fetch: fetchStub as unknown as typeof fetch }))
+    act(() => result.current.add([file('a.txt'), file('b.txt')]))
+    expect(resolve).not.toHaveBeenCalled()
+    await act(async () => {
+      await result.current.uploadAll()
+    })
+    const body = (fetchStub.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData
+    expect(body.get('chatId')).toBe('lazy-chat')
+  })
+
+  it('marks files error when the chat id cannot be resolved', async () => {
+    const fetchStub = okFetch()
+    const resolve = vi.fn(async () => {
+      throw new Error('chat_failed')
+    })
+    const { result } = renderHook(() => useUploads(resolve, { fetch: fetchStub as unknown as typeof fetch }))
+    act(() => result.current.add([file('a.txt')]))
+    await act(async () => {
+      await result.current.uploadAll().catch(() => {})
+    })
+    expect(fetchStub).not.toHaveBeenCalled()
+    expect(result.current.files[0]).toMatchObject({ status: 'error', error: 'chat_failed' })
+  })
+
+  it('returns how many files were accepted', () => {
+    const { result } = renderHook(() => useUploads('chat-1'))
+    let accepted = -1
+    act(() => {
+      accepted = result.current.add(Array.from({ length: 6 }, (_, i) => file(`f${i}.txt`)))
+    })
+    expect(accepted).toBe(5)
+  })
 })

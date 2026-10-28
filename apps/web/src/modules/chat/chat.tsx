@@ -3,16 +3,19 @@
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { DefaultChatTransport, generateId } from 'ai'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation'
-import { Message, MessageContent } from '@/components/ai-elements/message'
-import { useChatList } from '@/modules/sidebar/chat-list-context'
+import { useChatList } from '@/modules/chat/chat-list-context'
 import type { Limits } from '@/server/limits'
+import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
+import { liveStepLabel, STAGE_TITLES } from './console/derive'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
+import { SEND_FAILED, sendNotices } from './send-notices'
+import { Thread } from './thread/thread'
+import { messageText } from './thread/turn'
 import { useRunStatus } from './use-run-status'
 
 const CANCEL_NOTICES: Record<string, string> = {
@@ -20,23 +23,11 @@ const CANCEL_NOTICES: Record<string, string> = {
   not_found: 'There is no run to cancel yet',
 }
 
-const SEND_NOTICES: Record<string, string> = {
-  run_active: 'A run is already in progress for this chat.',
-  follow_up_failed: 'The report agent did not answer. Try again.',
-  follow_up_unavailable: 'Follow-ups are not available for this run.',
-  demo_paused: 'The demo is paused right now. Try again later.',
-}
-
 const INTERVIEW_NOTICES: Record<string, string> = {
   window_closed: 'The interview window has closed. The report is being generated.',
   report_requested: 'The report is being generated; no more interviews for this run.',
   run_paused: 'Pick personas to interview, or generate the report.',
 }
-
-const SEND_FAILED = 'Something went wrong sending your message'
-
-const quotaNotice = (runs: number) =>
-  `You've used today's ${runs === 1 ? '' : `${runs === 2 ? 'two' : runs} `}run${runs === 1 ? '' : 's'}. Come back tomorrow.`
 
 type LatestRun = {
   id: string
@@ -51,8 +42,8 @@ export function Chat({
   initialMessages,
   activeRun,
   latestRun,
-  initialText,
   limits,
+  startedAt,
 }: {
   chatId: string
   initialMessages: OpinionsUIMessage[]
@@ -64,12 +55,12 @@ export function Chat({
     envKeepaliveUntil?: string | null
   } | null
   latestRun: LatestRun | null
-  initialText?: string
   limits: Limits
+  startedAt?: string
 }) {
   const router = useRouter()
-  const pathname = usePathname()
   const { chats, upsertChat } = useChatList()
+  const { setActivity } = useChatActivity()
   const runActiveRef = useRef(!!activeRun)
   const [notice, setNotice] = useState<string | null>(null)
   const [watching, setWatching] = useState(!!activeRun)
@@ -77,12 +68,7 @@ export function Chat({
   const { messages, sendMessage, status, stop, resumeStream } = useChat<OpinionsUIMessage>({
     id: chatId,
     onError: (error) => {
-      const notices: Record<string, string> = {
-        ...SEND_NOTICES,
-        quota_exceeded: quotaNotice(limits.maxRunsPerDay),
-        rounds_exceeded: `The demo allows up to ${limits.maxRounds} rounds.`,
-      }
-      const match = Object.entries(notices).find(([code]) => error.message.includes(code))
+      const match = Object.entries(sendNotices(limits)).find(([code]) => error.message.includes(code))
       if (match) setNotice(match[1])
       else if (!runActiveRef.current) setNotice(SEND_FAILED)
     },
@@ -192,70 +178,82 @@ export function Chat({
   }
 
   const lastMessage = messages.at(-1)
+  const runMessage = runActive
+    ? (messages.find((message) => message.id === run.assistantMessageId) ??
+      messages.findLast((message) => message.role === 'assistant'))
+    : undefined
+  const step = runActive
+    ? ((runMessage && liveStepLabel(runMessage.parts)) ?? (run.stage && STAGE_TITLES[run.stage]))
+    : undefined
+
+  useEffect(() => {
+    setActivity({ chatId, running: runActive, ...(step && { step }) })
+  }, [chatId, runActive, step, setActivity])
+
+  useEffect(() => () => setActivity((current) => (current?.chatId === chatId ? null : current)), [chatId, setActivity])
+
   const latestFailed =
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl flex-col p-4">
+    <div className="flex min-h-0 w-full flex-1 flex-col">
       <NoticeRegion notices={[notice, limits.paused ? 'The demo is paused' : null]}>
         <InterviewSelectionProvider enabled={interviewMode}>
-          <Conversation className="min-h-0 flex-1">
-            <ConversationContent>
-              {messages.map((message) => (
-                <Message key={message.id} from={message.role}>
-                  <MessageContent>
-                    <MessageParts
-                      parts={message.parts}
-                      chatId={chatId}
-                      windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
-                      reportRequested={run.stage === 'interviews' && run.reportRequested}
-                      windowLive={runActive && message.id === run.assistantMessageId}
-                      onCancelRun={interviewMode ? () => void handleStop() : undefined}
-                      onRetry={
-                        latestFailed && message === lastMessage && message.role === 'assistant'
-                          ? () => void handleRetry()
-                          : undefined
-                      }
-                    />
-                  </MessageContent>
-                </Message>
-              ))}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-          {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
-          {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
-          <Composer
-            maxRounds={limits.maxRounds}
-            chatId={chatId}
-            initialText={initialText}
-            allowPause={limits.allowPause}
-            mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
-            status={interviewMode ? undefined : status}
-            onStop={() => void handleStop()}
-            disabled={
-              !interviewMode &&
-              (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
-            }
-            onSend={async (text, submit) => {
-              setNotice(null)
-              if (submit.kind === 'followUp' && submit.target === 'agents') {
-                await sendInterview(text, submit.agentIds)
-                return
-              }
-              if (submit.kind === 'followUp') {
-                void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
-                return
-              }
-              const title = chats.find((chat) => chat.id === chatId)?.title
-              upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
-              if (initialText) window.history.replaceState(null, '', pathname)
-              setSendCount((count) => count + 1)
-              setWatching(true)
-              void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+          <Thread
+            className="min-h-0 flex-1"
+            messages={messages}
+            startedAt={startedAt}
+            renderAssistant={(message) => {
+              const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
+              const asked = question && messageText(question)
+              return (
+                <MessageParts
+                  parts={message.parts}
+                  chatId={chatId}
+                  title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
+                  windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
+                  reportRequested={run.stage === 'interviews' && run.reportRequested}
+                  windowLive={runActive && message.id === run.assistantMessageId}
+                  onCancelRun={interviewMode ? () => void handleStop() : undefined}
+                  onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
+                />
+              )
             }}
           />
+          <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+            {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
+            {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
+            <Composer
+              maxRounds={limits.maxRounds}
+              chatId={chatId}
+              allowPause={limits.allowPause}
+              mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
+              status={interviewMode ? undefined : status}
+              busy={runActive && !interviewMode}
+              onStop={() => void handleStop()}
+              disabled={
+                !interviewMode &&
+                (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
+              }
+              onSend={async (text, submit) => {
+                setNotice(null)
+                if (submit.kind === 'followUp' && submit.target === 'agents') {
+                  await sendInterview(text, submit.agentIds)
+                  return
+                }
+                if (submit.kind === 'followUp') {
+                  void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
+                  return
+                }
+                const title = chats.find((chat) => chat.id === chatId)?.title
+                upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+                setSendCount((count) => count + 1)
+                setWatching(true)
+                void sendMessage({ text }, { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } })
+              }}
+            />
+          </div>
         </InterviewSelectionProvider>
       </NoticeRegion>
     </div>

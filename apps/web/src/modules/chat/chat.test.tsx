@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import type { RunStatusState } from './use-run-status'
@@ -42,17 +41,12 @@ vi.mock('./use-run-status', () => ({
     return runState.seeded && opts.initial ? opts.initial : runState.current
   },
 }))
-vi.mock('@/modules/sidebar/chat-list-context', () => ({
+vi.mock('@/modules/chat/chat-list-context', () => ({
   useChatList: () => ({ chats: [], upsertChat, removeChat: vi.fn() }),
 }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/c/c1',
-}))
-vi.mock('@/components/ai-elements/conversation', () => ({
-  Conversation: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ConversationContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ConversationScrollButton: () => null,
 }))
 vi.mock('./composer/composer', async () => {
   const { useInterviewSelection } = await import('./interview-selection')
@@ -83,6 +77,7 @@ vi.mock('./composer/composer', async () => {
 })
 
 import { Chat } from './chat'
+import { type ChatActivity, ChatActivityProvider, useChatActivity } from './chat-activity'
 
 type LatestRun = Parameters<typeof Chat>[0]['latestRun']
 const doneRun = (envState: 'none' | 'open' | 'closed', envKeepaliveUntil: string | null = null): LatestRun => ({
@@ -115,6 +110,34 @@ afterEach(() => {
 })
 
 const limits = { demoMode: false, paused: false, maxRunsPerDay: 2, maxRounds: 40, allowPause: true }
+
+const seen: (ChatActivity | null)[] = []
+const Spy = () => {
+  seen.push(useChatActivity().activity)
+  return null
+}
+const Harness = ({ open }: { open: boolean }) => (
+  <ChatActivityProvider>
+    {open && <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />}
+    <Spy />
+  </ChatActivityProvider>
+)
+
+const Other = () => {
+  const { setActivity } = useChatActivity()
+  return (
+    <button type="button" onClick={() => setActivity({ chatId: 'c2', running: true })}>
+      Other chat
+    </button>
+  )
+}
+const OtherHarness = ({ open }: { open: boolean }) => (
+  <ChatActivityProvider>
+    {open && <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />}
+    <Other />
+    <Spy />
+  </ChatActivityProvider>
+)
 
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(
@@ -192,6 +215,40 @@ describe('Chat', () => {
     expect(screen.getByRole('status').textContent).toBe('Something went wrong sending your message')
   })
 
+  it('renders the thread with source chips on the first user turn and the question as the console title', () => {
+    const question = 'How will customers react to a 20% price increase on our Pro plan next quarter, honestly?'
+    chat.messages = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: question }] },
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'data-sources',
+            data: { files: [{ id: 'f1', filename: 'brief.pdf', mediaType: 'application/pdf', sizeBytes: 10 }] },
+          },
+          { type: 'data-stage', data: { stage: 'ontology', status: 'running' } },
+        ],
+      },
+    ]
+    const { container } = renderChat()
+    const user = screen.getByRole('group', { name: `You: ${question}` })
+    expect(user.getAttribute('data-align')).toBe('end')
+    expect(within(user).getByText('brief.pdf')).toBeTruthy()
+    const assistant = screen.getByRole('group', { name: 'Xenet Opinions' })
+    expect(within(assistant).queryByText('brief.pdf')).toBeNull()
+    expect(within(assistant).getByText(`${question.slice(0, 60).trimEnd()}…`)).toBeTruthy()
+    expect(container.querySelector('[data-slot="message-scroller-button"]')).not.toBeNull()
+  })
+
+  it('docks the composer under a scrolling thread', () => {
+    renderChat()
+    const thread = screen.getByRole('region', { name: 'Messages' })
+    const composerControl = screen.getByRole('button', { name: 'Send follow-up' })
+    expect(thread.contains(composerControl)).toBe(false)
+    expect(thread.compareDocumentPosition(composerControl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('uses run mode until a run is done', () => {
     renderChat()
     expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, allowPause: true })
@@ -239,7 +296,7 @@ describe('Chat', () => {
 
     it('uses interview mode with persona selection and an enabled composer', () => {
       renderChat()
-      expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false })
+      expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false, busy: false })
     })
 
     const windowMessage = (until: string) => ({
@@ -256,7 +313,7 @@ describe('Chat', () => {
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Cancel run' }))
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/cancel', { method: 'POST' }))
-      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Run cancelled'))
+      await waitFor(() => expect(screen.getByText('Run cancelled', { selector: '[role="status"]' })).toBeTruthy())
     })
 
     it('shows the personas offline when the run failed without closing the window', () => {
@@ -295,7 +352,7 @@ describe('Chat', () => {
     it('leaves interview mode once the report is requested', () => {
       runState.current = { ...paused, reportRequested: true }
       renderChat()
-      expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true })
+      expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true, busy: true })
     })
 
     it('posts the question as plain JSON, then reattaches once, never through sendMessage', async () => {
@@ -396,6 +453,39 @@ describe('Chat', () => {
   it('keeps the status region mounted with no notice', () => {
     renderChat()
     expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('reports the running state and the live step to the header, and clears it on unmount', () => {
+    seen.length = 0
+    runState.current = { status: 'running', stage: 'graph_build', assistantMessageId: 'm1' }
+    chat.messages = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          { type: 'data-stage', id: 'stage:ontology', data: { stage: 'ontology', status: 'done' } },
+          { type: 'data-stage', id: 'stage:graph_build', data: { stage: 'graph_build', status: 'running' } },
+        ],
+      },
+    ]
+    const { rerender } = render(<Harness open />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c1', running: true, step: 'Building the knowledge graph' })
+    rerender(<Harness open={false} />)
+    expect(seen.at(-1)).toBeNull()
+  })
+
+  it("leaves another chat's activity alone on unmount", () => {
+    seen.length = 0
+    const { rerender } = render(<OtherHarness open />)
+    fireEvent.click(screen.getByRole('button', { name: 'Other chat' }))
+    rerender(<OtherHarness open={false} />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c2', running: true })
+  })
+
+  it('reports an idle chat as not running', () => {
+    seen.length = 0
+    render(<Harness open />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c1', running: false })
   })
 
   it('has no axe violations', async () => {

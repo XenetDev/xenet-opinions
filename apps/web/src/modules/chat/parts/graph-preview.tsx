@@ -3,7 +3,7 @@
 import type { GraphData } from '@xo/engine/parts'
 import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Artifact, ArtifactContent, ArtifactHeader, ArtifactTitle } from '@/components/ai-elements/artifact'
+import { Frame, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
@@ -40,11 +40,11 @@ export function GraphPreview({ data }: { data: GraphData }) {
   )
 
   return (
-    <Artifact>
-      <ArtifactHeader>
-        <ArtifactTitle>{`Knowledge graph · ${data.nodeCount} nodes · ${data.edgeCount} edges`}</ArtifactTitle>
-      </ArtifactHeader>
-      <ArtifactContent className="p-0">
+    <Frame spacing="sm" className="w-full">
+      <FrameHeader>
+        <FrameTitle className="font-medium">{`Knowledge graph · ${data.nodeCount} nodes · ${data.edgeCount} edges`}</FrameTitle>
+      </FrameHeader>
+      <FramePanel className="p-0">
         <p className="sr-only">{`Graph with ${data.nodeCount} nodes and ${data.edgeCount} edges`}</p>
         <ul className="sr-only">
           {data.nodes.slice(0, LABEL_LIMIT).map((node) => (
@@ -64,7 +64,7 @@ export function GraphPreview({ data }: { data: GraphData }) {
             />
           )}
         </div>
-      </ArtifactContent>
-    </Artifact>
+      </FramePanel>
+    </Frame>
   )
 }

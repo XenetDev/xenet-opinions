@@ -20,6 +20,17 @@ describe('SimulationFeed', () => {
     expect(screen.getAllByTestId('feed-post')).toHaveLength(2)
   })
 
+  it('puts the round and platform tabs in the frame header and posts in outline bubbles with initials', () => {
+    render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
+    const header = screen.getByText('Round 2 of 10').closest('[data-slot="frame-panel-header"]') as HTMLElement
+    expect(header).not.toBeNull()
+    expect(header.querySelectorAll('[role="tab"]')).toHaveLength(2)
+    const post = screen.getAllByTestId('feed-post')[0]!
+    expect(post.querySelector('[data-slot="bubble"]')?.getAttribute('data-variant')).toBe('outline')
+    expect(post.querySelector('[data-slot="message-avatar"]')?.textContent).toBe('A')
+    expect(post.textContent).toContain('tweet one')
+  })
+
   it('switches to reddit posts', () => {
     render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
     fireEvent.mouseDown(screen.getByRole('tab', { name: /Reddit/ }))
@@ -40,9 +51,12 @@ describe('SimulationFeed', () => {
     expect(screen.getByText('post 59')).toBeTruthy()
     expect(screen.queryByText('post 0')).toBeNull()
   })
-  it('announces the round counter politely', () => {
-    render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
-    expect(screen.getByText('Round 2 of 10').closest('[aria-live]')?.getAttribute('aria-live')).toBe('polite')
+  it('leaves round announcements to the console live row', () => {
+    const { container } = render(
+      <SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />,
+    )
+    expect(screen.getByText('Round 2 of 10')).toBeTruthy()
+    expect(container.querySelector('[aria-live]')).toBeNull()
   })
 
   it('has no axe violations', async () => {

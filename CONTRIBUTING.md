@@ -32,6 +32,8 @@ The mock is stateful and needs no keys. Its switches:
 - `MOCK_FAIL_STAGE` (`graph_build`, `sim_prepare`, `sim_run` or `report`) makes that stage fail with "Injected failure". `POST /__mock/fail-stage` with `{"stage":"sim_prepare"}` (or `null`) switches it at runtime; a task that already failed stays failed, so clear the flag and press Retry to run the stage against a fresh task.
 - `MOCK_TOKEN` requires the `X-MiroFish-Token` header; `MOCK_LOG=1` prints one line per request.
 
+The chat UI uses [ReUI](https://reui.io) primitives installed through the shadcn registry. Adding or updating one needs a ReUI Pro licence key in `apps/web/.env.local` as `REUI_LICENSE_KEY=...` (git-ignored); run `pnpm dlx shadcn@latest add @reui/<name>` from `apps/web`. The key is never needed to build or run the app.
+
 To run against a real MiroFish, point `MIROFISH_URL` at the token proxy and set `MIROFISH_TOKEN` to its token (see [infra/mirofish/README.md](infra/mirofish/README.md)). LLM and Zep keys belong in MiroFish's environment, not in `.env`.
 
 The worker is tuned with `WORKER_POLL_MS` (default 2000), `MAX_CONCURRENT_RUNS` (default 1), `WORKER_ID` (lease owner, default host and pid), `ENV_KEEPALIVE_MS` (how long a finished run stays open for interviews, default 20 minutes) and `ENV_SWEEP_INTERVAL_MS` (default 60000, `0` disables the sweeper). Uploads use `STORAGE_DRIVER=local` under `STORAGE_LOCAL_DIR` by default; `STORAGE_DRIVER=s3` with the `S3_*` variables uses a bucket. `.env.example` lists every variable.

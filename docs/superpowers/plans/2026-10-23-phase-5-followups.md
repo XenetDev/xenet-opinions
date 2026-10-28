@@ -95,3 +95,36 @@ Branch `feat/interview-window`, images built locally (`up-mock.sh up -d --build`
 ## Language (2026-10-27)
 
 MiroFish picks its language from the `Accept-Language` header on each request and falls back to Chinese when the header is missing, so every earlier real run produced Chinese roles, posts, interview answers, report titles and progress messages. The client now sends `Accept-Language` on every call (`MIROFISH_LOCALE`, default `en`; `zh`, `es`, `fr`, `pt`, `ru`, `de` also accepted). Verified on a real ticked 1-round run with `gpt-4o-mini`: progress messages ("Zep processing... 3/3 done", "Generating Agent Profiles"), all 12 persona roles and bios, the simulation posts, a one-persona interview answer and the report title and body were English. Still Chinese: the headings inside the report agent's tool-result summaries ("深度采访报告", "广度搜索结果", "未来预测深度分析"), which are hardcoded in upstream `backend/app/services/zep_tools.py` and not localised; they show only inside the collapsible tool entries of the report workbench. Worth including in the upstream issue.
+
+## ReUI chat verification (2026-10-28)
+
+Branch `ui/reui-chat`, images built locally (`up-mock.sh up -d --build`, then `up.sh up -d --build`), 1.3 KB e-scooter-ban seed (council member, two operators, seniors' association, students' union), Chrome at 1456 px and 390 px wide. Screenshots: `.context/reui-home.jpg`, `reui-run.jpg`, `reui-window.jpg`, `reui-report.jpg`.
+
+### Mock stack (`MOCK_SPEED=20`, `MOCK_INTERVIEW_DELAY_MS=3000`)
+- Home: greeting, line, three starters, pill composer; Resume rail appears after the first chat. A starter fills the box and focuses it with no request. Attaching a `.txt`, 1 round and the pause item, then Send, landed on `/c/:id` with the console working (spinner, shimmer label, rows animating in, `Step n of 7`).
+- Reload mid-run (report stage) and mid-window restored the live row, the Needs-you band with countdown and the interview composer.
+- Window: "12 personas are online until HH:MM", minute countdown, Generate report and Cancel run. Two personas selected → chips above the pill; question → two persona turns with avatars, Thinking shimmer, both answers within 10 s. Generate report → band "Generating report…", then console folded ("Finished · 8 steps"), report text, follow-up answered.
+- Unticked run: no interviews row, straight to the report (about 22 s at this speed). Cancel from the band → console "Cancelled", notice "Run cancelled". `/__mock/fail-stage sim_prepare` → failed row "Injected failure" with "Retry from here"; retry after clearing the flag started a new turn that completed.
+
+### Real MiroFish (`up.sh`, `gpt-4o-mini`)
+- Ticked 1-round run: ontology 14 s, graph 41 s (19 nodes, 23 edges), sim_create 2 s, personas 53 s, round 13 s; window open at 2 min 5 s. Two personas answered 1.3 s and 5.3 s after the question. Generate report at 4 min 8 s; report writing from 4 min 53 s; complete at 7 min 0 s. Report tool rows showed `insight_forge`, `panorama_search`, `interview_agents` (and `quick_search`) chips with spinners, then checks and clocks (0:01 to 0:10); sections showed their own clocks. Follow-up answered.
+
+### Mobile (390 px) and console
+- Home and a running chat: no horizontal overflow, the document fits the viewport, composer reachable. Desktop Chrome cannot show the collapsing URL bar, so the `h-svh` strip concern from Task 5 is unverified on a phone.
+- Browser console: no React or hydration errors on home, a running chat, the window or the report (only a browser extension's "Receiving end does not exist"). The images are production builds, so development-only React warnings are not visible there; the web test run prints none.
+
+### Defects fixed
+- Between stages the band showed a static dashed ring (no motion) on the next step; it now spins while the run is live (`5106435`).
+- "Generating report…" was plain text for the 30 to 45 s close-and-wait; it now has a spinner and shimmer (`5106435`).
+- Console title cut mid-word at 60 characters with no ellipsis (`4668b73`).
+- Report markdown lists had no bullets and paragraphs no spacing: streamdown's classes were never generated; `@source` added in `globals.css` (`9dae4f9`).
+- At 390 px the starters truncated and the composer placeholder wrapped to two lines, swelling the pill (`2b8ee43`).
+- Live row repeated its title as the detail line ("Writing the report / Writing the report") (`353248c`).
+- During the report the live line showed the latest raw tool result (Chinese markdown, cut off); it now shows the latest step (`1a7a406`).
+
+### Left
+- The spec says the report should be the first thing on screen once it arrives; the console folds, but the plan's body order (console, ontology, graph, roster, feed, interviews, text) keeps the report below the graph, roster, feed and interviews. Needs a decision on moving text up under the folded console.
+- Between the last round and the interviews stage the spinner sits for about 2 s on "Writing the report", because the interviews row exists only once its stage part arrives.
+- Resume rows and stored chat titles are cut at 60 characters without an ellipsis (server title).
+- The footer has no run clock (Task 1 ruling).
+- After reload, the first click on a roster card sometimes hit the feed because the thread was still settling its scroll position (seen once, not reproduced).

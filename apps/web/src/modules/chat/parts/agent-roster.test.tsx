@@ -17,8 +17,11 @@ const profiles = [
 describe('AgentRoster', () => {
   it('shows count of expected personas', () => {
     render(<AgentRoster data={{ count: 3, expected: 12, profiles }} />)
-    expect(screen.getByText('3 of 12 personas')).toBeTruthy()
+    const heading = screen.getByText('3 of 12 personas')
+    expect(heading.closest('[data-slot="frame-panel-header"]')).not.toBeNull()
     expect(screen.getAllByTestId('agent-card')).toHaveLength(3)
+    for (const card of screen.getAllByTestId('agent-card'))
+      expect(card.closest('[data-slot="frame-panel"]')).not.toBeNull()
   })
 
   it('omits expected when absent', () => {

@@ -7,13 +7,19 @@ This repository includes material from the following third-party projects.
 - Source: https://github.com/vercel/ai-elements
 - Copyright 2023 Vercel, Inc.
 - License: Apache License 2.0
-- Used in: files vendored under `apps/web/src/components/ai-elements/`
+- Used in: `apps/web/src/modules/chat/markdown.tsx` (derived from AI Elements' `MessageResponse`)
 
 ## shadcn/ui
 
 - Source: https://github.com/shadcn-ui/ui
 - License: MIT
 - Used in: `apps/web/src/components/ui/`
+
+## ReUI
+
+- Source: https://reui.io
+- License: ReUI Pro licence held by Xenet; components installed through the shadcn registry, not redistributed as a library
+- Used in: `apps/web/src/components/ui/{attachment,bubble,card,empty,field,kbd,label,marker,message,message-scroller,popover,progress}.tsx`, `apps/web/src/components/reui/`
 
 ## cn
 

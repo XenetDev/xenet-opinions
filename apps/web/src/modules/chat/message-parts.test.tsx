@@ -43,28 +43,31 @@ describe('MessageParts', () => {
       { type: 'data-graph', data: { graphId: 'g', nodeCount: 4, edgeCount: 3, nodes: [], links: [] } },
       { type: 'data-error', data: { stage: 'report', code: 'x', message: 'Something broke' } },
     ]
-    const { container } = render(<MessageParts parts={parts} />)
+    const { container } = render(<MessageParts parts={parts} title="How will customers react?" />)
 
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
-    expect(order).toEqual(['sources', 'timeline', 'graph', 'agents', 'workbench', 'text', 'error'])
-    expect(screen.getAllByTestId('stage-row')).toHaveLength(STAGES.length)
+    expect(order).toEqual(['console', 'graph', 'agents', 'text'])
+    expect(screen.queryByText('a.pdf')).toBeNull()
+    expect(screen.getByText('How will customers react?')).toBeTruthy()
+    expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('failed')
     expect(screen.getAllByText(/^\d+ of \d+ personas$/)).toHaveLength(1)
     expect(screen.getByText('5 of 12 personas')).toBeTruthy()
     expect(screen.queryByText('2 of 12 personas')).toBeNull()
-    expect(container.querySelector('[data-event-count="3"]')).toBeTruthy()
     expect(container.querySelectorAll('[data-part="text"]')).toHaveLength(1)
     expect(screen.getByText('Final answer')).toBeTruthy()
     expect(screen.getByText('Something broke')).toBeTruthy()
   })
 
-  it('orders report events by n inside the workbench', () => {
+  it('pairs report tool events in n order inside the console', () => {
     const parts: Parts = [
-      { type: 'data-report_event', data: { n: 2, action: 'planning', summary: 'second' } },
-      { type: 'data-report_event', data: { n: 1, action: 'planning', summary: 'first' } },
-      { type: 'data-report_event', data: { n: 3, action: 'planning', summary: 'third' } },
+      { type: 'data-stage', data: { stage: 'report', status: 'running' } },
+      { type: 'data-report_event', data: { n: 2, action: 'tool_result', toolName: 'insight_forge', summary: 'done' } },
+      { type: 'data-report_event', data: { n: 1, action: 'tool_call', toolName: 'insight_forge', summary: 'call' } },
     ]
     render(<MessageParts parts={parts} />)
-    expect(screen.getAllByTestId('report-event').map((el) => el.textContent)).toEqual(['first', 'second', 'third'])
+    const tools = screen.getAllByTestId('tool-row')
+    expect(tools).toHaveLength(1)
+    expect(tools[0]?.getAttribute('data-kind')).toBe('done')
   })
 
   it('renders nothing for no parts', () => {
@@ -133,10 +136,11 @@ describe('MessageParts', () => {
     const { container } = render(<MessageParts parts={parts} chatId="c1" />)
 
     const order = Array.from(container.querySelectorAll('[data-part]')).map((el) => el.getAttribute('data-part'))
-    expect(order).toEqual(['timeline', 'interviews', 'workbench', 'text'])
+    expect(order).toEqual(['console', 'interviews', 'text'])
+    const consolePart = container.querySelector('[data-part="console"]') as HTMLElement
+    expect(within(consolePart).getByText(/4 personas are online until/)).toBeTruthy()
+    expect(within(consolePart).getByRole('button', { name: 'Generate report' })).toBeTruthy()
     const section = container.querySelector('[data-part="interviews"]') as HTMLElement
-    expect(within(section).getByText(/4 personas are online until/)).toBeTruthy()
-    expect(within(section).getByRole('button', { name: 'Generate report' })).toBeTruthy()
     expect(
       within(section)
         .getAllByRole('heading')
@@ -144,6 +148,16 @@ describe('MessageParts', () => {
     ).toEqual(['Price too high?', 'Would you switch?'])
     const groups = Array.from(section.querySelectorAll('[data-testid="interview-group"]')) as HTMLElement[]
     expect(groups).toHaveLength(3)
+    const question = within(groups[1]!).getByRole('heading', { name: 'Price too high?' })
+    expect(question.className.split(' ')).toEqual(expect.arrayContaining(['text-sm/6', 'sm:text-[15px]/6']))
+    const bubble = question.closest('[data-slot="bubble"]')
+    expect(bubble?.getAttribute('data-variant')).toBe('muted')
+    expect(bubble?.getAttribute('data-align')).toBe('end')
+    expect(
+      within(groups[1]!)
+        .getAllByRole('group')
+        .map((persona) => persona.getAttribute('aria-label')),
+    ).toEqual(['Ada', 'Bo'])
     const cards = (group: HTMLElement) =>
       Array.from(group.querySelectorAll('[data-status]')).map((card) => card.getAttribute('data-status'))
     expect(within(groups[0]!).queryByRole('heading')).toBeNull()
@@ -160,7 +174,7 @@ describe('MessageParts', () => {
     expect(await axe(container)).toHaveNoViolations()
   })
 
-  it('renders the closed window card without interviews', () => {
+  it('renders the closed window in the console without interviews', () => {
     const { container } = render(
       <MessageParts
         parts={[
@@ -172,24 +186,23 @@ describe('MessageParts', () => {
         ]}
       />,
     )
-    expect(container.querySelector('[data-part="interviews"]')).not.toBeNull()
+    expect(container.querySelector('[data-part="console"]')).not.toBeNull()
+    expect(container.querySelector('[data-part="interviews"]')).toBeNull()
     expect(screen.getByText('Personas offline')).toBeTruthy()
     expect(screen.getByText('The interview window ended')).toBeTruthy()
   })
 
-  it('shows the queue card and no timeline while queued', () => {
-    const { container } = render(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }]} />)
-    expect(screen.getByText('You are #2 in the queue')).toBeTruthy()
-    expect(container.querySelector('[data-part="timeline"]')).toBeNull()
+  it('shows the queued row in the console while queued', () => {
+    render(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }]} />)
+    expect(screen.getByText('Waiting for a free slot, #2 in queue')).toBeTruthy()
+    expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('queued')
   })
 
-  it('hides the queue card once stage parts exist or the position is 0', () => {
-    const { container, rerender } = render(
-      <MessageParts parts={[{ type: 'data-queue', data: { position: 0 } }, ...stageParts]} />,
-    )
-    expect(screen.queryByText(/in the queue/)).toBeNull()
-    expect(container.querySelector('[data-part="timeline"]')).not.toBeNull()
+  it('drops the queued row once stage parts exist and shows no console for position 0 alone', () => {
+    const { container, rerender } = render(<MessageParts parts={[{ type: 'data-queue', data: { position: 0 } }]} />)
+    expect(container.querySelector('[data-part="console"]')).toBeNull()
     rerender(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }, ...stageParts]} />)
-    expect(screen.queryByText(/in the queue/)).toBeNull()
+    expect(screen.queryByText(/in queue/)).toBeNull()
+    expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('complete')
   })
 })

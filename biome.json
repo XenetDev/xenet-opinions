@@ -11,11 +11,11 @@
       "!!**/coverage",
       "!!**/next-env.d.ts",
       "!**/drizzle/meta",
-      "!apps/web/src/components/ai-elements",
       "!apps/web/src/components/ui",
       "!!.superpowers",
       "!!.context",
-      "!!.data"
+      "!!.data",
+      "!**/.vercel"
     ]
   },
   "formatter": {
