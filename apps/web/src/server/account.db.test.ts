@@ -119,11 +119,55 @@ describe.skipIf(!process.env.DATABASE_URL)('account (real db)', () => {
     expect(chat?.userId).toBe(ids.c)
   })
 
-  it('rolls back when the target user does not exist', async () => {
-    const chatId = await mkChat(ids.empty)
-    await expect(relinkAnonymousUser({ fromUserId: ids.empty, toUserId: 'missing-user' })).rejects.toThrow()
-    const [chat] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
-    expect(chat?.userId).toBe(ids.empty)
+  it('rolls back every moved row when a later update fails', async () => {
+    const owner = `ur_${crypto.randomUUID()}`
+    await mkUser(owner, true)
+    try {
+      const chatId = await mkChat(owner)
+      const assistantId = `m_${crypto.randomUUID()}`
+      await db.insert(schema.messages).values({ id: assistantId, chatId, role: 'assistant', parts: [] })
+      const runId = crypto.randomUUID()
+      await db.insert(schema.runs).values({
+        id: runId,
+        chatId,
+        userId: owner,
+        assistantMessageId: assistantId,
+        status: 'done',
+        queuedAt: now,
+        config: { requirement: 'x', maxRounds: 1, uploadIds: [] },
+      })
+      const uploadId = `up_${crypto.randomUUID()}`
+      await db.insert(schema.uploads).values({
+        id: uploadId,
+        userId: owner,
+        chatId,
+        storageKey: 'k',
+        filename: 'a.txt',
+        mediaType: 'text/plain',
+        sizeBytes: 1,
+      })
+      const real = db.transaction.bind(db)
+      const spy = vi.spyOn(db, 'transaction').mockImplementationOnce(((run: Parameters<typeof real>[0], config) =>
+        real(async (tx) => {
+          const update = tx.update.bind(tx)
+          let calls = 0
+          tx.update = ((table: Parameters<typeof update>[0]) => {
+            if (++calls === 3) throw new Error('boom')
+            return update(table)
+          }) as typeof tx.update
+          return run(tx)
+        }, config)) as typeof db.transaction)
+
+      await expect(relinkAnonymousUser({ fromUserId: owner, toUserId: ids.b })).rejects.toThrow('boom')
+      spy.mockRestore()
+
+      const [chat] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+      const [run] = await db.select().from(schema.runs).where(eq(schema.runs.id, runId))
+      const [upload] = await db.select().from(schema.uploads).where(eq(schema.uploads.id, uploadId))
+      expect([chat?.userId, run?.userId, upload?.userId]).toEqual([owner, owner, owner])
+    } finally {
+      await db.delete(schema.user).where(eq(schema.user.id, owner))
+    }
   })
 
   it('deletes every blob of a user and tolerates a rejected delete', async () => {
