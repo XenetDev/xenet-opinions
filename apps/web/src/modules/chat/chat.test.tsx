@@ -123,6 +123,22 @@ const Harness = ({ open }: { open: boolean }) => (
   </ChatActivityProvider>
 )
 
+const Other = () => {
+  const { setActivity } = useChatActivity()
+  return (
+    <button type="button" onClick={() => setActivity({ chatId: 'c2', running: true })}>
+      Other chat
+    </button>
+  )
+}
+const OtherHarness = ({ open }: { open: boolean }) => (
+  <ChatActivityProvider>
+    {open && <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />}
+    <Other />
+    <Spy />
+  </ChatActivityProvider>
+)
+
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(
     <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={latestRun} limits={{ ...limits, ...over }} />,
@@ -456,6 +472,14 @@ describe('Chat', () => {
     expect(seen.at(-1)).toEqual({ chatId: 'c1', running: true, step: 'Building the knowledge graph' })
     rerender(<Harness open={false} />)
     expect(seen.at(-1)).toBeNull()
+  })
+
+  it("leaves another chat's activity alone on unmount", () => {
+    seen.length = 0
+    const { rerender } = render(<OtherHarness open />)
+    fireEvent.click(screen.getByRole('button', { name: 'Other chat' }))
+    rerender(<OtherHarness open={false} />)
+    expect(seen.at(-1)).toEqual({ chatId: 'c2', running: true })
   })
 
   it('reports an idle chat as not running', () => {

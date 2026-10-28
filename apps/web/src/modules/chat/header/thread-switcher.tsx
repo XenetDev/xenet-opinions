@@ -1,7 +1,8 @@
 'use client'
 
 import { ChevronDownIcon, PlusIcon } from 'lucide-react'
-import { useState } from 'react'
+import Link from 'next/link'
+import { type Ref, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
@@ -25,34 +26,37 @@ function SwitcherRow({
   active,
   liveLabel,
   onSelect,
+  ref,
 }: {
   chat: ChatListItem
   active: boolean
   liveLabel?: string
-  onSelect: (id: string) => void
+  onSelect: () => void
+  ref?: Ref<HTMLAnchorElement>
 }) {
   return (
     <Button
+      asChild
       variant={active ? 'secondary' : 'ghost'}
-      aria-current={active ? 'true' : undefined}
-      onClick={() => onSelect(chat.id)}
       className="h-auto w-full shrink flex-col items-stretch justify-center gap-0.5 px-2 py-1.5 text-sm font-normal"
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-start">{chatTitle(chat)}</span>
-        <span
-          suppressHydrationWarning
-          className="w-14 shrink-0 text-end text-[11px] text-muted-foreground tabular-nums"
-        >
-          {relativeTime(chat.updatedAt)}
+      <Link ref={ref} href={`/c/${chat.id}`} aria-current={active ? 'page' : undefined} onClick={onSelect}>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-start">{chatTitle(chat)}</span>
+          <span
+            suppressHydrationWarning
+            className="w-14 shrink-0 text-end text-[11px] text-muted-foreground tabular-nums"
+          >
+            {relativeTime(chat.updatedAt)}
+          </span>
         </span>
-      </span>
-      {liveLabel && (
-        <span className="flex min-w-0 items-center gap-1.5 text-[11px]/4 text-muted-foreground">
-          <Spinner aria-hidden="true" className="size-3 shrink-0 motion-reduce:animate-none" />
-          <span className="shimmer min-w-0 truncate">{liveLabel}</span>
-        </span>
-      )}
+        {liveLabel && (
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px]/4 text-muted-foreground">
+            <Spinner aria-hidden="true" className="size-3 shrink-0 motion-reduce:animate-none" />
+            <span className="shimmer min-w-0 truncate">{liveLabel}</span>
+          </span>
+        )}
+      </Link>
     </Button>
   )
 }
@@ -62,17 +66,16 @@ export function ThreadSwitcher({
   chats,
   activeId,
   liveStep,
-  onSelect,
   onNewChat,
 }: {
   title: string
   chats: ChatListItem[]
   activeId?: string
   liveStep?: string
-  onSelect: (id: string) => void
   onNewChat: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const activeRow = useRef<HTMLAnchorElement>(null)
   const [tab, setTab] = useState<string>('all')
   const todayStart = startOfDay(new Date())
   const today = chats.filter((chat) => new Date(chat.updatedAt).getTime() >= todayStart)
@@ -87,11 +90,9 @@ export function ThreadSwitcher({
       key={chat.id}
       chat={chat}
       active={chat.id === activeId}
+      ref={chat.id === activeId ? activeRow : undefined}
       liveLabel={(chat.id === activeId && liveStep) || (isRunning(chat.runStatus) ? 'Working' : undefined)}
-      onSelect={(id) => {
-        setOpen(false)
-        onSelect(id)
-      }}
+      onSelect={() => setOpen(false)}
     />
   )
 
@@ -100,14 +101,23 @@ export function ThreadSwitcher({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="-ms-1 min-w-0 shrink gap-1.5 px-2 font-medium">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Switch chat, ${title}`}
+          className="-ms-1 min-w-0 shrink gap-1.5 px-2 font-medium"
+        >
           <span className="min-w-0 truncate">{title}</span>
           <ChevronDownIcon className="opacity-60" data-icon="inline-end" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         aria-label="Chats"
-        onOpenAutoFocus={(event) => event.preventDefault()}
+        onOpenAutoFocus={(event) => {
+          if (!activeRow.current) return
+          event.preventDefault()
+          activeRow.current.focus()
+        }}
         align="start"
         className="flex max-h-96 w-84 max-w-(--radix-popover-content-available-width) flex-col gap-0 p-0"
       >

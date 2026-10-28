@@ -29,7 +29,6 @@ export function ChatHeader() {
           chats={chats}
           activeId={activeId}
           liveStep={own?.running ? own.step : undefined}
-          onSelect={(id) => router.push(`/c/${id}`)}
           onNewChat={goHome}
         />
         {running && (

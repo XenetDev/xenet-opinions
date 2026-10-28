@@ -190,7 +190,7 @@ export function Chat({
     setActivity({ chatId, running: runActive, ...(step && { step }) })
   }, [chatId, runActive, step, setActivity])
 
-  useEffect(() => () => setActivity(null), [setActivity])
+  useEffect(() => () => setActivity((current) => (current?.chatId === chatId ? null : current)), [chatId, setActivity])
 
   const latestFailed =
     run.status === 'failed' ||

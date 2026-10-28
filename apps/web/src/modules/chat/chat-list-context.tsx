@@ -30,8 +30,18 @@ export function ChatListProvider({ chats: seed, children }: { chats: ChatListIte
           { id, title: title ?? '', runStatus: runStatus ?? 'none', updatedAt: new Date().toISOString() },
           ...current,
         ]
-      const next = { ...existing, ...(title !== undefined && { title }), ...(runStatus !== undefined && { runStatus }) }
-      if (next.title === existing.title && next.runStatus === existing.runStatus) return current
+      const next = {
+        ...existing,
+        ...(title !== undefined && { title }),
+        ...(runStatus !== undefined && { runStatus }),
+        ...(runStatus === 'queued' && existing.runStatus !== 'queued' && { updatedAt: new Date().toISOString() }),
+      }
+      if (
+        next.title === existing.title &&
+        next.runStatus === existing.runStatus &&
+        next.updatedAt === existing.updatedAt
+      )
+        return current
       return current.map((chat) => (chat.id === id ? next : chat))
     })
   }, [])

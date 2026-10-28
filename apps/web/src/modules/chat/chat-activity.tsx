@@ -1,10 +1,10 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useMemo, useState } from 'react'
+import { createContext, type Dispatch, type ReactNode, type SetStateAction, useContext, useMemo, useState } from 'react'
 
 export type ChatActivity = { chatId: string; running: boolean; step?: string }
 
-type ChatActivityValue = { activity: ChatActivity | null; setActivity: (activity: ChatActivity | null) => void }
+type ChatActivityValue = { activity: ChatActivity | null; setActivity: Dispatch<SetStateAction<ChatActivity | null>> }
 
 const ChatActivityContext = createContext<ChatActivityValue>({ activity: null, setActivity: () => {} })
 

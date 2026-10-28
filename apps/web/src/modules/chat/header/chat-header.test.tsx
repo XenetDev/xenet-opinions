@@ -73,17 +73,17 @@ const openOptions = () => fireEvent.keyDown(screen.getByRole('button', { name: '
 describe('ChatHeader', () => {
   it('names the open chat and reads "New chat" on the home page', () => {
     renderHeader()
-    expect(screen.getByRole('button', { name: /Price increase/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Switch chat, Price increase' })).toBeTruthy()
     cleanup()
     nav.pathname = '/'
     renderHeader()
-    expect(screen.getByRole('button', { name: /^New chat$/, expanded: false })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Switch chat, New chat' })).toBeTruthy()
     expect(screen.getByRole('banner').textContent).toContain('New chat')
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {
     renderHeader([{ id: 'a', title: '', runStatus: 'none', updatedAt: today }])
-    expect(screen.getByRole('button', { name: /New conversation/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Switch chat, New conversation' })).toBeTruthy()
   })
 
   it('groups chats under Today and Earlier in All, and filters the Today and Earlier tabs', () => {
@@ -93,35 +93,36 @@ describe('ChatHeader', () => {
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Today', 'Earlier'])
     expect(
       within(groups[0] as HTMLElement)
-        .getAllByRole('button')
+        .getAllByRole('link')
         .map((b) => b.textContent),
     ).toEqual([expect.stringContaining('Price increase'), expect.stringContaining('Scooter ban')])
-    expect(within(groups[1] as HTMLElement).getByRole('button').textContent).toContain('Office return')
+    expect(within(groups[1] as HTMLElement).getByRole('link').textContent).toContain('Office return')
 
     fireEvent.mouseDown(within(switcher()).getByRole('tab', { name: 'Earlier' }))
     const panel = within(switcher()).getByRole('tabpanel')
     expect(
       within(panel)
-        .getAllByRole('button')
+        .getAllByRole('link')
         .map((b) => b.textContent),
     ).toEqual([expect.stringContaining('Office return')])
     fireEvent.mouseDown(within(switcher()).getByRole('tab', { name: 'Today' }))
-    expect(within(within(switcher()).getByRole('tabpanel')).getAllByRole('button')).toHaveLength(2)
+    expect(within(within(switcher()).getByRole('tabpanel')).getAllByRole('link')).toHaveLength(2)
   })
 
   it('marks the active chat with aria-current and shows relative times', () => {
     renderHeader()
     openSwitcher(/Price increase/)
-    const active = within(switcher()).getByRole('button', { current: true })
+    const active = within(switcher()).getByRole('link', { current: 'page' })
+    expect(active.getAttribute('href')).toBe('/c/a')
     expect(active.textContent).toContain('Price increase')
     expect(active.textContent).toContain('just now')
-    expect(within(switcher()).getAllByRole('button', { current: true })).toHaveLength(1)
+    expect(within(switcher()).getAllByRole('link', { current: 'page' })).toHaveLength(1)
   })
 
   it('shows a spinner and the live step on the running chat row', () => {
     renderHeader(CHATS, { chatId: 'a', running: true, step: 'Writing the report' })
     openSwitcher(/Price increase/)
-    const row = within(switcher()).getByRole('button', { current: true })
+    const row = within(switcher()).getByRole('link', { current: 'page' })
     expect(row.querySelector('[data-slot="spinner"]')).toBeTruthy()
     const label = within(row).getByText('Writing the report')
     expect(label.className).toContain('shimmer')
@@ -149,12 +150,33 @@ describe('ChatHeader', () => {
     expect(within(screen.getByRole('banner')).getByText('Working')).toBeTruthy()
   })
 
-  it('navigates to the selected chat and closes the switcher', () => {
+  it('links each row to its chat and closes the switcher on select', () => {
     renderHeader()
     openSwitcher(/Price increase/)
-    fireEvent.click(within(switcher()).getByRole('button', { name: /Office return/ }))
-    expect(nav.push).toHaveBeenCalledWith('/c/c')
+    const row = within(switcher()).getByRole('link', { name: /Office return/ })
+    expect(row.getAttribute('href')).toBe('/c/c')
+    fireEvent.click(row)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('moves focus into the switcher on open, onto the active row, and arrows across the tabs', async () => {
+    renderHeader()
+    const trigger = screen.getByRole('button', { name: 'Switch chat, Price increase' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    expect(switcher().contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).toBe(within(switcher()).getByRole('link', { current: 'page' }))
+    const all = within(switcher()).getByRole('tab', { name: 'All' })
+    all.focus()
+    fireEvent.keyDown(all, { key: 'ArrowRight' })
+    await waitFor(() => expect(document.activeElement).toBe(within(switcher()).getByRole('tab', { name: 'Today' })))
+  })
+
+  it('lands on the first tab when the open chat is not listed', () => {
+    nav.pathname = '/'
+    renderHeader()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch chat, New chat' }))
+    expect(document.activeElement).toBe(within(switcher()).getByRole('tab', { name: 'All' }))
   })
 
   it('goes home from the "+" in the tab strip and the header without creating a chat', () => {
@@ -185,7 +207,7 @@ describe('ChatHeader', () => {
     expect(input.value).toBe('Price increase')
     fireEvent.change(input, { target: { value: 'Pro plan pricing' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: /Pro plan pricing/ })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Switch chat, Pro plan pricing' })).toBeTruthy())
     expect(fetchStub).toHaveBeenCalledWith('/api/chats/a', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
