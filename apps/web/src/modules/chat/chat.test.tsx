@@ -208,7 +208,7 @@ describe('Chat', () => {
     expect(within(user).getByText('brief.pdf')).toBeTruthy()
     const assistant = screen.getByRole('group', { name: 'Xenet Opinions' })
     expect(within(assistant).queryByText('brief.pdf')).toBeNull()
-    expect(within(assistant).getByText(question.slice(0, 60).trimEnd())).toBeTruthy()
+    expect(within(assistant).getByText(`${question.slice(0, 60).trimEnd()}…`)).toBeTruthy()
     expect(container.querySelector('[data-slot="message-scroller-button"]')).not.toBeNull()
   })
 

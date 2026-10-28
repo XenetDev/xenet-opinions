@@ -193,11 +193,12 @@ export function Chat({
             startedAt={startedAt}
             renderAssistant={(message) => {
               const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
+              const asked = question && messageText(question)
               return (
                 <MessageParts
                   parts={message.parts}
                   chatId={chatId}
-                  title={question && messageText(question).slice(0, 60).trimEnd()}
+                  title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
                   windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
                   reportRequested={run.stage === 'interviews' && run.reportRequested}
                   windowLive={runActive && message.id === run.assistantMessageId}
