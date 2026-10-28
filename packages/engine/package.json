@@ -16,7 +16,7 @@
     "@xo/db": "workspace:*",
     "@xo/mirofish": "workspace:*",
     "@xo/storage": "workspace:*",
-    "ai": "7.0.143",
+    "ai": "7.0.153",
     "drizzle-orm": "0.45.4",
     "zod": "4.6.7"
   },
