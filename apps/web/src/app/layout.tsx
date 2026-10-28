@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 const description =
-  'See how people react before you decide. Ask a question, add a brief, and watch a simulated public react on X.com and Reddit.com. Interview the personas, then read the report. Open source.'
+  'See how people react before you decide. Ask a question, add a brief, and watch a simulated public react on x.com and reddit.com. Interview the personas, then read the report. Open source.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),

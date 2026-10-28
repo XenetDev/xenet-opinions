@@ -74,11 +74,11 @@ describe('SimulationFeed', () => {
     expect(screen.getByText('Round 2 of 10').closest('[data-slot="badge"]')).not.toBeNull()
     expect(
       screen.getByText(
-        'Personas post and reply to each other on a simulated X.com and Reddit.com. Nothing here comes from the real sites.',
+        'Personas post and reply to each other on a simulated x.com and reddit.com. Nothing here comes from the real sites.',
       ),
     ).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'X.com · 2' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Reddit.com · 1' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'x.com · 2' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'reddit.com · 1' })).toBeTruthy()
   })
 
   it('resolves authors by persona id, by name, and falls back to Persona N', () => {

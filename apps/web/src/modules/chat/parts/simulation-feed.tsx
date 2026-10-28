@@ -20,8 +20,8 @@ type Reply = NonNullable<SimFeedData['replies']>[number]
 type Profiles = AgentsData['profiles']
 
 const PLATFORMS: { value: Platform; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
-  { value: 'twitter', label: 'X.com', Icon: XIcon },
-  { value: 'reddit', label: 'Reddit.com', Icon: RedditIcon },
+  { value: 'twitter', label: 'x.com', Icon: XIcon },
+  { value: 'reddit', label: 'reddit.com', Icon: RedditIcon },
 ]
 
 export function personaLabel(agent: string, profiles: Profiles = []): { name: string; role?: string } {
@@ -85,7 +85,7 @@ export function SimulationFeed({ data, agents }: { data: SimFeedData; agents?: A
             ))}
           </TabsList>
           <FrameDescription className="basis-full text-xs text-muted-foreground">
-            Personas post and reply to each other on a simulated X.com and Reddit.com. Nothing here comes from the real
+            Personas post and reply to each other on a simulated x.com and reddit.com. Nothing here comes from the real
             sites.
           </FrameDescription>
         </FrameHeader>
