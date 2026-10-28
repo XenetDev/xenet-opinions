@@ -13,7 +13,7 @@ export type PendingFile = {
 
 type UploadResponse = { uploads?: Array<{ id: string }>; reason?: string; error?: string }
 
-export function useUploads(chatId: string, deps: { fetch?: typeof fetch } = {}) {
+export function useUploads(chatId: string | (() => Promise<string>), deps: { fetch?: typeof fetch } = {}) {
   const [files, setFilesState] = useState<PendingFile[]>([])
   const filesRef = useRef<PendingFile[]>([])
   const fetchImpl = deps.fetch
@@ -57,11 +57,11 @@ export function useUploads(chatId: string, deps: { fetch?: typeof fetch } = {}) 
           return prev.map((f) => (ids.has(f.localId) ? { ...f, ...patch(f, ++index) } : f))
         })
       mark(() => ({ status: 'uploading', error: undefined }))
-      const form = new FormData()
-      form.append('chatId', chatId)
-      for (const { file } of pending) form.append('files', file)
       let reason = 'upload_failed'
       try {
+        const form = new FormData()
+        form.append('chatId', typeof chatId === 'string' ? chatId : await chatId())
+        for (const { file } of pending) form.append('files', file)
         const response = await (fetchImpl ?? fetch)('/api/uploads', { method: 'POST', body: form })
         const data = (await response.json().catch(() => ({}))) as UploadResponse
         if (response.status === 201 && data.uploads?.length === pending.length) {

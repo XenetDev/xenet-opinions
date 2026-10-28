@@ -236,6 +236,7 @@ export function Chat({
               allowPause={limits.allowPause}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
+              busy={runActive && !interviewMode}
               onStop={() => void handleStop()}
               disabled={
                 !interviewMode &&

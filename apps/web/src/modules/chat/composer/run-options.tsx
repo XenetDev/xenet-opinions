@@ -1,58 +1,64 @@
 'use client'
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ChevronDownIcon } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { InputGroupButton } from '@/components/ui/input-group'
 
-export const ROUND_OPTIONS = [1, 2, 3, 5, 10, 20, 40]
 export const DEFAULT_ROUNDS = 3
+export const PAUSE_LABEL = 'Pause for interviews before the report'
 
 export const defaultRounds = (maxRounds: number) => Math.min(DEFAULT_ROUNDS, maxRounds)
+export const roundsLabel = (rounds: number) => (rounds === 1 ? '1 round' : `${rounds} rounds`)
 
 export type RunOptionsValue = { maxRounds: number; pauseForInterviews: boolean }
 
-export function RunOptions({
+export function RoundsPicker({
   value,
   onChange,
+  maxRounds,
   disabled,
-  maxRounds = 40,
-  allowPause = true,
 }: {
-  value: RunOptionsValue
-  onChange: (value: RunOptionsValue) => void
+  value: number
+  onChange: (rounds: number) => void
+  maxRounds: number
   disabled?: boolean
-  maxRounds?: number
-  allowPause?: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <span id="run-options-rounds">Rounds</span>
-      <Select
-        value={String(value.maxRounds)}
-        onValueChange={(next) => onChange({ ...value, maxRounds: Number(next) })}
-        disabled={disabled}
-      >
-        <SelectTrigger size="sm" aria-labelledby="run-options-rounds" className="w-20">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {ROUND_OPTIONS.filter((rounds) => rounds <= maxRounds).map((rounds) => (
-            <SelectItem key={rounds} value={String(rounds)}>
-              {rounds}
-            </SelectItem>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <InputGroupButton size="sm" variant="ghost" className="rounded-full" disabled={disabled}>
+          {roundsLabel(value)}
+          <ChevronDownIcon data-icon="inline-end" aria-hidden="true" />
+        </InputGroupButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-72 w-36">
+        <DropdownMenuRadioGroup value={String(value)} onValueChange={(next) => onChange(Number(next))}>
+          {Array.from({ length: maxRounds }, (_, index) => index + 1).map((rounds) => (
+            <DropdownMenuRadioItem key={rounds} value={String(rounds)}>
+              {roundsLabel(rounds)}
+            </DropdownMenuRadioItem>
           ))}
-        </SelectContent>
-      </Select>
-      {allowPause && (
-        <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
-            className="size-3.5 accent-primary"
-            checked={value.pauseForInterviews}
-            disabled={disabled}
-            onChange={(event) => onChange({ ...value, pauseForInterviews: event.target.checked })}
-          />
-          Pause for interviews before the report
-        </label>
-      )}
-    </div>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function PauseOption({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <DropdownMenuCheckboxItem
+      checked={checked}
+      onCheckedChange={(next) => onChange(next === true)}
+      onSelect={(event) => event.preventDefault()}
+    >
+      {PAUSE_LABEL}
+    </DropdownMenuCheckboxItem>
   )
 }

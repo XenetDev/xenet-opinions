@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { Composer } from './composer'
-import { RunOptions } from './run-options'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { defaultRounds, PauseOption, RoundsPicker, roundsLabel } from './run-options'
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
@@ -13,64 +13,45 @@ beforeAll(() => {
 
 afterEach(cleanup)
 
-const optionLabels = () => screen.getAllByRole('option').map((o) => o.textContent)
-
-describe('RunOptions', () => {
-  it('offers every round count by default', () => {
-    render(<RunOptions value={{ maxRounds: 3, pauseForInterviews: false }} onChange={vi.fn()} />)
-    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
-    expect(optionLabels()).toEqual(['1', '2', '3', '5', '10', '20', '40'])
+describe('run options', () => {
+  it('labels rounds in the singular and plural', () => {
+    expect(roundsLabel(1)).toBe('1 round')
+    expect(roundsLabel(3)).toBe('3 rounds')
   })
 
-  it('filters options above maxRounds', () => {
-    render(<RunOptions value={{ maxRounds: 3, pauseForInterviews: false }} onChange={vi.fn()} maxRounds={3} />)
-    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
-    expect(optionLabels()).toEqual(['1', '2', '3'])
+  it('caps the default rounds at the limit', () => {
+    expect(defaultRounds(40)).toBe(3)
+    expect(defaultRounds(2)).toBe(2)
   })
 
-  it('starts the composer at the capped default', () => {
-    render(<Composer chatId="c1" mode="run" onSend={vi.fn()} maxRounds={2} />)
-    expect(screen.getByRole('combobox').textContent).toBe('2')
+  it('offers every round up to maxRounds and reports the pick', () => {
+    const onChange = vi.fn()
+    render(<RoundsPicker value={3} onChange={onChange} maxRounds={4} />)
+    fireEvent.keyDown(screen.getByRole('button', { name: '3 rounds' }), { key: 'Enter' })
+    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
+      '1 round',
+      '2 rounds',
+      '3 rounds',
+      '4 rounds',
+    ])
+    expect(screen.getByRole('menuitemradio', { name: '3 rounds' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '4 rounds' }))
+    expect(onChange).toHaveBeenCalledWith(4)
   })
 
-  it('offers the pause checkbox unticked by default', () => {
-    render(<RunOptions value={{ maxRounds: 3, pauseForInterviews: false }} onChange={vi.fn()} />)
-    const box = screen.getByRole('checkbox', { name: 'Pause for interviews before the report' }) as HTMLInputElement
-    expect(box.checked).toBe(false)
-  })
-
-  it('hides the pause checkbox when pausing is not allowed', () => {
-    render(<RunOptions value={{ maxRounds: 3, pauseForInterviews: false }} onChange={vi.fn()} allowPause={false} />)
-    expect(screen.queryByRole('checkbox')).toBeNull()
-  })
-
-  it('sends the pause choice with the run', async () => {
-    const onSend = vi.fn()
-    render(<Composer chatId="c1" mode="run" onSend={onSend} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Pause for interviews before the report' }))
-    fireEvent.change(screen.getByPlaceholderText('Send a message'), { target: { value: 'hello' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() =>
-      expect(onSend).toHaveBeenCalledWith('hello', {
-        kind: 'run',
-        uploadIds: [],
-        runOptions: { maxRounds: 3, pauseForInterviews: true },
-      }),
+  it('toggles the pause item without closing the menu', () => {
+    const onChange = vi.fn()
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <PauseOption checked={false} onChange={onChange} />
+        </DropdownMenuContent>
+      </DropdownMenu>,
     )
-  })
-
-  it('never sends a pause when pausing is not allowed', async () => {
-    const onSend = vi.fn()
-    render(<Composer chatId="c1" mode="run" onSend={onSend} allowPause={false} />)
-    expect(screen.queryByRole('checkbox')).toBeNull()
-    fireEvent.change(screen.getByPlaceholderText('Send a message'), { target: { value: 'hello' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await waitFor(() =>
-      expect(onSend).toHaveBeenCalledWith('hello', {
-        kind: 'run',
-        uploadIds: [],
-        runOptions: { maxRounds: 3, pauseForInterviews: false },
-      }),
-    )
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Open' }), { key: 'Enter' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Pause for interviews before the report' }))
+    expect(onChange).toHaveBeenCalledWith(true)
+    expect(screen.getByRole('menu')).toBeTruthy()
   })
 })

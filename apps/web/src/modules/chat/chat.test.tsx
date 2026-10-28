@@ -267,7 +267,7 @@ describe('Chat', () => {
 
     it('uses interview mode with persona selection and an enabled composer', () => {
       renderChat()
-      expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false })
+      expect(composer.props).toMatchObject({ mode: 'interview', selectionEnabled: true, disabled: false, busy: false })
     })
 
     const windowMessage = (until: string) => ({
@@ -323,7 +323,7 @@ describe('Chat', () => {
     it('leaves interview mode once the report is requested', () => {
       runState.current = { ...paused, reportRequested: true }
       renderChat()
-      expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true })
+      expect(composer.props).toMatchObject({ mode: 'run', selectionEnabled: false, disabled: true, busy: true })
     })
 
     it('posts the question as plain JSON, then reattaches once, never through sendMessage', async () => {
