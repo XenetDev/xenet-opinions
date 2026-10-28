@@ -48,6 +48,7 @@ vi.mock('@/lib/db', async () => {
     },
   }
 })
+vi.mock('@/env', () => ({ env: { MIROFISH_LOCALE: 'en' } }))
 vi.mock('@/lib/mirofish', () => ({ mirofish: {} }))
 vi.mock('./chats', () => ({ listMessages: vi.fn(), getMessage: vi.fn(), updateMessageParts: vi.fn() }))
 vi.mock('./runs', () => ({ runStore: { update: vi.fn() } }))
@@ -201,7 +202,7 @@ describe('runFollowUp report', () => {
     ])
     expect(mf.chat).toHaveBeenCalledWith({
       simulationId: 'sim1',
-      message: 'Why?',
+      message: 'Why?\n\nAnswer in English.',
       history: [
         { role: 'user', content: 'Earlier?' },
         { role: 'assistant', content: 'Earlier answer' },
@@ -220,6 +221,14 @@ describe('runFollowUp report', () => {
     expect(await finalParts(chunks)).toEqual(persisted)
     expect(runStore.update).not.toHaveBeenCalled()
     expect(mf.interviewBatch).not.toHaveBeenCalled()
+  })
+
+  it('asks the report agent to answer in the configured language', async () => {
+    const mf = fakeMirofish()
+    mf.chat.mockResolvedValue({ response: 'Because.' })
+    vi.mocked(listMessages).mockResolvedValue(rows)
+    await allChunks(await call({ target: 'report', mirofish: mf.client }))
+    expect(mf.chat.mock.calls[0]![0].message).toBe('Why?\n\nAnswer in English.')
   })
 
   it('has no env precondition', async () => {
@@ -293,8 +302,8 @@ describe('runFollowUp agents', () => {
     expect(mf.interviewBatch).toHaveBeenCalledWith({
       simulationId: 'sim1',
       interviews: [
-        { agentId: 3, prompt: 'Why?' },
-        { agentId: 6, prompt: 'Why?' },
+        { agentId: 3, prompt: 'Why?\n\nAnswer in English.' },
+        { agentId: 6, prompt: 'Why?\n\nAnswer in English.' },
       ],
     })
     expect(runStore.update).toHaveBeenCalledWith('run1', { envKeepaliveUntil: at(30) })

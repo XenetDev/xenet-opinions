@@ -10,6 +10,7 @@ import {
   type OpinionsUIMessage,
   pendingInterviewParts,
   type RequestedInterview,
+  withLanguage,
 } from '@xo/engine'
 import { type MiroFishClient, MiroFishError } from '@xo/mirofish'
 import {
@@ -20,6 +21,7 @@ import {
   type UIMessageStreamWriter,
 } from 'ai'
 import { eq, sql } from 'drizzle-orm'
+import { env } from '@/env'
 import { db } from '@/lib/db'
 import { mirofish as defaultMirofish } from '@/lib/mirofish'
 import { listMessages, updateMessageParts } from './chats'
@@ -129,7 +131,7 @@ export async function runFollowUp(input: {
         })
         const result = await client.report.chat({
           simulationId,
-          message: text,
+          message: withLanguage(text, env.MIROFISH_LOCALE),
           history: history as Array<{ role: 'user' | 'assistant'; content: string }>,
         })
         reply = result.response
@@ -158,7 +160,10 @@ export async function runFollowUp(input: {
     try {
       const result = await client.simulation.interviewBatch({
         simulationId,
-        interviews: requested.map((r) => ({ agentId: mirofishAgentId(r.agentId), prompt: text })),
+        interviews: requested.map((r) => ({
+          agentId: mirofishAgentId(r.agentId),
+          prompt: withLanguage(text, env.MIROFISH_LOCALE),
+        })),
       })
       results = interviewsToParts(result, requested)
     } catch (error) {

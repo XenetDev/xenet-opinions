@@ -124,6 +124,9 @@ export type InterviewWindowData = z.infer<typeof InterviewWindowDataSchema>
 export const QueueDataSchema = z.object({ position: z.number().int().min(0), pausedAhead: z.boolean().optional() })
 export type QueueData = z.infer<typeof QueueDataSchema>
 
+export const CursorDataSchema = z.object({ seq: z.number().int().min(0) })
+export type CursorData = z.infer<typeof CursorDataSchema>
+
 export type OpinionsDataParts = {
   stage: StageData
   ontology: OntologyData
@@ -137,6 +140,7 @@ export type OpinionsDataParts = {
   interview: InterviewData
   interview_window: InterviewWindowData
   queue: QueueData
+  cursor: CursorData
 }
 
 export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>

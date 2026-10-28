@@ -769,6 +769,18 @@ describe('interview window', () => {
     expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
   })
 
+  it('asks the persona to answer in the configured language without changing the stored question', async () => {
+    const { deps, run, store, ask, payloads } = await paused()
+    await ask(['0'])
+    await tick(run, { ...deps, locale: 'en' })
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ interviews: [{ agentId: 0, prompt: 'Q?\n\nAnswer in English.' }] }),
+      expect.anything(),
+    )
+    expect(store.interviews.get('q1_0')?.question).toBe('Q?')
+    expect(payloads('interview')).toEqual([expect.objectContaining({ question: 'Q?' })])
+  })
+
   it.each([
     [new MiroFishError({ code: 'api', message: 'x', path: '/i' }), 'Agents are offline'],
     [new MiroFishError({ code: 'http', status: 502, message: 'x', path: '/i' }), 'Agents are offline'],

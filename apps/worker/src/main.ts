@@ -61,6 +61,7 @@ async function main() {
       storage: createStorageFromEnv({ ...env, STORAGE_LOCAL_DIR: localDir }),
       now: () => new Date(),
       envKeepaliveMs: env.ENV_KEEPALIVE_MS,
+      locale: env.MIROFISH_LOCALE,
       sleep,
       log,
       owner: env.WORKER_ID,

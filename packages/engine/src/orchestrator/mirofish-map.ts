@@ -11,7 +11,7 @@ import type { AgentsData, GraphData, OntologyData, ReportEventData, ReportOutlin
 type Rec = Record<string, unknown>
 type FeedPost = SimFeedData['posts'][number]
 
-const MAX_NODES = 200
+const MAX_NODES = 400
 const MAX_POSTS = 50
 const RESULT_SUMMARY_CHARS = 160
 
@@ -47,13 +47,22 @@ export const graphDataToPart = (graphId: string, data: MfGraphData): GraphData =
     )
     return [{ id, label: str(n.name, n.label) ?? id, ...(type ? { type } : {}) }]
   })
-  const sampled = nodes.slice(0, MAX_NODES)
+  const ends = (raw: unknown) => {
+    const e = rec(raw)
+    return [str(e.source_node_uuid, e.source), str(e.target_node_uuid, e.target)]
+  }
+  const degree = new Map<string, number>()
+  for (const raw of data.edges) for (const id of ends(raw)) if (id) degree.set(id, (degree.get(id) ?? 0) + 1)
+  const sampled = nodes
+    .map((node, i) => ({ node, i, d: degree.get(node.id) ?? 0 }))
+    .sort((a, b) => b.d - a.d || a.i - b.i)
+    .slice(0, MAX_NODES)
+    .map((x) => x.node)
   const keep = new Set(sampled.map((n) => n.id))
   const links = data.edges.flatMap((raw) => {
-    const e = rec(raw)
-    const source = str(e.source_node_uuid, e.source)
-    const target = str(e.target_node_uuid, e.target)
+    const [source, target] = ends(raw)
     if (!source || !target || !keep.has(source) || !keep.has(target)) return []
+    const e = rec(raw)
     const label = str(e.name, e.fact_type, e.label)
     return [{ source, target, ...(label ? { label } : {}) }]
   })

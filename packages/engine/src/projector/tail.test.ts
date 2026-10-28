@@ -42,6 +42,7 @@ describe('tailRunAsUIMessageStream', () => {
       id: 'stage:ontology',
       data: { stage: 'ontology', status: 'running' },
     })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-cursor' })
     await store.appendEvent(runId, {
       kind: 'ontology',
       partId: 'ontology',
@@ -52,9 +53,73 @@ describe('tailRunAsUIMessageStream', () => {
       id: 'ontology',
       data: { entityTypes: ['A'], relationTypes: ['R'] },
     })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-cursor' })
     await store.appendEvent(runId, { kind: 'done', partId: null, payload: {} })
     expect((await reader.read()).value).toEqual({ type: 'finish' })
     expect((await reader.read()).done).toBe(true)
+  })
+
+  it('starts after the given seq and writes a transient cursor after each batch', async () => {
+    const { store, runId } = await setup()
+    const stage = (status: 'running' | 'done') =>
+      store.appendEvent(runId, { kind: 'stage', partId: 'stage:ontology', payload: { stage: 'ontology', status } })
+    const first = await stage('running')
+    const second = await stage('done')
+    const reader = tailRunAsUIMessageStream({
+      store,
+      runId,
+      messageId: 'm1',
+      pollMs: 5,
+      afterSeq: first.seq,
+    }).getReader()
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-stage', data: { status: 'done' } })
+    expect((await reader.read()).value).toEqual({
+      type: 'data-cursor',
+      id: 'cursor',
+      data: { seq: second.seq },
+      transient: true,
+    })
+    const third = await store.appendEvent(runId, {
+      kind: 'ontology',
+      partId: 'ontology',
+      payload: { entityTypes: ['A'], relationTypes: ['R'] },
+    })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-ontology' })
+    expect((await reader.read()).value).toEqual({
+      type: 'data-cursor',
+      id: 'cursor',
+      data: { seq: third.seq },
+      transient: true,
+    })
+    await reader.cancel()
+  })
+
+  it('emits nothing after start until an event newer than the given seq arrives', async () => {
+    const { store, runId } = await setup()
+    const last = await store.appendEvent(runId, {
+      kind: 'stage',
+      partId: 'stage:ontology',
+      payload: { stage: 'ontology', status: 'running' },
+    })
+    const queuePosition = vi.fn(async () => 0)
+    const reader = tailRunAsUIMessageStream({
+      store,
+      runId,
+      messageId: 'm1',
+      pollMs: 5,
+      afterSeq: last.seq + 5,
+      queuePosition,
+    }).getReader()
+    expect((await reader.read()).value).toEqual({ type: 'start', messageId: 'm1' })
+    const next = reader.read()
+    const raced = await Promise.race([next, new Promise((r) => setTimeout(() => r('idle'), 40))])
+    expect(raced).toBe('idle')
+    expect(queuePosition).not.toHaveBeenCalled()
+    for (let i = 0; i < 6; i++)
+      await store.appendEvent(runId, { kind: 'report_text', partId: 'report', payload: { markdown: `# ${i}` } })
+    expect((await next).value).toMatchObject({ type: 'text-start' })
+    await reader.cancel()
   })
 
   it('emits the same id for a repeated partId', async () => {
@@ -127,7 +192,7 @@ describe('tailRunAsUIMessageStream', () => {
     const chunks = await collect(
       tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, maxDurationMs: 50 }),
     )
-    expect(chunks.map((c) => c.type)).toEqual(['start', 'data-stage'])
+    expect(chunks.map((c) => c.type)).toEqual(['start', 'data-stage', 'data-cursor'])
   })
 
   it('ends without finish when the signal aborts', async () => {
@@ -242,6 +307,37 @@ describe('tailRunAsUIMessageStream', () => {
     expect(parts).toEqual(await materialiseRun(store, runId))
   })
 
+  it('a tail after the last cursor continues a held message to the materialised parts', async () => {
+    const { store, runId } = await setup()
+    await store.appendEvent(runId, { kind: 'report_text', partId: 'report', payload: { markdown: '# R' } })
+    await store.appendEvent(runId, {
+      kind: 'stage',
+      partId: 'stage:graph_build',
+      payload: { stage: 'graph_build', status: 'running', progress: 10 },
+    })
+    const [firstStream, firstChunks] = tailRunAsUIMessageStream({
+      store,
+      runId,
+      messageId: 'm1',
+      pollMs: 5,
+      maxDurationMs: 30,
+    }).tee()
+    const cursors = collect(firstChunks).then((chunks) => chunks.filter((c) => c.type === 'data-cursor'))
+    let held: OpinionsUIMessage | undefined
+    for await (const message of readUIMessageStream<OpinionsUIMessage>({ stream: firstStream })) held = message
+    const seq = ((await cursors).at(-1) as { data: { seq: number } }).data.seq
+    await store.appendEvent(runId, {
+      kind: 'stage',
+      partId: 'stage:graph_build',
+      payload: { stage: 'graph_build', status: 'done' },
+    })
+    await store.appendEvent(runId, { kind: 'done', partId: null, payload: {} })
+    const stream = tailRunAsUIMessageStream({ store, runId, messageId: 'm1', pollMs: 5, afterSeq: seq })
+    let parts: OpinionsUIMessage['parts'] = []
+    for await (const message of readUIMessageStream<OpinionsUIMessage>({ stream, message: held })) parts = message.parts
+    expect(parts).toEqual(await materialiseRun(store, runId))
+  })
+
   it('writes data-queue only when the position changes, then position 0 before the first event', async () => {
     const { store, runId } = await setup()
     const positions = [2, 2, 1]
@@ -317,6 +413,7 @@ describe('tailRunAsUIMessageStream', () => {
     })
     expect((await reader.read()).value).toEqual({ type: 'data-queue', id: 'queue', data: { position: 0 } })
     expect((await reader.read()).value).toMatchObject({ type: 'data-stage' })
+    expect((await reader.read()).value).toMatchObject({ type: 'data-cursor' })
     const calls = queuePosition.mock.calls.length
     await store.appendEvent(runId, {
       kind: 'stage',

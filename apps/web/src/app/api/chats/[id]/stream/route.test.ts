@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
 vi.mock('@/server/runs', () => ({
-  runStore: { getActiveByChat: vi.fn(), queuePosition: vi.fn(), hasPausedRunning: vi.fn() },
+  runStore: { getActiveByChat: vi.fn(), getLatestByChat: vi.fn(), queuePosition: vi.fn(), hasPausedRunning: vi.fn() },
 }))
 vi.mock('@xo/engine', () => ({ tailRunAsUIMessageStream: vi.fn() }))
 
@@ -50,6 +50,7 @@ describe('GET /api/chats/[id]/stream', () => {
     expect(await res.text()).toBe('')
     expect(res.headers.get('content-type')).toBeNull()
     expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    expect(runStore.getLatestByChat).not.toHaveBeenCalled()
   })
 
   it('tails the active run starting with the assistant message id', async () => {
@@ -79,5 +80,55 @@ describe('GET /api/chats/[id]/stream', () => {
     expect(await vi.mocked(tailRunAsUIMessageStream).mock.calls[0]![0].pausedAhead!()).toBe(true)
     const first = (await res.text()).split('\n').find((line) => line.startsWith('data:'))
     expect(JSON.parse(first!.slice(5).trim())).toEqual({ type: 'start', messageId: 'a1' })
+  })
+
+  it.each(['x', '-1', '1.5', '', '1e3', '99999999999999999999'])(
+    'rejects after=%j with 400 invalid_after',
+    async (after) => {
+      vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+      vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+      vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
+      const res = await call(new Request(`http://localhost/api/chats/c1/stream?after=${after}`))
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'invalid_after' })
+      expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    ['?after=42', 42],
+    ['?after=0', 0],
+    ['', 0],
+  ])('tails from the seq in %j', async (query, afterSeq) => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
+    vi.mocked(tailRunAsUIMessageStream).mockImplementation(() => createUIMessageStream({ execute: () => {} }))
+    const res = await call(new Request(`http://localhost/api/chats/c1/stream${query}`))
+    expect(res.status).toBe(200)
+    expect(tailRunAsUIMessageStream).toHaveBeenCalledWith(expect.objectContaining({ afterSeq }))
+  })
+
+  it('drains the latest run from the cursor when a continuation finds the run already ended', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', assistantMessageId: 'a1' } as never)
+    vi.mocked(tailRunAsUIMessageStream).mockImplementation(() => createUIMessageStream({ execute: () => {} }))
+    const res = await call(new Request('http://localhost/api/chats/c1/stream?after=7'))
+    expect(res.status).toBe(200)
+    expect(runStore.getLatestByChat).toHaveBeenCalledWith('c1')
+    expect(tailRunAsUIMessageStream).toHaveBeenCalledWith(
+      expect.objectContaining({ runId: 'r1', messageId: 'a1', afterSeq: 7 }),
+    )
+  })
+
+  it('returns 204 for a continuation when the chat has no run', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ id: 'user1' })
+    vi.mocked(getOwnedChat).mockResolvedValue({ id: 'c1' } as never)
+    vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
+    vi.mocked(runStore.getLatestByChat).mockResolvedValue(null)
+    const res = await call(new Request('http://localhost/api/chats/c1/stream?after=7'))
+    expect(res.status).toBe(204)
   })
 })
