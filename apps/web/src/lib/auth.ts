@@ -1,6 +1,7 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { schema } from '@xo/db'
 import { type BetterAuthOptions, betterAuth } from 'better-auth'
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
 import { anonymous, magicLink } from 'better-auth/plugins'
 import { env } from '@/env'
 import type { Env } from '@/env.schema'
@@ -20,8 +21,11 @@ type AuthDeps = {
   deleteStorage: typeof deleteUserStorage
 }
 
+const LINK_INTENT = 'xo.link_intent'
+
 export function buildAuthOptions(deps: AuthDeps) {
   const { env, nodeEnv, mailer, relink, deleteStorage } = deps
+  const secureCookies = env.BETTER_AUTH_URL.startsWith('https://')
   const providers = authProvidersFrom(env, nodeEnv)
   const socialProviders: NonNullable<BetterAuthOptions['socialProviders']> = {}
   if (providers.google && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)
@@ -52,10 +56,17 @@ export function buildAuthOptions(deps: AuthDeps) {
       },
     },
     advanced: {
-      useSecureCookies: nodeEnv === 'production',
+      useSecureCookies: secureCookies,
       ipAddress: { ipAddressHeaders: ['x-forwarded-for', 'x-real-ip'] },
     },
     socialProviders,
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/delete-user') return
+        const session = await getSessionFromCtx(ctx)
+        if (session?.user.isAnonymous) throw new APIError('FORBIDDEN')
+      }),
+    },
     user: {
       deleteUser: {
         enabled: true,
@@ -66,7 +77,14 @@ export function buildAuthOptions(deps: AuthDeps) {
     },
     plugins: [
       anonymous({
-        onLinkAccount: async ({ anonymousUser, newUser }) => {
+        disableDeleteAnonymousUser: true,
+        onLinkAccount: async ({ anonymousUser, newUser, ctx }) => {
+          if (ctx.path === '/magic-link/verify') {
+            const intent = await ctx.getSignedCookie(LINK_INTENT, ctx.context.secret)
+            ctx.setCookie(LINK_INTENT, '', { path: '/', maxAge: 0 })
+            // A magic link only carries anonymous data when the browser that requested it opens it.
+            if (intent !== `${anonymousUser.user.id}:${newUser.user.email.toLowerCase()}`) return
+          }
           await relink({ fromUserId: anonymousUser.user.id, toUserId: newUser.user.id })
         },
       }),
@@ -75,7 +93,17 @@ export function buildAuthOptions(deps: AuthDeps) {
             magicLink({
               expiresIn: 900,
               storeToken: 'hashed',
-              sendMagicLink: ({ email, url }) => mailer().send({ to: email, ...magicLinkEmail({ url }) }),
+              sendMagicLink: async ({ email, url }, ctx) => {
+                const requester = ctx ? await getSessionFromCtx(ctx, { disableRefresh: true }) : null
+                if (ctx && requester?.user.isAnonymous)
+                  await ctx.setSignedCookie(
+                    LINK_INTENT,
+                    `${requester.user.id}:${email.toLowerCase()}`,
+                    ctx.context.secret,
+                    { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 900, secure: secureCookies },
+                  )
+                await mailer().send({ to: email, ...magicLinkEmail({ url }) })
+              },
             }),
           ]
         : []),

@@ -34,6 +34,9 @@ const mkUser = (id: string, isAnonymous: boolean) =>
     updatedAt: now,
   })
 
+const userExists = async (id: string) =>
+  (await db.select({ id: schema.user.id }).from(schema.user).where(eq(schema.user.id, id))).length === 1
+
 const mkChat = (userId: string) => {
   const id = `c_${crypto.randomUUID()}`
   return db
@@ -93,6 +96,19 @@ describe.skipIf(!process.env.DATABASE_URL)('account (real db)', () => {
     expect(await listChats(ids.a)).toHaveLength(0)
     expect((await runsStartedSince(ids.b, dayAgo)).count).toBe(1)
     expect((await listChats(ids.c)).map((c) => c.id)).toEqual([chatC])
+    expect(await userExists(ids.a)).toBe(false)
+    expect(await userExists(ids.b)).toBe(true)
+  })
+
+  it('never deletes a registered source user', async () => {
+    const owner = `uk_${crypto.randomUUID()}`
+    await mkUser(owner, false)
+    try {
+      await relinkAnonymousUser({ fromUserId: owner, toUserId: ids.b })
+      expect(await userExists(owner)).toBe(true)
+    } finally {
+      await db.delete(schema.user).where(eq(schema.user.id, owner))
+    }
   })
 
   it('returns zeros for an anonymous user with nothing and leaves the target unchanged', async () => {
@@ -165,6 +181,31 @@ describe.skipIf(!process.env.DATABASE_URL)('account (real db)', () => {
       const [run] = await db.select().from(schema.runs).where(eq(schema.runs.id, runId))
       const [upload] = await db.select().from(schema.uploads).where(eq(schema.uploads.id, uploadId))
       expect([chat?.userId, run?.userId, upload?.userId]).toEqual([owner, owner, owner])
+      expect(await userExists(owner)).toBe(true)
+    } finally {
+      await db.delete(schema.user).where(eq(schema.user.id, owner))
+    }
+  })
+
+  it('restores the anonymous user and its chats when the transaction fails after the delete', async () => {
+    const owner = `ux_${crypto.randomUUID()}`
+    await mkUser(owner, true)
+    try {
+      const chatId = await mkChat(owner)
+      const real = db.transaction.bind(db)
+      const spy = vi.spyOn(db, 'transaction').mockImplementationOnce(((run: Parameters<typeof real>[0], config) =>
+        real(async (tx) => {
+          await run(tx)
+          expect(await tx.select().from(schema.user).where(eq(schema.user.id, owner))).toEqual([])
+          throw new Error('boom')
+        }, config)) as typeof db.transaction)
+
+      await expect(relinkAnonymousUser({ fromUserId: owner, toUserId: ids.b })).rejects.toThrow('boom')
+      spy.mockRestore()
+
+      expect(await userExists(owner)).toBe(true)
+      const [chat] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+      expect(chat?.userId).toBe(owner)
     } finally {
       await db.delete(schema.user).where(eq(schema.user.id, owner))
     }

@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('better-auth', () => ({ betterAuth: vi.fn(() => ({})) }))
-vi.mock('@/env', () => ({ env: {} }))
+vi.mock('@/env', () => ({ env: { BETTER_AUTH_URL: 'http://localhost:3000' } }))
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/storage', () => ({ storage: {} }))
+vi.mock('better-auth/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('better-auth/api')>()),
+  getSessionFromCtx: vi.fn(),
+}))
 
 import type { BetterAuthOptions } from 'better-auth'
+import { getSessionFromCtx } from 'better-auth/api'
 import { type Env, parseEnv } from '@/env.schema'
 import { buildAuthOptions } from './auth'
 
@@ -123,10 +128,10 @@ describe('buildAuthOptions', () => {
     expect(options.advanced?.ipAddress?.ipAddressHeaders).toEqual(['x-forwarded-for', 'x-real-ip'])
   })
 
-  it('uses secure cookies only in production', () => {
-    expect(build({}, 'production').advanced?.useSecureCookies).toBe(true)
-    expect(build({}, 'development').advanced?.useSecureCookies).toBe(false)
-    expect(build({}, undefined).advanced?.useSecureCookies).toBe(false)
+  it('uses secure cookies only for an https auth url', () => {
+    expect(build({}, 'production').advanced?.useSecureCookies).toBe(false)
+    expect(build({ BETTER_AUTH_URL: 'https://opinions.example' }, 'development').advanced?.useSecureCookies).toBe(true)
+    expect(build({ BETTER_AUTH_URL: 'https://opinions.example' }, 'production').advanced?.useSecureCookies).toBe(true)
   })
 
   it('keeps secret and baseURL from env', () => {
@@ -135,17 +140,52 @@ describe('buildAuthOptions', () => {
     expect(options.baseURL).toBe(base.BETTER_AUTH_URL)
   })
 
-  it('relinks the anonymous user onto the new user and propagates failures', async () => {
-    const { onLinkAccount } = pluginOptions(build({}, 'production'), 'anonymous')
-    const data = {
-      anonymousUser: { user: { id: 'anon1' }, session: {} },
-      newUser: { user: { id: 'real1' }, session: {} },
-    }
-    await onLinkAccount?.(data as never)
-    expect(relink).toHaveBeenCalledWith({ fromUserId: 'anon1', toUserId: 'real1' })
-    relink.mockRejectedValueOnce(new Error('boom'))
-    await expect(onLinkAccount?.(data as never)).rejects.toThrow('boom')
+  const linkCtx = (path: string, intent: string | null | false = null) => ({
+    path,
+    context: { secret: 'secret' },
+    getSignedCookie: vi.fn(async () => intent),
+    setCookie: vi.fn(),
   })
+  const linkData = (ctx: ReturnType<typeof linkCtx>) => ({
+    anonymousUser: { user: { id: 'anon1' }, session: {} },
+    newUser: { user: { id: 'real1', email: 'Ada@Example.com' }, session: {} },
+    ctx,
+  })
+
+  it('relinks OAuth sign-ins without a link intent and propagates failures', async () => {
+    const options = pluginOptions(build({}, 'production'), 'anonymous')
+    expect(options.disableDeleteAnonymousUser).toBe(true)
+    const ctx = linkCtx('/callback/:id')
+    await options.onLinkAccount?.(linkData(ctx) as never)
+    expect(relink).toHaveBeenCalledWith({ fromUserId: 'anon1', toUserId: 'real1' })
+    expect(ctx.getSignedCookie).not.toHaveBeenCalled()
+    relink.mockRejectedValueOnce(new Error('boom'))
+    await expect(options.onLinkAccount?.(linkData(ctx) as never)).rejects.toThrow('boom')
+  })
+
+  it('relinks a magic link opened by the browser that requested it and clears the intent', async () => {
+    const { onLinkAccount } = pluginOptions(build({}, 'production'), 'anonymous')
+    const ctx = linkCtx('/magic-link/verify', 'anon1:ada@example.com')
+    await onLinkAccount?.(linkData(ctx) as never)
+    expect(ctx.getSignedCookie).toHaveBeenCalledWith('xo.link_intent', 'secret')
+    expect(relink).toHaveBeenCalledWith({ fromUserId: 'anon1', toUserId: 'real1' })
+    expect(ctx.setCookie).toHaveBeenCalledWith('xo.link_intent', '', { path: '/', maxAge: 0 })
+  })
+
+  it.each<[string, string | false | null]>([
+    ['missing', null],
+    ['tampered', false],
+    ['for another anonymous user', 'anon2:ada@example.com'],
+    ['for another email', 'anon1:eve@example.com'],
+  ])('does not relink a magic link with a %s intent', async (_, intent) => {
+    const { onLinkAccount } = pluginOptions(build({}, 'production'), 'anonymous')
+    const ctx = linkCtx('/magic-link/verify', intent)
+    await onLinkAccount?.(linkData(ctx) as never)
+    expect(relink).not.toHaveBeenCalled()
+    expect(ctx.setCookie).toHaveBeenCalledWith('xo.link_intent', '', { path: '/', maxAge: 0 })
+  })
+
+  const sendCtx = () => ({ context: { secret: 'secret' }, setSignedCookie: vi.fn(async () => '') })
 
   it('sends the magic link through the mailer', async () => {
     const { sendMagicLink } = pluginOptions(build({}, 'development'), 'magic-link')
@@ -158,6 +198,44 @@ describe('buildAuthOptions', () => {
         text: expect.stringContaining('http://localhost:3000/x'),
       }),
     )
+  })
+
+  it('records a link intent for an anonymous requester', async () => {
+    vi.mocked(getSessionFromCtx).mockResolvedValue({ user: { id: 'anon1', isAnonymous: true } } as never)
+    const { sendMagicLink } = pluginOptions(
+      build({ BETTER_AUTH_URL: 'https://o.example' }, 'development'),
+      'magic-link',
+    )
+    const ctx = sendCtx()
+    await sendMagicLink?.({ email: 'Ada@Example.com', url: 'u', token: 't' } as never, ctx as never)
+    expect(ctx.setSignedCookie).toHaveBeenCalledWith('xo.link_intent', 'anon1:ada@example.com', 'secret', {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 900,
+      secure: true,
+    })
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ to: 'Ada@Example.com' }))
+  })
+
+  it('records no link intent for a registered or missing requester', async () => {
+    const { sendMagicLink } = pluginOptions(build({}, 'development'), 'magic-link')
+    for (const session of [{ user: { id: 'u1', isAnonymous: false } }, null]) {
+      vi.mocked(getSessionFromCtx).mockResolvedValue(session as never)
+      const ctx = sendCtx()
+      await sendMagicLink?.({ email: 'a@example.com', url: 'u', token: 't' } as never, ctx as never)
+      expect(ctx.setSignedCookie).not.toHaveBeenCalled()
+    }
+    expect(send).toHaveBeenCalledTimes(2)
+  })
+
+  it('forbids anonymous users from deleting their account', async () => {
+    const beforeHook = build({}, 'production').hooks?.before as unknown as (ctx: unknown) => Promise<unknown>
+    vi.mocked(getSessionFromCtx).mockResolvedValue({ user: { id: 'anon1', isAnonymous: true } } as never)
+    await expect(beforeHook({ path: '/delete-user', context: {} })).rejects.toMatchObject({ status: 'FORBIDDEN' })
+    await expect(beforeHook({ path: '/get-session', context: {} })).resolves.toBeUndefined()
+    vi.mocked(getSessionFromCtx).mockResolvedValue({ user: { id: 'u1', isAnonymous: false } } as never)
+    await expect(beforeHook({ path: '/delete-user', context: {} })).resolves.toBeUndefined()
   })
 
   it('sends the delete-account confirmation through the mailer', async () => {

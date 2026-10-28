@@ -1,9 +1,9 @@
 import { schema } from '@xo/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
 
-const { chats, runs, uploads } = schema
+const { chats, runs, uploads, user } = schema
 
 export async function relinkAnonymousUser(input: {
   fromUserId: string
@@ -27,6 +27,7 @@ export async function relinkAnonymousUser(input: {
       .set({ userId: toUserId })
       .where(eq(uploads.userId, fromUserId))
       .returning({ id: uploads.id })
+    await tx.delete(user).where(and(eq(user.id, fromUserId), eq(user.isAnonymous, true)))
     return { chats: movedChats.length, runs: movedRuns.length, uploads: movedUploads.length }
   })
 }
