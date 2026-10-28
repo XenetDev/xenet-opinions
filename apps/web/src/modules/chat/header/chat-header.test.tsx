@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 
 const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn() }))
+const session = vi.hoisted(() => ({ isAnonymous: true }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
@@ -15,7 +16,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
     useSession: () => ({
-      data: { user: { id: 'g', name: 'Guest', email: 'g@x.y', isAnonymous: true } },
+      data: { user: { id: 'g', name: 'Guest', email: 'g@x.y', image: null, isAnonymous: session.isAnonymous } },
       isPending: false,
     }),
   },
@@ -32,6 +33,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  session.isAnonymous = true
   nav.pathname = '/c/a'
   nav.push.mockReset()
   nav.refresh.mockReset()
@@ -90,14 +92,22 @@ describe('ChatHeader', () => {
     expect(screen.getByRole('banner').textContent).toContain('New chat')
   })
 
-  it('offers sign in to anonymous visitors', () => {
+  it('offers sign in to anonymous visitors as the last element in the header', () => {
     renderHeader()
-    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in?next=%2Fc%2Fa')
+    const button = screen.getByRole('button', { name: 'Sign in' })
+    expect(screen.getByRole('banner').lastElementChild).toBe(button)
+  })
+
+  it('keeps the avatar menu last for registered users', () => {
+    session.isAnonymous = false
+    renderHeader()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'Account menu' }))
   })
 
   it('hides sign in when no provider is available', () => {
     renderHeader(CHATS, undefined, false)
-    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: /Switch to/ }))
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {

@@ -1,8 +1,7 @@
 'use client'
 
 import { LogOutIcon, Trash2Icon } from 'lucide-react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -26,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { authClient } from '@/lib/auth-client'
+import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 
 export function initials(name: string, email: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
@@ -35,7 +35,7 @@ export function initials(name: string, email: string): string {
 
 export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
-  const pathname = usePathname()
+  const signInDialog = useSignInDialog()
   const { data, isPending } = authClient.useSession()
   const [deleting, setDeleting] = useState(false)
 
@@ -44,8 +44,8 @@ export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   if (user.isAnonymous === true) {
     if (!signInAvailable) return null
     return (
-      <Button asChild variant="ghost" size="sm">
-        <Link href={`/sign-in?next=${encodeURIComponent(pathname)}`}>Sign in</Link>
+      <Button variant="default" size="sm" onClick={signInDialog.open}>
+        Sign in
       </Button>
     )
   }

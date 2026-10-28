@@ -48,8 +48,8 @@ export function ChatHeader({ signInAvailable }: { signInAvailable: boolean }) {
         </TooltipTrigger>
         <TooltipContent>New chat</TooltipContent>
       </Tooltip>
-      <AccountMenu signInAvailable={signInAvailable} />
       <ThemeToggle />
+      <AccountMenu signInAvailable={signInAvailable} />
     </header>
   )
 }

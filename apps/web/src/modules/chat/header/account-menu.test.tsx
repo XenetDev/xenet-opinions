@@ -12,6 +12,7 @@ const auth = vi.hoisted(() => ({
   deleteUser: vi.fn(),
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+const dialog = vi.hoisted(() => ({ open: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
@@ -26,6 +27,7 @@ vi.mock('@/lib/auth-client', () => ({
   },
 }))
 vi.mock('sonner', () => ({ toast: toasts }))
+vi.mock('@/modules/auth/sign-in-dialog', () => ({ useSignInDialog: () => dialog }))
 
 import { AccountMenu, initials } from './account-menu'
 
@@ -49,6 +51,7 @@ beforeEach(() => {
   auth.deleteUser.mockReset().mockResolvedValue({ data: {}, error: null })
   toasts.success.mockReset()
   toasts.error.mockReset()
+  dialog.open.mockReset()
   auth.session = { data: registered, isPending: false }
 })
 
@@ -66,10 +69,16 @@ describe('AccountMenu', () => {
     expect(render(<AccountMenu signInAvailable />).container.innerHTML).toBe('')
   })
 
-  it('links anonymous visitors to sign in with the current path', () => {
+  it('offers anonymous visitors a default Sign in button that opens the dialog', async () => {
     auth.session = { data: anonymous, isPending: false }
-    render(<AccountMenu signInAvailable />)
-    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in?next=%2Fc%2Fa')
+    const { container } = render(<AccountMenu signInAvailable />)
+    const button = screen.getByRole('button', { name: 'Sign in' })
+    expect(button.getAttribute('data-variant')).toBe('default')
+    expect(button.getAttribute('data-size')).toBe('sm')
+    expect(screen.queryByRole('link')).toBeNull()
+    fireEvent.click(button)
+    expect(dialog.open).toHaveBeenCalledOnce()
+    expect(await axe(container)).toHaveNoViolations()
   })
 
   it('shows nothing to anonymous visitors when no sign-in provider is available', () => {
