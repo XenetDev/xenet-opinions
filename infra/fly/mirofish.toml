@@ -1,0 +1,24 @@
+app = "xenet-opinions-mirofish"
+primary_region = "lhr"
+
+[env]
+  PORT = "5001"
+  FLASK_HOST = "::"
+
+[[mounts]]
+  source = "mirofish_uploads"
+  destination = "/app/backend/uploads"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 5001
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "4gb"

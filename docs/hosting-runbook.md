@@ -164,6 +164,12 @@ vercel api /v9/projects/xenet-opinions -X PATCH \
   -F framework=nextjs
 ```
 
+The project is connected to the GitHub repository, so set an ignored build step that skips previews (they have no variables and must not share the production database) and lets pushes to `main` deploy production:
+
+```sh
+vercel api /v9/projects/xenet-opinions -X PATCH -F commandForIgnoringBuildStep='if [ "$VERCEL_ENV" = "production" ]; then exit 1; else exit 0; fi'
+```
+
 ### 3.3 Environment
 
 `vercel env add <name> <environment> --value <v> --yes` is non-interactive. Use `--sensitive` for secrets. Run each line for `production` (add `preview` only if previews should work; they would share the production database).

@@ -20,7 +20,7 @@ MiroFish ([666ghj/MiroFish](https://github.com/666ghj/MiroFish)) is AGPL-3.0. Th
 
 Because MiroFish runs as a network service, AGPL section 13 applies to it; the exact source we run is the pinned SHA on the public upstream repository.
 
-The published image `ghcr.io/xenetdev/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at commit `7657031ac01184afe2cb220f5ee3545573b5e843`. Its source is https://github.com/666ghj/MiroFish at that commit. The image keeps the upstream licence at `/app/LICENSE` and carries the OCI labels `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.licenses=AGPL-3.0` and `org.opencontainers.image.description`. The only additions are the base image, the locked Python dependencies and a non-root user.
+The published image `ghcr.io/xenetdev/xenet-opinions-mirofish` is the upstream MiroFish backend, unmodified, at commit `7657031ac01184afe2cb220f5ee3545573b5e843`. Its source is https://github.com/666ghj/MiroFish at that commit. The image keeps the upstream licence at `/app/LICENSE` and carries the OCI labels `org.opencontainers.image.source`, `org.opencontainers.image.revision`, `org.opencontainers.image.licenses=AGPL-3.0` and `org.opencontainers.image.description`. The only additions are the base image, the locked Python dependencies and a non-root user. One dependency is swapped after the lockfile sync: `torch` is reinstalled from the PyTorch CPU index at the locked version and the NVIDIA CUDA wheels it pulled in are removed, because the image runs on CPU-only machines and the CUDA stack alone is about 6 GB on linux/amd64, more than Fly's uncompressed image limit.
 
 ### Bumping `MIROFISH_REF`
 
@@ -40,7 +40,7 @@ sh infra/mirofish/caddyfile.test.sh
 sh infra/mirofish/retain.sh --self-test
 ```
 
-The image is backend-only (`python:3.11-slim`; upstream requires Python `>=3.11,<3.13`). `gcc` and `libc6-dev` are installed because `psutil` 5.9.8 (pulled in by `camel-ai`) has no prebuilt wheel for linux/arm64 and builds from source there. The image is about 3.9 GB, almost all of it the locked Python dependencies.
+The image is backend-only (`python:3.11-slim`; upstream requires Python `>=3.11,<3.13`). `gcc` and `libc6-dev` are installed because `psutil` 5.9.8 (pulled in by `camel-ai`) has no prebuilt wheel for linux/arm64 and builds from source there. The image is a few gigabytes, almost all of it the locked Python dependencies; `uv` is installed from PyPI (pinned) rather than copied from GHCR so builds do not depend on a second registry.
 
 The backend runs as the non-root user `mirofish` (uid 10001). It owns `/app/backend/uploads` and `/app/backend/logs` (upstream's logger writes there); everything else in `/app` is read-only to it.
 
