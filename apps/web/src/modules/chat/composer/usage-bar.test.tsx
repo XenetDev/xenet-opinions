@@ -20,6 +20,8 @@ describe('UsageBar', () => {
   it('has no sign-in button without signIn', () => {
     render(<UsageBar usage={usage} />)
     expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.getByTestId('usage-bar').textContent).toContain('1 of 1 runs used today')
   })
 
   it('opens the sign-in dialog when signIn is given', async () => {

@@ -2,7 +2,6 @@
 
 import { ActivityIcon } from 'lucide-react'
 import { FrameHeader } from '@/components/reui/frame'
-import { Progress } from '@/components/ui/progress'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 import type { Usage } from '@/server/usage-from'
 
@@ -63,11 +62,6 @@ export function UsageBar({ usage, signIn }: { usage: Usage; signIn?: SignInUpsel
           )}
         </span>
       </div>
-      <Progress
-        value={usage.max ? Math.round((usage.used / usage.max) * 100) : 0}
-        aria-label="Runs used today"
-        className="h-1.5 [&_[data-slot=progress-indicator]]:rounded-full [&_[data-slot=progress-track]]:h-1.5 [&_[data-slot=progress-track]]:bg-muted-foreground/15"
-      />
     </FrameHeader>
   )
 }

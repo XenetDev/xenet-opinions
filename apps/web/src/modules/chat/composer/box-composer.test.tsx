@@ -456,7 +456,7 @@ describe('BoxComposer', () => {
 })
 
 describe('usage bar', () => {
-  it('shows runs used, the reset time and a progress bar in run mode only', () => {
+  it('shows runs used and the reset time in run mode only, without a progress bar', () => {
     const usage = { used: 3, max: 10, resetAt: '2026-10-29T08:00:00.000Z' }
     const { rerender } = render(
       <TooltipProvider>
@@ -465,7 +465,7 @@ describe('usage bar', () => {
     )
     expect(screen.getByTestId('usage-bar').textContent).toContain('3 of 10 runs used today')
     expect(screen.getByTestId('usage-bar').textContent).toMatch(/Resets (today|tomorrow|[A-Z][a-z]+) at /)
-    expect(screen.getByRole('progressbar', { name: 'Runs used today' })).toBeTruthy()
+    expect(screen.queryByRole('progressbar')).toBeNull()
     rerender(
       <TooltipProvider>
         <Composer mode="followUp" onSend={vi.fn()} usage={usage} />

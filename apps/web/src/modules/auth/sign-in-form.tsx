@@ -4,8 +4,8 @@ import { cn } from 'cn'
 import { ArrowRightIcon, Loader2Icon } from 'lucide-react'
 import Link from 'next/link'
 import { type FormEvent, type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { XoMark } from '@/components/brand/xo-mark'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
@@ -17,11 +17,7 @@ import { AppleLogo, GithubLogo, GoogleLogo } from './provider-logos'
 
 type Social = 'google' | 'github' | 'apple'
 
-type State =
-  | { status: 'idle' }
-  | { status: 'sending'; via: 'email' | Social }
-  | { status: 'sent'; email: string }
-  | { status: 'error'; message: string }
+type State = { status: 'idle' } | { status: 'sending'; via: 'email' | Social } | { status: 'sent'; email: string }
 
 const SOCIAL: { id: Social; label: string; Logo: () => ReactNode }[] = [
   { id: 'google', label: 'Google', Logo: GoogleLogo },
@@ -33,6 +29,7 @@ const HOSTING_DOCS = 'https://github.com/XenetDev/xenet-opinions/blob/main/docs/
 const RATE_LIMITED = 'Too many attempts. Try again in a minute.'
 const FAILED = 'Something went wrong. Try again.'
 const INVALID_EMAIL = 'Enter a valid email address.'
+const EXPIRED = 'That link has expired or was already used. Request a new one.'
 
 function SignInCard({
   title,
@@ -73,11 +70,15 @@ function SignInCard({
 export function SignInForm({ providers, next, error }: { providers: AuthProviders; next: string; error?: string }) {
   const [state, setState] = useState<State>({ status: 'idle' })
   const [email, setEmail] = useState('')
-  const [expired, setExpired] = useState(error === 'expired')
+  const [invalid, setInvalid] = useState(false)
   const sentHeading = useRef<HTMLHeadingElement>(null)
   const emailInput = useRef<HTMLInputElement>(null)
   const pending = state.status === 'sending'
   const social = SOCIAL.filter((provider) => providers[provider.id])
+
+  useEffect(() => {
+    if (error === 'expired') toast.error(EXPIRED, { id: 'sign-in-expired' })
+  }, [error])
 
   useEffect(() => {
     if (state.status === 'sent') sentHeading.current?.focus()
@@ -126,10 +127,14 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
     )
   }
 
+  function fail(message: string) {
+    setState({ status: 'idle' })
+    toast.error(message)
+  }
+
   async function sendLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const address = email.trim()
-    setExpired(false)
     setState({ status: 'sending', via: 'email' })
     try {
       const result = await authClient.signIn.magicLink({
@@ -139,38 +144,27 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
       })
       const { error } = result
       if (!error || error.code === 'USER_NOT_FOUND') setState({ status: 'sent', email: address })
-      else if (error.status === 400) setState({ status: 'error', message: INVALID_EMAIL })
-      else if (error.status === 429) setState({ status: 'error', message: RATE_LIMITED })
-      else setState({ status: 'error', message: FAILED })
+      else if (error.status === 400) {
+        setInvalid(true)
+        fail(INVALID_EMAIL)
+      } else fail(error.status === 429 ? RATE_LIMITED : FAILED)
     } catch {
-      setState({ status: 'error', message: FAILED })
+      fail(FAILED)
     }
   }
 
   async function continueWith(provider: Social) {
-    setExpired(false)
     setState({ status: 'sending', via: provider })
     try {
       const result = await authClient.signIn.social({ provider, callbackURL: next })
-      if (result.error) setState({ status: 'error', message: result.error.status === 429 ? RATE_LIMITED : FAILED })
+      if (result.error) fail(result.error.status === 429 ? RATE_LIMITED : FAILED)
     } catch {
-      setState({ status: 'error', message: FAILED })
+      fail(FAILED)
     }
   }
 
   return (
     <SignInCard title="Sign in" description="Keep your conversations and get more runs a day.">
-      {expired && (
-        <Alert>
-          <AlertDescription>That link has expired or was already used. Request a new one.</AlertDescription>
-        </Alert>
-      )}
-      {state.status === 'error' && (
-        <Alert variant="destructive">
-          <AlertDescription>{state.message}</AlertDescription>
-        </Alert>
-      )}
-
       {social.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
           {social.map(({ id, label, Logo }, index) => (
@@ -211,8 +205,12 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
               autoComplete="email"
               placeholder="name@example.com"
               aria-describedby="sign-in-email-description"
+              aria-invalid={invalid || undefined}
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value)
+                setInvalid(false)
+              }}
             />
             <FieldDescription id="sign-in-email-description">Your link stays active for 15 minutes.</FieldDescription>
           </Field>

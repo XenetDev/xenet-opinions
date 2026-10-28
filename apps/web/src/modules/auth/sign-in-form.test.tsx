@@ -6,10 +6,13 @@ import type { AuthProviders } from '@/lib/auth-providers'
 import { axe } from '@/test/axe'
 
 const client = vi.hoisted(() => ({ magicLink: vi.fn(), social: vi.fn() }))
+const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: { signIn: { magicLink: client.magicLink, social: client.social } },
 }))
+
+vi.mock('sonner', () => ({ toast: toasts }))
 
 import { SignInForm } from './sign-in-form'
 
@@ -19,6 +22,7 @@ const NONE: AuthProviders = { magicLink: false, google: false, github: false, ap
 beforeEach(() => {
   client.magicLink.mockReset().mockResolvedValue({ data: { status: true }, error: null })
   client.social.mockReset().mockResolvedValue({ data: null, error: null })
+  toasts.error.mockReset()
 })
 
 afterEach(() => {
@@ -111,7 +115,7 @@ describe('SignInForm', () => {
     render(<SignInForm providers={ALL} next="/" />)
     submit()
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeTruthy()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(toasts.error).not.toHaveBeenCalled()
   })
 
   it('returns to the form from "Use a different email"', async () => {
@@ -121,20 +125,22 @@ describe('SignInForm', () => {
     expect(email()).toBeTruthy()
   })
 
-  it('shows an alert when the magic link request fails', async () => {
+  it('toasts when the magic link request fails', async () => {
     client.magicLink.mockRejectedValue(new TypeError('Failed to fetch'))
     render(<SignInForm providers={ALL} next="/" />)
     submit()
-    expect(await screen.findByRole('alert')).toBeTruthy()
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Something went wrong. Try again.'))
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(email().value).toBe('ada@example.com')
     expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
   })
 
-  it('shows an alert when the server fails', async () => {
+  it('toasts when the server fails', async () => {
     client.magicLink.mockResolvedValue({ data: null, error: { status: 500, message: 'Internal Server Error' } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
-    expect((await screen.findByRole('alert')).textContent).toContain('Something went wrong. Try again.')
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Something went wrong. Try again.'))
+    expect((screen.getByRole('button', { name: 'Send sign-in link' }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
   })
 
@@ -142,15 +148,19 @@ describe('SignInForm', () => {
     client.magicLink.mockResolvedValue({ data: null, error: { code: 'VALIDATION_ERROR', status: 400, message: 'x' } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
-    expect((await screen.findByRole('alert')).textContent).toContain('Enter a valid email address.')
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Enter a valid email address.'))
+    expect(email().getAttribute('aria-invalid')).toBe('true')
     expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
+    fireEvent.change(email(), { target: { value: 'ada@example.org' } })
+    expect(email().getAttribute('aria-invalid')).toBeNull()
   })
 
-  it('shows the generic alert on another 4xx', async () => {
+  it('toasts the generic message on another 4xx', async () => {
     client.magicLink.mockResolvedValue({ data: null, error: { code: 'FORBIDDEN', status: 403, message: 'x' } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
-    expect((await screen.findByRole('alert')).textContent).toContain('Something went wrong. Try again.')
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Something went wrong. Try again.'))
+    expect(email().getAttribute('aria-invalid')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Check your email' })).toBeNull()
   })
 
@@ -158,7 +168,7 @@ describe('SignInForm', () => {
     client.magicLink.mockResolvedValue({ data: null, error: { status: 429, message: 'Too many requests' } })
     render(<SignInForm providers={ALL} next="/" />)
     submit()
-    expect((await screen.findByRole('alert')).textContent).toContain('Too many attempts. Try again in a minute.')
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Too many attempts. Try again in a minute.'))
   })
 
   it('starts the social flow with the provider and next', async () => {
@@ -167,11 +177,11 @@ describe('SignInForm', () => {
     await waitFor(() => expect(client.social).toHaveBeenCalledWith({ provider: 'google', callbackURL: '/c/abc' }))
   })
 
-  it('shows an alert when the social flow returns an error', async () => {
+  it('toasts when the social flow returns an error', async () => {
     client.social.mockResolvedValue({ data: null, error: { status: 500, message: 'boom' } })
     render(<SignInForm providers={ALL} next="/" />)
     fireEvent.click(screen.getByRole('button', { name: 'GitHub' }))
-    expect(await screen.findByRole('alert')).toBeTruthy()
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Something went wrong. Try again.'))
     expect((screen.getByRole('button', { name: 'GitHub' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
@@ -194,9 +204,19 @@ describe('SignInForm', () => {
     })
   })
 
-  it('shows the expired notice for error="expired"', () => {
-    render(<SignInForm providers={ALL} next="/" error="expired" />)
-    expect(screen.getByText('That link has expired or was already used. Request a new one.')).toBeTruthy()
+  it('toasts the expired notice once for error="expired"', () => {
+    const { rerender } = render(<SignInForm providers={ALL} next="/" error="expired" />)
+    rerender(<SignInForm providers={ALL} next="/" error="expired" />)
+    expect(toasts.error).toHaveBeenCalledOnce()
+    expect(toasts.error).toHaveBeenCalledWith('That link has expired or was already used. Request a new one.', {
+      id: 'sign-in-expired',
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('does not toast without an error', () => {
+    render(<SignInForm providers={ALL} next="/" />)
+    expect(toasts.error).not.toHaveBeenCalled()
   })
 
   it('has no axe violations in the default, sent and empty states', async () => {
