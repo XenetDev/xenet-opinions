@@ -70,10 +70,13 @@ describe('BoxComposer', () => {
     expect(container.querySelector('[data-align="block-end"]')?.contains(textarea())).toBe(false)
   })
 
-  it.each(['run', 'followUp', 'interview'] as const)('insets the toolbar like the field in %s mode', (mode) => {
-    const { container } = renderComposer({ mode })
-    expect(container.querySelector('[data-align="block-end"]')?.className).toMatch(/(^|\s)px-3(\s|$)/)
-  })
+  it.each(['run', 'followUp', 'interview'] as const)(
+    'lines the toolbar glyphs up with the field text in %s mode',
+    (mode) => {
+      const { container } = renderComposer({ mode })
+      expect(container.querySelector('[data-align="block-end"]')?.className).toMatch(/(^|\s)px-1(\s|$)/)
+    },
+  )
 
   it('rings the box while the field has focus', () => {
     const { container } = renderComposer()

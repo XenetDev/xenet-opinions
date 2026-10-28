@@ -213,7 +213,7 @@ export function BoxComposer({
                 rows={1}
                 className="field-sizing-content max-h-48 min-h-16 px-3 py-3"
               />
-              <InputGroupAddon align="block-end" className="flex-wrap gap-1 px-3">
+              <InputGroupAddon align="block-end" className="flex-wrap gap-1 px-1">
                 {mode === 'run' && (
                   <>
                     <DropdownMenu>
