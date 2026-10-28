@@ -39,3 +39,17 @@ export async function createUploads(input: {
   }
   return rows.map((row) => ({ id: row.id, filename: row.filename, mediaType: row.mediaType, sizeBytes: row.sizeBytes }))
 }
+
+export async function createSeedUpload(input: {
+  chatId: string
+  userId: string
+  document: string
+}): Promise<UploadSummary> {
+  const bytes = new TextEncoder().encode(input.document)
+  const [seed] = await createUploads({
+    chatId: input.chatId,
+    userId: input.userId,
+    files: [{ name: 'seed.md', mediaType: 'text/markdown', size: bytes.byteLength, bytes }],
+  })
+  return seed!
+}

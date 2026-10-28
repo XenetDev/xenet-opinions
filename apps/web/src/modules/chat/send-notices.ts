@@ -21,5 +21,4 @@ export const sendNotices = (
       ? `You've used today's ${freeRuns(limits.maxRunsPerDay)}. Sign in for ${limits.signedInMaxRunsPerDay} runs a day, or come back tomorrow.`
       : quotaNotice(limits.maxRunsPerDay),
   rounds_exceeded: `The demo allows up to ${limits.maxRounds} rounds.`,
-  files_required: FILES_REQUIRED,
 })

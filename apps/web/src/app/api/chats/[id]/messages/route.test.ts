@@ -34,6 +34,7 @@ vi.mock('@/server/interview-window', () => {
   return { InterviewWindowError, createInterviewQuestion: vi.fn() }
 })
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
+vi.mock('@/server/uploads', () => ({ createSeedUpload: vi.fn() }))
 vi.mock('@xo/engine', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xo/engine')>()
   return { ...actual, checkRunPolicy: vi.fn(actual.checkRunPolicy), tailRunAsUIMessageStream: vi.fn() }
@@ -46,6 +47,7 @@ import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { createSeedUpload } from '@/server/uploads'
 import { sessionUser } from '@/test/session-user'
 import { POST } from './route'
 
@@ -157,13 +159,45 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).not.toHaveBeenCalled()
     })
 
-    it('does not create the chat when the run is refused', async () => {
+    it('does not create the chat or a seed when the run is refused', async () => {
       authed()
+      limits({ demoMode: true })
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 2, oldestQueuedAt: new Date(Date.now() - 60_000) })
       vi.mocked(getOwnedChat).mockResolvedValue(null)
       const res = await callBody({ id: newId, message: userMessage('hi'), uploadIds: [] }, newId)
-      expect(res.status).toBe(400)
-      expect(await res.json()).toEqual({ error: 'files_required' })
+      expect(res.status).toBe(429)
+      expect(await res.json()).toMatchObject({ error: 'quota_exceeded' })
       expect(ensureOwnedChat).not.toHaveBeenCalled()
+      expect(createSeedUpload).not.toHaveBeenCalled()
+    })
+
+    it("returns 404 for another user's id without uploads and writes no seed", async () => {
+      authed()
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(ensureOwnedChat).mockResolvedValue(null)
+      const res = await callBody({ id: newId, message: userMessage('hi'), uploadIds: [] }, newId)
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: 'not_found' })
+      expect(countOwnedUploads).not.toHaveBeenCalled()
+      expect(createSeedUpload).not.toHaveBeenCalled()
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('creates the chat and then the seed for a prompt-only run', async () => {
+      authed()
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(ensureOwnedChat).mockResolvedValue({ id: newId } as never)
+      vi.mocked(createSeedUpload).mockResolvedValue({ id: 'seed1' } as never)
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+      const res = await callBody({ id: newId, message: userMessage('hi'), uploadIds: [] }, newId)
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(vi.mocked(ensureOwnedChat).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(createSeedUpload).mock.invocationCallOrder[0]!,
+      )
+      expect(createSeedUpload).toHaveBeenCalledWith(expect.objectContaining({ chatId: newId, userId: 'user1' }))
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ uploadIds: ['seed1'] }))
     })
   })
 
@@ -211,7 +245,7 @@ describe('POST /api/chats/[id]/messages', () => {
     })
   })
 
-  it('sends a follow-up on a done run without uploads, not files_required', async () => {
+  it('sends a follow-up on a done run without uploads and writes no seed', async () => {
     authed()
     vi.mocked(runStore.getLatestByChat).mockResolvedValue({ id: 'r1', status: 'done' } as never)
     vi.mocked(runFollowUp).mockResolvedValue(new Response('ok'))
@@ -220,6 +254,7 @@ describe('POST /api/chats/[id]/messages', () => {
     expect(runFollowUp).toHaveBeenCalledTimes(1)
     expect(startRun).not.toHaveBeenCalled()
     expect(ensureOwnedChat).not.toHaveBeenCalled()
+    expect(createSeedUpload).not.toHaveBeenCalled()
   })
 
   it('defaults follow-up target to report', async () => {
@@ -278,15 +313,71 @@ describe('POST /api/chats/[id]/messages', () => {
     expect(startRun).not.toHaveBeenCalled()
   })
 
-  it('returns 400 files_required for a run without uploads before counting quota', async () => {
-    authed()
-    limits({ demoMode: true })
-    const res = await call(userMessage('hi'), { uploadIds: [] })
-    expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'files_required' })
-    expect(runsStartedSince).not.toHaveBeenCalled()
-    expect(checkRunPolicy).not.toHaveBeenCalled()
-    expect(startRun).not.toHaveBeenCalled()
+  describe('prompt-only runs', () => {
+    const start = () => {
+      vi.mocked(createSeedUpload).mockResolvedValue({
+        id: 'seed1',
+        filename: 'seed.md',
+        mediaType: 'text/markdown',
+        sizeBytes: 1,
+      })
+      vi.mocked(startRun).mockResolvedValue({ run: { id: 'r2' }, assistantMessageId: 'a1' } as never)
+      vi.mocked(tailRunAsUIMessageStream).mockReturnValue(createUIMessageStream({ execute: () => {} }))
+    }
+
+    it('seeds a run without uploads from the question alone', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds: [] })
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(countOwnedUploads).not.toHaveBeenCalled()
+      expect(createSeedUpload).toHaveBeenCalledWith({
+        chatId: 'c1',
+        userId: 'user1',
+        document:
+          '# Scenario\n\nShould we raise prices?\n\n## Background and constraints\nNot provided.\n\n## Who is involved\nNot provided.\n\n## What is changing\nNot provided.\n',
+      })
+      expect(startRun).toHaveBeenCalledWith(
+        expect.objectContaining({ uploadIds: ['seed1'], text: 'Should we raise prices?' }),
+      )
+    })
+
+    it('writes the seed fields into the document', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('Should we raise prices?'), {
+        uploadIds: [],
+        seed: { background: ' Small SaaS, 2k customers ', actors: 'Customers', change: 'A 20% rise' },
+      })
+      await res.body?.cancel()
+      const { document } = vi.mocked(createSeedUpload).mock.calls[0]![0]
+      expect(document).toContain('## Background and constraints\nSmall SaaS, 2k customers\n')
+      expect(document).toContain('## Who is involved\nCustomers\n')
+      expect(document).toContain('## What is changing\nA 20% rise\n')
+    })
+
+    it('returns 429 when the quota is spent and writes no seed', async () => {
+      authed()
+      limits({ demoMode: true })
+      vi.mocked(runsStartedSince).mockResolvedValue({ count: 2, oldestQueuedAt: new Date(Date.now() - 60_000) })
+      const res = await call(userMessage('hi'), { uploadIds: [] })
+      expect(res.status).toBe(429)
+      expect(checkRunPolicy).toHaveBeenCalledTimes(1)
+      expect(createSeedUpload).not.toHaveBeenCalled()
+      expect(ensureOwnedChat).not.toHaveBeenCalled()
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    it('does not seed a run that has uploads', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('hi'), { seed: { background: 'ignored' } })
+      await res.body?.cancel()
+      expect(countOwnedUploads).toHaveBeenCalledWith({ chatId: 'c1', userId: 'user1', uploadIds: ['up1'] })
+      expect(createSeedUpload).not.toHaveBeenCalled()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ uploadIds: ['up1'] }))
+    })
   })
 
   it('returns 409 run_active when startRun loses the race', async () => {
@@ -354,7 +445,7 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(tailRunAsUIMessageStream).not.toHaveBeenCalled()
     })
 
-    it('accepts an interview question without uploads, not files_required', async () => {
+    it('accepts an interview question without uploads and writes no seed', async () => {
       authed()
       vi.mocked(runStore.getActiveByChat).mockResolvedValue(paused as never)
       vi.mocked(createInterviewQuestion).mockResolvedValue({ questionId: 'q1', interviewIds: ['i1'] })
@@ -362,6 +453,7 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(res.status).toBe(202)
       expect(createInterviewQuestion).toHaveBeenCalledTimes(1)
       expect(startRun).not.toHaveBeenCalled()
+      expect(createSeedUpload).not.toHaveBeenCalled()
     })
 
     it('refuses other targets with 409 run_paused', async () => {

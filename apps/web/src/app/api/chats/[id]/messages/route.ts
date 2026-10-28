@@ -1,4 +1,4 @@
-import { checkRunPolicy, QUOTA_WINDOW_MS, tailRunAsUIMessageStream } from '@xo/engine'
+import { buildSeedDocument, checkRunPolicy, QUOTA_WINDOW_MS, tailRunAsUIMessageStream } from '@xo/engine'
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
 import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
@@ -8,6 +8,7 @@ import { createInterviewQuestion, InterviewWindowError } from '@/server/intervie
 import { getLimits } from '@/server/limits'
 import { messageText, parseMessageBody } from '@/server/message-body'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { createSeedUpload } from '@/server/uploads'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -60,7 +61,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const uploadIds = [...new Set(body.uploadIds)]
-  if (uploadIds.length === 0) return Response.json({ error: 'files_required' }, { status: 400 })
 
   const limits = getLimits(user)
   const now = new Date()
@@ -83,11 +83,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
   }
 
-  if ((await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
+  if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
     if (!owned) return Response.json({ error: 'not_found' }, { status: 404 })
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
   if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
+  if (uploadIds.length === 0) {
+    const seed = await createSeedUpload({
+      chatId,
+      userId: user.id,
+      document: buildSeedDocument({ question: text, ...body.seed }),
+    })
+    uploadIds.push(seed.id)
+  }
 
   let started: Awaited<ReturnType<typeof startRun>>
   try {
