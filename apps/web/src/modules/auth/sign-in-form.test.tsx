@@ -52,6 +52,24 @@ describe('SignInForm', () => {
     expect(screen.getByRole('button', { name: 'Google' })).toBeTruthy()
   })
 
+  it.each([
+    [{ ...NONE, google: true }, 'Google', 1],
+    [ALL, 'Apple', 3],
+  ])('spans the last social button across the grid for an odd count', (providers, last, count) => {
+    render(<SignInForm providers={providers} next="/" />)
+    const buttons = screen.getAllByRole('button').filter((button) => button.getAttribute('type') === 'button')
+    expect(buttons).toHaveLength(count)
+    expect(buttons.at(-1)?.textContent).toBe(last)
+    expect(buttons.at(-1)?.className).toContain('col-span-2')
+    for (const button of buttons.slice(0, -1)) expect(button.className).not.toContain('col-span-2')
+  })
+
+  it('keeps an even number of social buttons in two columns', () => {
+    render(<SignInForm providers={{ ...ALL, apple: false }} next="/" />)
+    for (const name of ['Google', 'GitHub'])
+      expect(screen.getByRole('button', { name }).className).not.toContain('col-span-2')
+  })
+
   it('hides the email form and divider when magic link is off', () => {
     render(<SignInForm providers={{ ...ALL, magicLink: false }} next="/" />)
     expect(screen.queryByRole('textbox', { name: 'Email' })).toBeNull()

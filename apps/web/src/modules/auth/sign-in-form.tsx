@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from 'cn'
 import { ArrowRightIcon, Loader2Icon } from 'lucide-react'
 import Link from 'next/link'
 import { type FormEvent, type ReactNode, type Ref, useEffect, useRef, useState } from 'react'
@@ -171,13 +172,13 @@ export function SignInForm({ providers, next, error }: { providers: AuthProvider
       )}
 
       {social.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {social.map(({ id, label, Logo }) => (
+        <div className="grid grid-cols-2 gap-3">
+          {social.map(({ id, label, Logo }, index) => (
             <Button
               key={id}
               type="button"
               variant="outline"
-              className="w-full"
+              className={cn('w-full', social.length % 2 === 1 && index === social.length - 1 && 'col-span-2')}
               disabled={pending}
               aria-busy={pending && state.via === id}
               onClick={() => continueWith(id)}

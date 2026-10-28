@@ -5,8 +5,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { AuthProviders } from '@/lib/auth-providers'
 import { axe } from '@/test/axe'
 
+const client = vi.hoisted(() => ({ social: vi.fn() }))
+
 vi.mock('next/navigation', () => ({ usePathname: () => '/c/abc' }))
-vi.mock('@/lib/auth-client', () => ({ authClient: { signIn: { magicLink: vi.fn(), social: vi.fn() } } }))
+vi.mock('@/lib/auth-client', () => ({ authClient: { signIn: { magicLink: vi.fn(), social: client.social } } }))
 
 import { SignInDialogProvider, useSignInDialog } from './sign-in-dialog'
 
@@ -50,8 +52,18 @@ describe('SignInDialogProvider', () => {
     expect(within(dialog).getByRole('textbox', { name: 'Email' })).toBeTruthy()
     expect(within(dialog).getByRole('button', { name: 'Google' })).toBeTruthy()
     expect(within(dialog).getByRole('button', { name: 'GitHub' })).toBeTruthy()
-    expect(document.querySelector('[data-slot="dialog-overlay"]')?.className).toContain('backdrop-blur-sm')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')?.className ?? ''
+    expect(overlay).toContain('supports-backdrop-filter:backdrop-blur-sm')
+    expect(overlay).not.toContain('backdrop-blur-xs')
     expect(await axe(document.body)).toHaveNoViolations()
+  })
+
+  it('hands the current path to the card as next', async () => {
+    client.social.mockReset().mockResolvedValue({ data: null, error: null })
+    renderProvider()
+    act(() => open())
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Google' }))
+    await waitFor(() => expect(client.social).toHaveBeenCalledWith({ provider: 'google', callbackURL: '/c/abc' }))
   })
 
   it('closes on Escape', async () => {

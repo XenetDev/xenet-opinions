@@ -1,3 +1,5 @@
+'use client'
+
 import { ActivityIcon } from 'lucide-react'
 import { FrameHeader } from '@/components/reui/frame'
 import { Progress } from '@/components/ui/progress'
