@@ -178,6 +178,10 @@ export function Chat({
   }
 
   const handleStop = async () => {
+    if (!committedRef.current) {
+      void stop()
+      return
+    }
     if (followUpMode && !runActive) {
       void stop()
       return
@@ -313,7 +317,7 @@ export function Chat({
                     { text },
                     { body: { uploadIds: submit.uploadIds, runOptions: submit.runOptions } },
                   ).then(() => {
-                    firstSend.current?.resolve()
+                    firstSend.current?.reject(new Error('aborted'))
                     firstSend.current = null
                   })
                   try {

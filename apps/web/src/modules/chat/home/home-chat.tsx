@@ -33,6 +33,8 @@ export function HomeChat({
     if (pathname !== '/' && pathname !== `/c/${chatId}`) router.refresh()
   }, [pathname, chatId, router])
 
+  if (pathname !== '/' && pathname !== `/c/${chatId}`) return null
+
   return (
     <Chat
       key={chatId}

@@ -154,6 +154,8 @@ describe('HomeChat', () => {
     location.pathname = `/c/${id}`
     view.rerender(homeTree())
     await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull()
   })
 
   it('makes no network call when a file is attached', async () => {

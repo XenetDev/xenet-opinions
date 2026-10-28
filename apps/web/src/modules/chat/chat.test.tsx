@@ -747,6 +747,29 @@ describe('Chat in new mode', () => {
     pushState.mockRestore()
   })
 
+  it('drops an aborted first send without claiming the URL or showing a notice', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    fetchSpy.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+        }),
+    )
+    renderNew()
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(screen.getByText('why?')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(await composer.sent).toBe('aborted')
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy())
+    expect(pushState).not.toHaveBeenCalled()
+    expect(upsertChat).not.toHaveBeenCalled()
+    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    expect(screen.queryAllByRole('status').filter((el) => el.textContent)).toEqual([])
+    expect(posts()).toEqual(['/api/chats/n1/messages'])
+    pushState.mockRestore()
+  })
+
   it('stays on the welcome block with the notice when the send is refused, and retries with the same id', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
