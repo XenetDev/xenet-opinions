@@ -51,9 +51,12 @@ describe('SimulationFeed', () => {
     expect(screen.getByText('post 59')).toBeTruthy()
     expect(screen.queryByText('post 0')).toBeNull()
   })
-  it('announces the round counter politely', () => {
-    render(<SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />)
-    expect(screen.getByText('Round 2 of 10').closest('[aria-live]')?.getAttribute('aria-live')).toBe('polite')
+  it('leaves round announcements to the console live row', () => {
+    const { container } = render(
+      <SimulationFeed data={{ round: 2, totalRounds: 10, twitterActs: 2, redditActs: 1, posts }} />,
+    )
+    expect(screen.getByText('Round 2 of 10')).toBeTruthy()
+    expect(container.querySelector('[aria-live]')).toBeNull()
   })
 
   it('has no axe violations', async () => {

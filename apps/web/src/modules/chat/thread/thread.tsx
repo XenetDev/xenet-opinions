@@ -1,7 +1,7 @@
 'use client'
 
 import type { OpinionsUIMessage, SourcesData } from '@xo/engine/parts'
-import { type ReactNode, useRef, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useState } from 'react'
 import { Marker, MarkerContent } from '@/components/ui/marker'
 import {
   MessageScroller,
@@ -11,15 +11,26 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from '@/components/ui/message-scroller'
+import { cn } from '@/lib/utils'
 import { AssistantTurn, UserTurn } from './turn'
 
 const ENTER = 'animate-in fade-in-50 slide-in-from-bottom-1 duration-300 motion-reduce:animate-none'
 
 function useArrivals(ids: string[]): Map<string, Date> {
   const [initial] = useState(() => new Set(ids))
-  const arrivals = useRef(new Map<string, Date>())
-  for (const id of ids) if (!initial.has(id) && !arrivals.current.has(id)) arrivals.current.set(id, new Date())
-  return arrivals.current
+  const [arrivals, setArrivals] = useState(() => new Map<string, Date>())
+  const key = ids.join('\n')
+
+  useLayoutEffect(() => {
+    setArrivals((current) => {
+      const fresh = key.split('\n').filter((id) => id && !initial.has(id) && !current.has(id))
+      if (fresh.length === 0) return current
+      const now = new Date()
+      return new Map([...current, ...fresh.map((id) => [id, now] as const)])
+    })
+  }, [key, initial])
+
+  return arrivals
 }
 
 const clock = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -62,7 +73,7 @@ export function Thread({
                 <MessageScrollerItem
                   key={message.id}
                   messageId={message.id}
-                  className={`flex flex-col gap-4 [content-visibility:visible] ${ENTER}`}
+                  className={cn('flex flex-col gap-4 [content-visibility:visible]', arrived && ENTER)}
                 >
                   {message.role === 'user' ? (
                     <UserTurn message={message} sources={message.id === firstUserId ? sources : undefined} />

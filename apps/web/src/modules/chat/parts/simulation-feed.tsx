@@ -22,10 +22,7 @@ export function SimulationFeed({ data }: { data: SimFeedData }) {
     <Tabs defaultValue="twitter" className="gap-0">
       <Frame spacing="sm" className="w-full">
         <FrameHeader className="flex-row flex-wrap items-center gap-2">
-          <FrameTitle
-            aria-live="polite"
-            className="font-medium"
-          >{`Round ${data.round} of ${data.totalRounds}`}</FrameTitle>
+          <FrameTitle className="font-medium">{`Round ${data.round} of ${data.totalRounds}`}</FrameTitle>
           <TabsList className="ms-auto">
             {PLATFORMS.map(({ value, label }) => (
               <TabsTrigger key={value} value={value}>

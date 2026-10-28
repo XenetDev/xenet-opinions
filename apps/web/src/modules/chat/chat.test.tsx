@@ -213,10 +213,11 @@ describe('Chat', () => {
   })
 
   it('docks the composer under a scrolling thread', () => {
-    const { container } = renderChat()
-    const root = container.firstElementChild as HTMLElement
-    expect(root.className).toContain('h-[calc(100dvh-3rem)]')
-    expect(container.querySelector('[data-slot="message-scroller"]')?.className).toContain('min-h-0 flex-1')
+    renderChat()
+    const thread = screen.getByRole('region', { name: 'Messages' })
+    const composerControl = screen.getByRole('button', { name: 'Send follow-up' })
+    expect(thread.contains(composerControl)).toBe(false)
+    expect(thread.compareDocumentPosition(composerControl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('uses run mode until a run is done', () => {

@@ -64,11 +64,30 @@ describe('Thread', () => {
     expect(marker?.textContent).toBe(new Date('2026-10-28T09:30:00.000Z').toLocaleDateString())
   })
 
-  it('animates new turns unless motion is reduced', () => {
+  it('does not animate the history on first render', () => {
     const { container } = renderThread()
     const items = container.querySelectorAll('[data-slot="message-scroller-item"][data-message-id]')
     expect(items).toHaveLength(3)
-    for (const item of items) expect(item.className).toContain('motion-reduce:animate-none')
+    for (const item of items) expect(item.className).not.toContain('animate-in')
+  })
+
+  it('animates a turn that arrives after mount, unless motion is reduced', () => {
+    const view = renderThread()
+    const arriving: OpinionsUIMessage = { id: 'a2', role: 'assistant', parts: [{ type: 'text', text: 'Because.' }] }
+    view.rerender(
+      <Thread
+        messages={[...messages, arriving]}
+        sources={sources}
+        startedAt="2026-10-28T09:30:00.000Z"
+        renderAssistant={(message) => <p>{`body of ${message.id}`}</p>}
+      />,
+    )
+    const item = view.container.querySelector('[data-message-id="a2"]') as HTMLElement
+    expect(item.className).toContain('animate-in')
+    expect(item.className).toContain('motion-reduce:animate-none')
+    expect(view.container.querySelector('[data-message-id="u1"]')?.className).not.toContain('animate-in')
+    const header = within(item).getByText('Xenet Opinions').closest('[data-slot="message-header"]')
+    expect(header?.textContent).toMatch(/^Xenet Opinions·\d{1,2}:\d{2}/)
   })
 
   it('has a scroll-to-end button', () => {
