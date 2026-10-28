@@ -153,4 +153,41 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
       await db.delete(schema.user).where(eq(schema.user.id, owner))
     }
   })
+
+  it('lists the first uploaded file of each chat', async () => {
+    const owner = `ul_${crypto.randomUUID()}`
+    await mkUser(owner)
+    try {
+      const [a, b] = [`c_${crypto.randomUUID()}`, `c_${crypto.randomUUID()}`]
+      await db.insert(schema.chats).values([
+        { id: a, userId: owner, title: 'with files', updatedAt: new Date('2026-01-02T00:00:00Z') },
+        { id: b, userId: owner, title: 'no files', updatedAt: new Date('2026-01-01T00:00:00Z') },
+      ])
+      const upload = (filename: string, createdAt: Date) => ({
+        id: `up_${crypto.randomUUID()}`,
+        userId: owner,
+        chatId: a,
+        storageKey: `key-${filename}`,
+        filename,
+        mediaType: 'text/plain',
+        sizeBytes: 1,
+        createdAt,
+      })
+      await db
+        .insert(schema.uploads)
+        .values([
+          upload('second.md', new Date('2026-01-02T00:00:00Z')),
+          upload('first.pdf', new Date('2026-01-01T00:00:00Z')),
+        ])
+
+      const list = await listChats(owner)
+      expect(list.map((x) => [x.id, x.firstFile])).toEqual([
+        [a, 'first.pdf'],
+        [b, undefined],
+      ])
+      expect('firstFile' in list[1]!).toBe(false)
+    } finally {
+      await db.delete(schema.user).where(eq(schema.user.id, owner))
+    }
+  })
 })

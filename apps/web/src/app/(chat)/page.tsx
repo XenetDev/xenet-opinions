@@ -9,8 +9,13 @@ export default async function Home() {
   const chats = user ? await listChats(user.id) : []
   const recent = chats
     .filter((chat) => chat.title)
-    .slice(0, 5)
-    .map((chat) => ({ id: chat.id, title: chat.title, updatedAt: chat.updatedAt.toISOString() }))
+    .slice(0, 4)
+    .map((chat) => ({
+      id: chat.id,
+      title: chat.title,
+      updatedAt: chat.updatedAt.toISOString(),
+      ...(chat.firstFile ? { firstFile: chat.firstFile } : {}),
+    }))
 
   return <HomeChat recent={recent} limits={getLimits()} />
 }
