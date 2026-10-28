@@ -1,6 +1,7 @@
 'use client'
 
 import type { GraphData } from '@xo/engine/parts'
+import { cn } from 'cn'
 import { Maximize2Icon, RefreshCwIcon } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -14,7 +15,6 @@ import { Switch } from '@/components/ui/switch'
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
 const HEIGHT = 420
-const FULLSCREEN_HEIGHT = 'calc(100svh - 6rem)'
 const LABEL_LIMIT = 10
 const LABEL_MIN_SCALE = 1.2
 const FIT_PADDING = 40
@@ -32,7 +32,7 @@ export const PALETTE = [
   '#d946ef',
   '#64748b',
 ] as const
-export const UNKNOWN_COLOUR = '#64748b'
+export const UNKNOWN_COLOUR = '#a1a1aa'
 
 export function typeColours(nodes: readonly { type?: string | undefined }[]): Map<string, string> {
   const colours = new Map<string, string>()
@@ -52,26 +52,25 @@ type Link = LinkObject<Node, { label?: string }>
 
 const endId = (end: unknown) => (typeof end === 'object' && end ? String((end as { id: unknown }).id) : String(end))
 
-const probe = new Map<string, string>()
-function rgb(css: string): string {
-  const hit = probe.get(css)
-  if (hit) return hit
+type Rgba = { r: number; g: number; b: number; a: number }
+
+const GREY: Rgba = { r: 128, g: 128, b: 128, a: 0.4 }
+
+function rgba(css: string): Rgba {
   const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
-  if (!ctx) return 'rgb(128, 128, 128)'
+  if (!ctx) return GREY
   ctx.fillStyle = css
   ctx.fillRect(0, 0, 1, 1)
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
-  const value = `rgb(${r}, ${g}, ${b})`
-  probe.set(css, value)
-  return value
+  const [r = 128, g = 128, b = 128, a = 255] = ctx.getImageData(0, 0, 1, 1).data
+  return { r, g, b, a: a / 255 }
 }
-const withAlpha = (colour: string, alpha: number) => colour.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`)
+const paint = ({ r, g, b, a }: Rgba, alpha = 1) => `rgba(${r}, ${g}, ${b}, ${Math.round(a * alpha * 1000) / 1000})`
 
-type Tokens = { border: string; muted: string; foreground: string; background: string }
+type Tokens = { border: Rgba; muted: Rgba; foreground: Rgba; background: Rgba }
 
 function readTokens(el: HTMLElement): Tokens {
   const style = getComputedStyle(el)
-  const token = (name: string, fallback: string) => rgb(style.getPropertyValue(name).trim() || fallback)
+  const token = (name: string, fallback: string) => rgba(style.getPropertyValue(name).trim() || fallback)
   return {
     border: token('--border', '#e5e5e5'),
     muted: token('--muted-foreground', '#737373'),
@@ -93,18 +92,10 @@ function useReducedMotion() {
   return reduced
 }
 
-function GraphView({
-  data,
-  height,
-  onFullscreen,
-}: {
-  data: GraphData
-  height: number | string
-  onFullscreen?: () => void
-}) {
+function GraphView({ data, fill, onFullscreen }: { data: GraphData; fill?: boolean; onFullscreen?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<ForceGraphMethods>(undefined)
-  const tokens = useRef<Tokens | null>(null)
+  const [tokens, setTokens] = useState<Tokens | null>(null)
   const fitted = useRef(false)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [edgeLabels, setEdgeLabels] = useState(false)
@@ -120,6 +111,15 @@ function GraphView({
       if (entry) setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
     })
     observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    setTokens(readTokens(el))
+    const observer = new MutationObserver(() => setTokens(readTokens(el)))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     return () => observer.disconnect()
   }, [])
 
@@ -156,7 +156,7 @@ function GraphView({
     hovered !== null && (endId(link.source) === hovered || endId(link.target) === hovered)
 
   const drawNode = (node: Node, ctx: CanvasRenderingContext2D, scale: number) => {
-    const t = tokens.current
+    const t = tokens
     const x = node.x ?? 0
     const y = node.y ?? 0
     ctx.globalAlpha = isLit(node.id) ? 1 : DIM_ALPHA
@@ -166,7 +166,7 @@ function GraphView({
     ctx.fill()
     if (node.id === hovered && t) {
       ctx.lineWidth = 2 / scale
-      ctx.strokeStyle = t.foreground
+      ctx.strokeStyle = paint(t.foreground)
       ctx.stroke()
     }
     if (t && (scale >= LABEL_MIN_SCALE || node.id === hovered)) {
@@ -174,18 +174,18 @@ function GraphView({
       ctx.textAlign = 'left'
       ctx.textBaseline = 'middle'
       ctx.lineWidth = 3 / scale
-      ctx.strokeStyle = t.background
+      ctx.strokeStyle = paint(t.background)
       ctx.lineJoin = 'round'
       const lx = x + node.radius + 3 / scale
       ctx.strokeText(node.label, lx, y)
-      ctx.fillStyle = t.foreground
+      ctx.fillStyle = paint(t.foreground)
       ctx.fillText(node.label, lx, y)
     }
     ctx.globalAlpha = 1
   }
 
   const drawEdgeLabel = (link: Link, ctx: CanvasRenderingContext2D, scale: number) => {
-    const t = tokens.current
+    const t = tokens
     const s = link.source
     const e = link.target
     if (!t || !link.label || typeof s !== 'object' || typeof e !== 'object') return
@@ -196,19 +196,19 @@ function GraphView({
     const mx = ((s.x ?? 0) + (e.x ?? 0)) / 2
     const my = ((s.y ?? 0) + (e.y ?? 0)) / 2
     ctx.lineWidth = 3 / scale
-    ctx.strokeStyle = t.background
+    ctx.strokeStyle = paint(t.background)
     ctx.lineJoin = 'round'
     ctx.strokeText(link.label, mx, my)
-    ctx.fillStyle = t.muted
+    ctx.fillStyle = paint(t.muted)
     ctx.fillText(link.label, mx, my)
     ctx.globalAlpha = 1
   }
 
   const linkColour = (link: Link) => {
-    const t = tokens.current
-    if (!t) return 'rgba(128, 128, 128, 0.4)'
-    if (hovered === null) return t.border
-    return touchesHovered(link) ? t.muted : withAlpha(t.border, DIM_ALPHA * 2)
+    const t = tokens
+    if (!t) return paint(GREY)
+    if (hovered === null) return paint(t.border)
+    return touchesHovered(link) ? paint(t.muted) : paint(t.border, DIM_ALPHA * 2)
   }
 
   const refresh = () => {
@@ -218,7 +218,7 @@ function GraphView({
   }
 
   return (
-    <div className="flex min-w-0 flex-col">
+    <div className={cn('flex min-w-0 flex-col', fill && 'min-h-0 flex-1')}>
       <div className="flex items-center justify-end gap-1 border-b px-3 py-1.5">
         <div className="mr-auto flex items-center gap-2">
           <Switch id={switchId} size="sm" checked={edgeLabels} onCheckedChange={setEdgeLabels} />
@@ -237,8 +237,11 @@ function GraphView({
       </div>
       <div
         ref={containerRef}
-        style={{ height }}
-        className="w-full overflow-hidden bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px]"
+        style={fill ? undefined : { height: HEIGHT }}
+        className={cn(
+          'w-full overflow-hidden bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[16px_16px]',
+          fill && 'min-h-0 flex-1',
+        )}
       >
         {size.width > 0 && size.height > 0 && (
           <ForceGraph2D
@@ -259,9 +262,6 @@ function GraphView({
             linkWidth={(link) => (touchesHovered(link as Link) ? 1.5 : 1)}
             linkCanvasObjectMode={edgeLabels ? 'after' : undefined}
             linkCanvasObject={edgeLabels ? (link, ctx, scale) => drawEdgeLabel(link as Link, ctx, scale) : undefined}
-            onRenderFramePre={() => {
-              if (containerRef.current) tokens.current = readTokens(containerRef.current)
-            }}
             onNodeHover={(node) => setHovered(node ? (node as Node).id : null)}
             onEngineStop={() => {
               if (fitted.current) return
@@ -314,15 +314,15 @@ export function GraphPreview({ data }: { data: GraphData }) {
             <li key={node.id}>{node.label}</li>
           ))}
         </ul>
-        <GraphView data={data} height={HEIGHT} onFullscreen={() => setFullscreen(true)} />
+        <GraphView data={data} onFullscreen={() => setFullscreen(true)} />
       </FramePanel>
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
         <DialogContent
-          className="max-h-[calc(100svh-1rem)] gap-2 overflow-auto p-2 sm:max-w-[calc(100vw-2rem)]"
+          className="flex h-[calc(100svh-2rem)] flex-col gap-2 p-2 sm:max-w-[calc(100vw-2rem)]"
           aria-describedby={undefined}
         >
           <DialogTitle className="px-1 pt-1">Knowledge graph</DialogTitle>
-          {fullscreen && <GraphView data={data} height={FULLSCREEN_HEIGHT} />}
+          {fullscreen && <GraphView data={data} fill />}
         </DialogContent>
       </Dialog>
     </Frame>

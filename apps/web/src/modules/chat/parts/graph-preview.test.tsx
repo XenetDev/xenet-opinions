@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { GraphPreview, nodeRadius, PALETTE, typeColours, UNKNOWN_COLOUR } from './graph-preview'
@@ -26,8 +26,8 @@ beforeAll(() => {
     'ResizeObserver',
     class {
       constructor(private cb: (entries: { contentRect: { width: number; height: number } }[]) => void) {}
-      observe() {
-        this.cb([{ contentRect: { width: 600, height: 420 } }])
+      observe(el: HTMLElement) {
+        this.cb([{ contentRect: { width: 600, height: Number.parseFloat(el.style.height) || 777 } }])
       }
       disconnect() {}
     },
@@ -35,8 +35,18 @@ beforeAll(() => {
 })
 
 let reduced = false
+let probeAlpha = 255
 beforeEach(() => {
   reduced = false
+  probeAlpha = 255
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+    () =>
+      ({
+        fillStyle: '',
+        fillRect() {},
+        getImageData: () => ({ data: [255, 255, 255, probeAlpha] }),
+      }) as unknown as CanvasRenderingContext2D,
+  )
   graph.props.length = 0
   graph.methods.d3ReheatSimulation.mockClear()
   graph.methods.zoomToFit.mockClear()
@@ -80,9 +90,10 @@ describe('typeColours', () => {
     expect(typeColours(many).get('T10')).toBe(PALETTE[0])
   })
 
-  it('uses ten Tailwind 500 hues with slate for unknown types', () => {
+  it('uses ten Tailwind 500 hues and a distinct zinc for unknown types', () => {
     expect(PALETTE).toHaveLength(10)
-    expect(UNKNOWN_COLOUR).toBe('#64748b')
+    expect(UNKNOWN_COLOUR).toBe('#a1a1aa')
+    expect(PALETTE).not.toContain(UNKNOWN_COLOUR)
   })
 })
 
@@ -135,7 +146,7 @@ describe('GraphPreview', () => {
     const swatch = (i: number) => items[i]?.querySelector('[data-slot="swatch"]') as HTMLElement
     expect(swatch(0).style.backgroundColor).toBe('rgb(59, 130, 246)')
     expect(swatch(1).style.backgroundColor).toBe('rgb(249, 115, 22)')
-    expect(swatch(2).style.backgroundColor).toBe('rgb(100, 116, 139)')
+    expect(swatch(2).style.backgroundColor).toBe('rgb(161, 161, 170)')
   })
 
   it('toggles edge labels with the switch, off by default', () => {
@@ -171,6 +182,47 @@ describe('GraphPreview', () => {
     expect(within(dialog).getByTestId('force-graph')).toBeTruthy()
     expect(within(dialog).getByRole('switch', { name: 'Show edge labels' })).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: 'Fullscreen' })).toBeNull()
+    expect(within(dialog).getByTestId('force-graph').dataset.height).toBe('777')
+    expect(screen.getAllByTestId('force-graph')[0]?.dataset.height).toBe('420')
+  })
+
+  it('keeps the token alpha in link colours and dims non-hovered links further', () => {
+    probeAlpha = 26
+    render(<GraphPreview data={data} />)
+    const linkColor = () => lastProps().linkColor as (link: unknown) => string
+    const alpha = (css: string) => Number(css.match(/rgba\(\d+, \d+, \d+, ([\d.]+)\)/)?.[1])
+    const base = alpha(linkColor()({ source: 'n0', target: 'n1' }))
+    expect(base).toBeGreaterThan(0)
+    expect(base).toBeLessThan(1)
+    act(() => (lastProps().onNodeHover as (n: unknown) => void)({ id: 'n5' }))
+    expect(alpha(linkColor()({ source: 'n0', target: 'n1' }))).toBeLessThan(base)
+  })
+
+  it('draws labels above the zoom threshold or on hover and dims non-neighbours', () => {
+    render(<GraphPreview data={data} />)
+    const nodeAt = (i: number) => (lastProps().graphData as { nodes: unknown[] }).nodes[i]
+    const draw = (i: number, scale: number) => {
+      const fills: number[] = []
+      const ctx = {
+        globalAlpha: 1,
+        beginPath() {},
+        arc() {},
+        stroke() {},
+        strokeText() {},
+        fill: vi.fn(function (this: { globalAlpha: number }) {
+          fills.push(this.globalAlpha)
+        }),
+        fillText: vi.fn(),
+      }
+      ;(lastProps().nodeCanvasObject as (n: unknown, c: unknown, s: number) => void)(nodeAt(i), ctx, scale)
+      return { labelled: ctx.fillText.mock.calls.length > 0, alpha: fills[0] }
+    }
+    expect(draw(5, 1)).toEqual({ labelled: false, alpha: 1 })
+    expect(draw(5, 1.5)).toEqual({ labelled: true, alpha: 1 })
+    act(() => (lastProps().onNodeHover as (n: unknown) => void)({ id: 'n1' }))
+    expect(draw(1, 1)).toEqual({ labelled: true, alpha: 1 })
+    expect(draw(2, 1)).toEqual({ labelled: false, alpha: 1 })
+    expect(draw(5, 1).alpha).toBeLessThan(1)
   })
 
   it('has no axe violations', async () => {
