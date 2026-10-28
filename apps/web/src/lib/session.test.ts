@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }))
+vi.mock('react', async (original) => ({
+  ...(await original<typeof import('react')>()),
+  cache: <A extends object, R>(fn: (arg: A) => R) => {
+    const memo = new WeakMap<A, R>()
+    return (arg: A) => {
+      if (!memo.has(arg)) memo.set(arg, fn(arg))
+      return memo.get(arg) as R
+    }
+  },
+}))
 
 import { auth } from '@/lib/auth'
 import { getSessionUser } from './session'
@@ -47,5 +57,15 @@ describe('getSessionUser', () => {
     const headers = new Headers({ cookie: 'a=b' })
     await getSessionUser(headers)
     expect(getSession).toHaveBeenCalledWith({ headers })
+  })
+
+  it('looks the session up once per headers object', async () => {
+    getSession.mockResolvedValue(null)
+    const headers = new Headers()
+    await getSessionUser(headers)
+    await getSessionUser(headers)
+    expect(getSession).toHaveBeenCalledTimes(1)
+    await getSessionUser(new Headers())
+    expect(getSession).toHaveBeenCalledTimes(2)
   })
 })

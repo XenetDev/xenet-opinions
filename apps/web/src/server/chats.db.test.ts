@@ -14,7 +14,7 @@ vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
 
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
-import { deleteChat, listChats, renameChat } from './chats'
+import { deleteChat, ensureOwnedChat, listChats, renameChat } from './chats'
 import { cancelActiveRun } from './runs'
 
 const userId = `ul_${crypto.randomUUID()}`
@@ -180,7 +180,13 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
           upload('first.pdf', new Date('2026-01-01T00:00:00Z')),
         ])
 
+      const select = vi.spyOn(db, 'select')
+      const distinct = vi.spyOn(db, 'selectDistinctOn')
       const list = await listChats(owner)
+      expect(select).toHaveBeenCalledTimes(1)
+      expect(distinct).not.toHaveBeenCalled()
+      select.mockRestore()
+      distinct.mockRestore()
       expect(list.map((x) => [x.id, x.firstFile])).toEqual([
         [a, 'first.pdf'],
         [b, undefined],
@@ -215,5 +221,35 @@ describe.skipIf(!process.env.DATABASE_URL)('chats (real db)', () => {
     } finally {
       await db.delete(schema.user).where(eq(schema.user.id, owner))
     }
+  })
+
+  describe('ensureOwnedChat', () => {
+    const newId = () => crypto.randomUUID().replaceAll('-', '').slice(0, 16)
+
+    it('creates a chat for a new id and returns the same row after', async () => {
+      const chatId = newId()
+      const created = await ensureOwnedChat(chatId, userId)
+      expect(created).toMatchObject({ id: chatId, userId, title: '' })
+      const again = await ensureOwnedChat(chatId, userId)
+      expect(again).toEqual(created)
+      expect(await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))).toHaveLength(1)
+    })
+
+    it("returns null for another user's id and leaves the owner unchanged", async () => {
+      const chatId = newId()
+      await db.insert(schema.chats).values({ id: chatId, userId: otherId, title: 'theirs' })
+      expect(await ensureOwnedChat(chatId, userId)).toBeNull()
+      const [row] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
+      expect(row).toMatchObject({ userId: otherId, title: 'theirs' })
+    })
+
+    it('returns null for an invalid id without inserting', async () => {
+      const insert = vi.spyOn(db, 'insert')
+      const chatId = 'bad/id.x'
+      expect(await ensureOwnedChat(chatId, userId)).toBeNull()
+      expect(insert).not.toHaveBeenCalled()
+      insert.mockRestore()
+      expect(await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))).toHaveLength(0)
+    })
   })
 })

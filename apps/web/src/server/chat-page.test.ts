@@ -30,7 +30,7 @@ beforeEach(() => {
 describe('loadChatPage', () => {
   it('drops the in-flight assistant row and returns the active run', async () => {
     mocks.toUIMessages.mockReturnValue([user, assistant([])])
-    mocks.getActiveByChat.mockResolvedValue({
+    mocks.getLatestByChat.mockResolvedValue({
       id: 'r1',
       assistantMessageId: 'a1',
       stage: 'ontology',
@@ -47,13 +47,41 @@ describe('loadChatPage', () => {
       reportRequested: false,
       envKeepaliveUntil: null,
     })
-    expect(page.latestRun).toBeNull()
+    expect(page.latestRun).toMatchObject({ id: 'r1', status: 'running' })
     expect(mocks.materialiseRun).not.toHaveBeenCalled()
+    expect(mocks.getActiveByChat).not.toHaveBeenCalled()
+  })
+
+  it('treats a queued latest run as active', async () => {
+    mocks.toUIMessages.mockReturnValue([user, assistant([])])
+    mocks.getLatestByChat.mockResolvedValue({
+      id: 'r1',
+      assistantMessageId: 'a1',
+      stage: 'queued',
+      status: 'queued',
+      cursors: {},
+      envKeepaliveUntil: null,
+    })
+    const page = await loadChatPage('c1', 'u1')
+    expect(page.activeRun?.id).toBe('r1')
+    expect(page.initialMessages).toEqual([user])
+  })
+
+  it('loads messages and the latest run in parallel', async () => {
+    let release: (rows: unknown[]) => void = () => {}
+    mocks.listMessages.mockReturnValue(new Promise((resolve) => (release = resolve)))
+    mocks.toUIMessages.mockReturnValue([user])
+    const page = loadChatPage('c1', 'u1')
+    await Promise.resolve()
+    expect(mocks.listMessages).toHaveBeenCalledWith('c1')
+    expect(mocks.getLatestByChat).toHaveBeenCalledWith('c1')
+    release([])
+    expect(await page).toEqual({ initialMessages: [user], activeRun: null, latestRun: null })
   })
 
   it('seeds the interview window state of a paused run', async () => {
     mocks.toUIMessages.mockReturnValue([user, assistant([])])
-    mocks.getActiveByChat.mockResolvedValue({
+    mocks.getLatestByChat.mockResolvedValue({
       id: 'r1',
       assistantMessageId: 'a1',
       stage: 'interviews',
@@ -134,7 +162,6 @@ describe('loadChatPage', () => {
       envKeepaliveUntil: null,
       cursors: {},
     }
-    mocks.getActiveByChat.mockResolvedValue(run)
     mocks.getLatestByChat.mockResolvedValue(run)
     const page = await loadChatPage('c1', 'u1')
     expect(page.latestRun).toEqual({

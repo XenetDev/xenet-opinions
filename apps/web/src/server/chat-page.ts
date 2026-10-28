@@ -26,9 +26,9 @@ export async function loadChatPage(
   chatId: string,
   _userId: string,
 ): Promise<{ initialMessages: OpinionsUIMessage[]; activeRun: ActiveRun | null; latestRun: LatestRun | null }> {
-  const messages = toUIMessages(await listMessages(chatId))
-  const active = await runStore.getActiveByChat(chatId)
-  const latest = await runStore.getLatestByChat(chatId)
+  const [rows, latest] = await Promise.all([listMessages(chatId), runStore.getLatestByChat(chatId)])
+  const messages = toUIMessages(rows)
+  const active = latest && (latest.status === 'queued' || latest.status === 'running') ? latest : null
   const latestRun: LatestRun | null = latest
     ? {
         id: latest.id,

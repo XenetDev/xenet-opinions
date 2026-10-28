@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
-vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
+vi.mock('@/server/chats', () => ({ ensureOwnedChat: vi.fn(), getOwnedChat: vi.fn() }))
 vi.mock('@/lib/storage', () => ({ storage: { put: vi.fn(), get: vi.fn(), delete: vi.fn() } }))
 vi.mock('@/lib/db', () => ({ db: { insert: vi.fn() } }))
 
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/session'
 import { storage } from '@/lib/storage'
-import { getOwnedChat } from '@/server/chats'
+import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { sessionUser } from '@/test/session-user'
 import { POST } from './route'
 
@@ -86,5 +86,41 @@ describe('POST /api/uploads', () => {
     expect(key.startsWith('uploads/user1/')).toBe(true)
     expect(bytes).toBeInstanceOf(Uint8Array)
     expect(type).toBe('text/markdown')
+  })
+
+  describe('a client-provided id', () => {
+    const newId = 'Abcdefgh12345678'
+    const upload = (name = 'notes.md') =>
+      call((f) => {
+        f.set('chatId', newId)
+        f.append('files', new File(['# hi'], name, { type: '' }))
+      })
+
+    it('creates the chat on first use and stores the files', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(ensureOwnedChat).mockResolvedValue({ id: newId } as never)
+      const res = await upload()
+      expect(res.status).toBe(201)
+      expect(ensureOwnedChat).toHaveBeenCalledWith(newId, 'user1')
+      expect(storage.put).toHaveBeenCalledTimes(1)
+    })
+
+    it("returns 404 for another user's id", async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      vi.mocked(ensureOwnedChat).mockResolvedValue(null)
+      const res = await upload()
+      expect(res.status).toBe(404)
+      expect(storage.put).not.toHaveBeenCalled()
+    })
+
+    it('does not create the chat for a rejected upload', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
+      vi.mocked(getOwnedChat).mockResolvedValue(null)
+      const res = await upload('evil.exe')
+      expect(res.status).toBe(400)
+      expect(ensureOwnedChat).not.toHaveBeenCalled()
+    })
   })
 })
