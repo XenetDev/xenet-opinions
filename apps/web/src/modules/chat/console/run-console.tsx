@@ -7,6 +7,7 @@ import { Badge } from '@/components/reui/badge'
 import { Frame, FrameFooter, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 import { Button } from '@/components/ui/button'
 import { Marker, MarkerIcon } from '@/components/ui/marker'
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { useAnnounce } from '../notice-region'
 import { type ConsoleRow, type ConsoleStatus, deriveConsole } from './derive'
@@ -88,8 +89,13 @@ export function RunConsole({
         a persona that does not answer within 4 minutes is marked failed.
       </p>
       {generating && (
-        <p role={routedReport ? undefined : 'status'} className={cn('font-medium', LABEL)}>
-          Generating report…
+        <p
+          data-generating
+          role={routedReport ? undefined : 'status'}
+          className={cn('flex items-center gap-2 font-medium', LABEL)}
+        >
+          <Spinner aria-hidden="true" role="presentation" className="size-3.5 motion-reduce:animate-none" />
+          <span className="shimmer [--shimmer-duration:2.4s]">Generating report…</span>
         </p>
       )}
       {((!generating && chatId) || onCancelRun) && (
@@ -127,7 +133,7 @@ export function RunConsole({
         : cancelledIndex >= 0
           ? { index: cancelledIndex, mode: 'cancelled' }
           : pendingIndex >= 0
-            ? { index: pendingIndex, mode: 'queued' }
+            ? { index: pendingIndex, mode: model.status === 'working' && windowLive ? 'live' : 'queued' }
             : { index: model.rows.length, mode: 'settled' }
   const bandRow = model.rows[band.index] ?? { id: 'settled', kind: 'done', title: 'Run complete' }
   const bandAction = band.mode === 'waiting' ? windowAction : bandRow.action === 'retry' ? retryAction : undefined

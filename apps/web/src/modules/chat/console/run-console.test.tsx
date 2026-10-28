@@ -154,6 +154,9 @@ describe('RunConsole', () => {
       render(<RunConsole parts={open()} chatId="c1" />)
       fireEvent.click(screen.getByRole('button', { name: 'Generate report' }))
       await waitFor(() => expect(screen.getByText('Generating report…')).toBeTruthy())
+      expect(
+        screen.getByText('Generating report…').closest('[data-generating]')?.querySelector('[data-slot="spinner"]'),
+      ).toBeTruthy()
       expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/report', { method: 'POST' })
       expect(screen.queryByRole('button', { name: 'Generate report' })).toBeNull()
     })
@@ -309,6 +312,20 @@ describe('RunConsole', () => {
     expect(within(tools[1]!).getByText('panorama_search')).toBeTruthy()
     expect(tools[1]!.querySelector('[data-slot="spinner"]')).toBeTruthy()
     expect(screen.getByText('Overview')).toBeTruthy()
+  })
+
+  it('keeps a spinner on the next step while the run moves between stages', () => {
+    const { container } = render(<RunConsole parts={through('graph_build', 'done')} chatId="c1" />)
+    const band = container.querySelector('[data-band]') as HTMLElement
+    expect(band.getAttribute('data-band')).toBe('live')
+    expect(within(band).getByText('Creating the simulation')).toBeTruthy()
+    expect(band.querySelector('[data-slot="spinner"]')).toBeTruthy()
+  })
+
+  it('does not spin between stages on a run that is no longer live', () => {
+    const { container } = render(<RunConsole parts={through('graph_build', 'done')} chatId="c1" windowLive={false} />)
+    expect(container.querySelector('[data-band]')?.getAttribute('data-band')).toBe('queued')
+    expect(container.querySelector('[data-band] [data-slot="spinner"]')).toBeNull()
   })
 
   it('reveals a tool result as a note on the row', () => {
