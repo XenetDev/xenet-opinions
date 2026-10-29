@@ -1,6 +1,8 @@
+export const NO_ACTORS_MESSAGE =
+  'MiroFish found no people or groups in the knowledge graph to simulate. Add more detail about who is involved and retry.'
+
 const EXACT: Record<string, string> = {
-  '没有找到符合条件的实体，请检查图谱是否正确构建':
-    'MiroFish found no people or groups in the knowledge graph to simulate. Add more detail about who is involved and retry.',
+  '没有找到符合条件的实体，请检查图谱是否正确构建': NO_ACTORS_MESSAGE,
   'LLM_API_KEY 未配置': 'The MiroFish LLM API key is not configured.',
   'ZEP_API_KEY 未配置': 'The MiroFish Zep API key is not configured.',
   ZEP_API_KEY未配置: 'The MiroFish Zep API key is not configured.',
