@@ -38,7 +38,10 @@
     "S3_FORCE_PATH_STYLE",
     "WORKER_POLL_MS",
     "MAX_CONCURRENT_RUNS",
-    "WORKER_ID"
+    "WORKER_ID",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "LLM_MODEL_NAME"
   ],
   "tasks": {
     "build": {

@@ -236,6 +236,20 @@ describe('RunConsole', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
+  it("offers Add who's involved instead of retry when onAddActors is given", () => {
+    const onAddActors = vi.fn()
+    render(
+      <RunConsole
+        parts={through('sim_prepare', 'failed', 'No one to simulate')}
+        onRetry={vi.fn()}
+        onAddActors={onAddActors}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+    expect(onAddActors).toHaveBeenCalledTimes(1)
+  })
+
   it('offers no retry without onRetry', () => {
     render(<RunConsole parts={through('sim_prepare', 'failed', 'Boom')} />)
     expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()

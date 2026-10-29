@@ -120,6 +120,16 @@ const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).t
 
 const fetchSpy = vi.fn()
 
+const EMPTY_DRAFT = { background: '', actors: '', change: '' }
+const DRAFT = { background: 'Prices rose 10% last year', actors: 'Pro customers', change: 'A new fee' }
+const isReadiness = (url: unknown) => String(url).endsWith('/readiness')
+const readinessBodies = () =>
+  fetchSpy.mock.calls.filter(([url]) => isReadiness(url)).map(([, init]) => JSON.parse(String(init.body)))
+const answerReadiness = (reply: unknown, rest: (url: string, init?: RequestInit) => unknown = () => undefined) =>
+  fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+    isReadiness(url) ? Promise.resolve(Response.json(reply)) : rest(url, init),
+  )
+
 beforeEach(() => {
   chat.real = false
   chat.status = 'ready'
@@ -361,6 +371,7 @@ describe('Chat', () => {
     await act(async () => chat.options!.onError(new Error('Injected failure')))
     expect(screen.queryByText('Something went wrong sending your message')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(chat.sendMessage).toHaveBeenCalled())
     await act(async () => chat.options!.onError(new Error('Internal Server Error')))
     expect(screen.getAllByText('Something went wrong sending your message').length).toBeGreaterThan(0)
   })
@@ -690,26 +701,134 @@ describe('Chat', () => {
     expect(seen.at(-1)).toEqual({ chatId: 'c1', running: false })
   })
 
-  describe('a prompt-only run', () => {
+  describe('adding who is involved after a no-people failure', () => {
+    const failedWith = (code: string) => {
+      chat.messages = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'why?' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'data-error', data: { stage: 'ontology', code, message: 'Nothing to simulate' } }],
+        },
+      ] as typeof chat.messages
+    }
+    const retryCalls = () => fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/run/retry'))
+    const answer = (reply: unknown, retry: () => Response = () => Response.json({ runId: 'r2' }, { status: 201 })) =>
+      answerReadiness(reply, (url) => (String(url).endsWith('/run/retry') ? Promise.resolve(retry()) : undefined))
+
+    it('keeps Retry from here for other failures', () => {
+      failedWith('engine_failed')
+      renderChat()
+      expect(screen.getByRole('button', { name: 'Retry from here' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: "Add who's involved" })).toBeNull()
+    })
+
+    it('shows the drafted card under the failed run and restarts with the seed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT })
+      renderChat()
+      expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect(await screen.findByText('We drafted who to simulate')).toBeTruthy()
+      expect(readinessBodies()).toEqual([{ retry: true }])
+      expect(screen.queryByRole('button', { name: 'Skip and run with my question' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      await waitFor(() => expect(retryCalls()).toHaveLength(1))
+      const [url, init] = retryCalls()[0] as [string, RequestInit]
+      expect(url).toBe('/api/chats/c1/run/retry')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(String(init.body))).toEqual({ seed: DRAFT })
+      await waitFor(() => expect(screen.queryByTestId('context-card')).toBeNull())
+    })
+
+    it('shows the unfilled card for an empty draft and skip still posts a seed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: EMPTY_DRAFT })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect(await screen.findByText('A little more context helps the simulation')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Skip and run with my question' }))
+      await waitFor(() => expect(retryCalls()).toHaveLength(1))
+      expect(JSON.parse(String((retryCalls()[0] as [string, RequestInit])[1].body))).toEqual({ seed: {} })
+    })
+
+    it('turns the composer off while the check runs', async () => {
+      failedWith('no_actors')
+      let reply: (response: Response) => void = () => {}
+      fetchSpy.mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            reply = resolve
+          }),
+      )
+      renderChat()
+      expect(composer.props?.disabled).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await waitFor(() => expect(composer.props?.disabled).toBe(true))
+      await act(async () => reply(Response.json({ ready: false, draft: DRAFT })))
+      await screen.findByText('We drafted who to simulate')
+      expect(composer.props?.disabled).toBe(false)
+    })
+
+    it('drops the card when a new run is sent', async () => {
+      failedWith('no_actors')
+      const replies = [{ ready: false, draft: DRAFT }, { ready: true }]
+      fetchSpy.mockImplementation((url: string) =>
+        isReadiness(url) ? Promise.resolve(Response.json(replies.shift())) : undefined,
+      )
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await waitFor(() => expect(chat.sendMessage).toHaveBeenCalledTimes(1))
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+
+    it('hides the card once the latest run is no longer failed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT })
+      const { rerender } = renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      runState.current = { status: 'done', runId: 'r2', assistantMessageId: 'a2' }
+      rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+
+    it('shows a notice when the check is refused', async () => {
+      failedWith('no_actors')
+      fetchSpy.mockImplementation(() => Promise.resolve(Response.json({ error: 'demo_paused' }, { status: 409 })))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect((await screen.findAllByText('The demo is paused right now. Try again later.')).length).toBeGreaterThan(0)
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+  })
+
+  describe('checking the brief before a run', () => {
     const card = () => screen.queryByTestId('context-card')
     const runOptions = { maxRounds: 1, pauseForInterviews: false }
+    const checking = () => screen.queryAllByRole('status').find((el) => el.textContent?.startsWith('Thinking'))
 
-    it('asks for context first and sends nothing', async () => {
+    it('asks for context when the check cannot be reached for a short prompt, and sends nothing', async () => {
+      fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       expect(await composer.sent).toBe('sent')
+      expect(await screen.findByTestId('context-card')).toBeTruthy()
       expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy()
-      expect(card()).toBeTruthy()
       expect(screen.getByText('Needs you')).toBeTruthy()
+      expect(screen.getByText('A little more context helps the simulation')).toBeTruthy()
       await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Add context or start the run'))
       expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Background and constraints' }))
       expect(chat.sendMessage).not.toHaveBeenCalled()
       expect(upsertChat).not.toHaveBeenCalled()
       expect(runOpts.current).toMatchObject({ enabled: false, sendCount: 0 })
-      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(readinessBodies()).toEqual([{ text: 'why?', uploadIds: [] }])
     })
 
     it('starts with the filled fields as the seed', async () => {
+      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       fireEvent.change(await screen.findByRole('textbox', { name: 'Who should be simulated' }), {
@@ -727,6 +846,7 @@ describe('Chat', () => {
     })
 
     it('skips without a seed', async () => {
+      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       fireEvent.change(await screen.findByRole('textbox', { name: 'What is changing' }), {
@@ -739,22 +859,110 @@ describe('Chat', () => {
     })
 
     it('sends an empty Start without a seed', async () => {
+      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       fireEvent.click(await screen.findByRole('button', { name: 'Start run' }))
       expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { uploadIds: [], runOptions } })
     })
 
-    it('sends a 40-word prompt at once', async () => {
+    it('sends a 40-word prompt at once without checking', async () => {
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send long prompt-only run' }))
       await waitFor(() =>
         expect(chat.sendMessage).toHaveBeenCalledWith({ text: LONG_PROMPT }, { body: { uploadIds: [], runOptions } }),
       )
       expect(card()).toBeNull()
+      expect(readinessBodies()).toEqual([])
     })
 
-    it('sends a short prompt with a file at once', async () => {
+    it('checks a run with a file once and sends it with no seed when ready', async () => {
+      answerReadiness({ ready: true })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'short' }, { body: { uploadIds: ['u1'], runOptions } }),
+      )
+      expect(readinessBodies()).toEqual([{ text: 'short', uploadIds: ['u1'] }])
+      expect(card()).toBeNull()
+    })
+
+    it('starts a short prompt-only run when the check says ready', async () => {
+      answerReadiness({ ready: true })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { uploadIds: [], runOptions } }),
+      )
+      expect(card()).toBeNull()
+    })
+
+    it('shows the drafted card under the question and runs with the uploads and the seed', async () => {
+      answerReadiness({ ready: false, draft: DRAFT })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+      expect(await composer.sent).toBe('sent')
+      expect(await screen.findByText('We drafted who to simulate')).toBeTruthy()
+      const question = screen.getByRole('group', { name: 'You: short' })
+      expect(question.compareDocumentPosition(card()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Skip and run with my question' })).toBeNull()
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        { text: 'short' },
+        { body: { uploadIds: ['u1'], runOptions, seed: DRAFT } },
+      )
+      expect(card()).toBeNull()
+    })
+
+    it('reads the brief under the question with the composer off, and checks once on a double send', async () => {
+      let answer: (response: Response) => void = () => {}
+      fetchSpy.mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            answer = resolve
+          }),
+      )
+      renderChat()
+      const send = screen.getByRole('button', { name: 'Send short run with a file' })
+      fireEvent.click(send)
+      fireEvent.click(send)
+      const status = await waitFor(() => {
+        const found = checking()
+        expect(found).toBeTruthy()
+        return found!
+      })
+      const question = screen.getByRole('group', { name: 'You: short' })
+      expect(question.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(card()).toBeNull()
+      expect(composer.props?.disabled).toBe(true)
+      expect(readinessBodies()).toHaveLength(1)
+      await act(async () => answer(Response.json({ ready: false, draft: DRAFT })))
+      await waitFor(() => expect(card()).toBeTruthy())
+      expect(checking()).toBeUndefined()
+      expect(composer.props?.disabled).toBe(false)
+      expect(readinessBodies()).toHaveLength(1)
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+    })
+
+    it('shows the quota notice and no card when the check is over quota', async () => {
+      fetchSpy.mockImplementation(async () =>
+        Response.json({ error: 'quota_exceeded', resetAt: '2026-10-30T00:00:00.000Z' }, { status: 429 }),
+      )
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+      expect(await composer.sent).toBe('quota_exceeded')
+      await waitFor(() =>
+        expect(screen.getByRole('status').textContent).toBe("You've used today's two runs. Come back tomorrow."),
+      )
+      expect(card()).toBeNull()
+      expect(screen.queryByRole('group', { name: 'You: short' })).toBeNull()
+      expect(chat.sendMessage).not.toHaveBeenCalled()
+    })
+
+    it('starts the run when the check cannot be reached', async () => {
+      fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
       await waitFor(() =>
@@ -764,13 +972,14 @@ describe('Chat', () => {
     })
 
     it('replaces the pending question on a second send', async () => {
+      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       await screen.findByTestId('context-card')
       fireEvent.click(screen.getByRole('button', { name: 'Send another prompt-only run' }))
       await waitFor(() => expect(screen.getByRole('group', { name: 'You: and if prices fall?' })).toBeTruthy())
       expect(screen.queryByRole('group', { name: 'You: why?' })).toBeNull()
-      expect(screen.getAllByTestId('context-card')).toHaveLength(1)
+      await waitFor(() => expect(screen.getAllByTestId('context-card')).toHaveLength(1))
       fireEvent.click(screen.getByRole('button', { name: 'Skip and run with my question' }))
       expect(chat.sendMessage).toHaveBeenCalledTimes(1)
       expect(chat.sendMessage).toHaveBeenCalledWith(
@@ -780,6 +989,7 @@ describe('Chat', () => {
     })
 
     it('drops the card when a long prompt is sent instead', async () => {
+      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       await screen.findByTestId('context-card')
@@ -789,7 +999,11 @@ describe('Chat', () => {
       expect(screen.queryByRole('group', { name: 'You: why?' })).toBeNull()
     })
 
-    it('has no axe violations with the card', async () => {
+    it.each([
+      ['empty', EMPTY_DRAFT],
+      ['drafted', DRAFT],
+    ])('has no axe violations with the %s card', async (_, draft) => {
+      answerReadiness({ ready: false, draft })
       const { container } = renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       await screen.findByTestId('context-card')
@@ -838,7 +1052,7 @@ describe('Chat in new mode', () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
     let respond: (response: Response) => void = () => {}
-    fetchSpy.mockImplementation((url: string) =>
+    answerReadiness({ ready: true }, (url: string) =>
       url === '/api/chats/n1/messages'
         ? new Promise<Response>((resolve) => {
             respond = resolve
@@ -861,7 +1075,7 @@ describe('Chat in new mode', () => {
     expect(pushState).toHaveBeenCalledTimes(1)
     expect(upsertChat).toHaveBeenCalledWith({ id: 'n1', title: 'why?', runStatus: 'queued' })
     expect(used()).toBe('1')
-    expect(posts()).toEqual(['/api/chats/n1/messages'])
+    expect(posts()).toEqual(['/api/chats/n1/readiness', '/api/chats/n1/messages'])
     const init = fetchSpy.mock.calls.find(([url]) => url === '/api/chats/n1/messages')?.[1] as RequestInit
     expect(JSON.parse(String(init.body))).toMatchObject({
       id: 'n1',
@@ -895,7 +1109,7 @@ describe('Chat in new mode', () => {
   it('drops an aborted first send without claiming the URL or showing a notice', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+    answerReadiness({ ready: true }, (url: string, init?: RequestInit) =>
       url === '/api/chats/n1/run/cancel'
         ? Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }))
         : new Promise<Response>((_, reject) => {
@@ -913,14 +1127,14 @@ describe('Chat in new mode', () => {
     expect(used()).toBe('0')
     await act(async () => {})
     expect(screen.queryAllByRole('status').filter((el) => el.textContent)).toEqual([])
-    expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/run/cancel'])
+    expect(posts()).toEqual(['/api/chats/n1/readiness', '/api/chats/n1/messages', '/api/chats/n1/run/cancel'])
     pushState.mockRestore()
   })
 
   it('stays on the welcome block with the notice when the send is refused, and retries with the same id', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    fetchSpy.mockResolvedValueOnce(Response.json({ error: 'quota_exceeded' }, { status: 429 }))
+    answerReadiness({ ready: true }, () => Response.json({ error: 'quota_exceeded' }, { status: 429 }))
     renderNew()
     fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
     expect(await composer.sent).not.toBe('sent')
@@ -931,21 +1145,26 @@ describe('Chat in new mode', () => {
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
     expect(used()).toBe('0')
-    fetchSpy.mockImplementation(async (url: string) =>
+    answerReadiness({ ready: true }, async (url: string) =>
       url === '/api/chats/n1/messages'
         ? new Response(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`, { headers: SSE })
         : Response.json({ status: 'queued' }),
     )
     fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
     await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
-    expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/messages'])
+    expect(posts()).toEqual([
+      '/api/chats/n1/readiness',
+      '/api/chats/n1/messages',
+      '/api/chats/n1/readiness',
+      '/api/chats/n1/messages',
+    ])
     pushState.mockRestore()
   })
   it('holds a prompt-only run behind the card, then swaps the URL only once the run is accepted', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
     let respond: (response: Response) => void = () => {}
-    fetchSpy.mockImplementation((url: string) =>
+    answerReadiness({ ready: false, draft: EMPTY_DRAFT }, (url: string) =>
       url === '/api/chats/n1/messages'
         ? new Promise<Response>((resolve) => {
             respond = resolve
@@ -957,12 +1176,12 @@ describe('Chat in new mode', () => {
     expect(await composer.sent).toBe('sent')
     expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
     expect(screen.getByRole('group', { name: 'You: why?' })).toBeTruthy()
-    expect(fetchSpy).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByRole('textbox', { name: 'Background and constraints' }), {
+    expect(posts()).toEqual(['/api/chats/n1/readiness'])
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Background and constraints' }), {
       target: { value: 'We raised prices last year' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Start run' }))
-    await waitFor(() => expect(posts()).toEqual(['/api/chats/n1/messages']))
+    await waitFor(() => expect(posts()).toEqual(['/api/chats/n1/readiness', '/api/chats/n1/messages']))
     expect(screen.queryByTestId('context-card')).toBeNull()
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
@@ -982,7 +1201,9 @@ describe('Chat in new mode', () => {
   it('brings the card back when the prompt-only run is refused', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    fetchSpy.mockResolvedValueOnce(Response.json({ error: 'quota_exceeded' }, { status: 429 }))
+    answerReadiness({ ready: false, draft: EMPTY_DRAFT }, () =>
+      Response.json({ error: 'quota_exceeded' }, { status: 429 }),
+    )
     renderNew()
     fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Skip and run with my question' }))
@@ -997,6 +1218,7 @@ describe('Chat in new mode', () => {
   })
   it('keeps the welcome block away between Start and the first message', async () => {
     chat.sendMessage.mockImplementation(() => new Promise(() => {}))
+    answerReadiness({ ready: false, draft: EMPTY_DRAFT })
     renderNew()
     fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Start run' }))
@@ -1009,7 +1231,7 @@ describe('Chat in new mode', () => {
   it('puts the question back in the composer when the first send from the card is stopped', async () => {
     chat.real = true
     const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    fetchSpy.mockImplementation((url: string, init?: RequestInit) =>
+    answerReadiness({ ready: false, draft: EMPTY_DRAFT }, (url: string, init?: RequestInit) =>
       url === '/api/chats/n1/run/cancel'
         ? Promise.resolve(Response.json({ error: 'not_found' }, { status: 404 }))
         : new Promise<Response>((_, reject) => {
@@ -1027,5 +1249,51 @@ describe('Chat in new mode', () => {
     expect(screen.queryByTestId('context-card')).toBeNull()
     expect(pushState).not.toHaveBeenCalled()
     pushState.mockRestore()
+  })
+
+  const renderNewChat = (chatId: string) => (
+    <UsageProvider usage={usage}>
+      <Chat
+        key={chatId}
+        mode="new"
+        chatId={chatId}
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={null}
+        limits={{ ...limits, demoMode: true }}
+      />
+    </UsageProvider>
+  )
+
+  it('sends nothing when a new chat replaces the drafted card', async () => {
+    chat.real = true
+    answerReadiness({ ready: false, draft: DRAFT }, () => Promise.resolve(Response.json({ status: 'queued' })))
+    const view = render(renderNewChat('n1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+    await screen.findByRole('button', { name: 'Run with these' })
+    view.rerender(renderNewChat('n2'))
+    await act(async () => {})
+    expect(screen.queryByTestId('context-card')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
+    expect(posts()).toEqual(['/api/chats/n1/readiness'])
+  })
+
+  it('sends nothing when a new chat starts while the brief is being read', async () => {
+    chat.real = true
+    let answer: (response: Response) => void = () => {}
+    fetchSpy.mockImplementation((url: string) =>
+      isReadiness(url)
+        ? new Promise<Response>((resolve) => {
+            answer = resolve
+          })
+        : Promise.resolve(Response.json({ status: 'queued' })),
+    )
+    const view = render(renderNewChat('n1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Send short run with a file' }))
+    await waitFor(() => expect(posts()).toEqual(['/api/chats/n1/readiness']))
+    view.rerender(renderNewChat('n2'))
+    await act(async () => answer(Response.json({ ready: true })))
+    expect(posts()).toEqual(['/api/chats/n1/readiness'])
+    expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
   })
 })

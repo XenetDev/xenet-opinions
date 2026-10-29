@@ -21,16 +21,22 @@ export function ContextCard({
   onStart,
   onSkip,
   pending,
+  initial,
 }: {
   onStart: (seed: SeedContext) => void
   onSkip: () => void
   pending: boolean
+  initial?: SeedContext
 }) {
   const id = useId()
   const first = useRef<HTMLTextAreaElement>(null)
-  useAnnounce('Add context or start the run')
+  useAnnounce(initial ? 'We drafted who to simulate. Check these and run.' : 'Add context or start the run')
   useEffect(() => first.current?.focus(), [])
-  const [values, setValues] = useState<Record<keyof SeedContext, string>>({ background: '', actors: '', change: '' })
+  const [values, setValues] = useState<Record<keyof SeedContext, string>>({
+    background: initial?.background ?? '',
+    actors: initial?.actors ?? '',
+    change: initial?.change ?? '',
+  })
 
   const start = () => {
     const seed: SeedContext = {}
@@ -46,12 +52,18 @@ export function ContextCard({
       <Frame dense stacked spacing="default" className="w-full">
         <FrameHeader>
           <div className="flex flex-row items-center gap-2">
-            <FrameTitle id={`${id}-title`}>A little more context helps the simulation</FrameTitle>
+            <FrameTitle id={`${id}-title`}>
+              {initial ? 'We drafted who to simulate' : 'A little more context helps the simulation'}
+            </FrameTitle>
             <Badge variant="warning-light" className="ms-auto shrink-0 font-normal">
               Needs you
             </Badge>
           </div>
-          <FrameDescription>Optional. MiroFish simulates better when it knows the situation.</FrameDescription>
+          <FrameDescription>
+            {initial
+              ? "Check these and run. Edit anything that's wrong."
+              : 'Optional. MiroFish simulates better when it knows the situation.'}
+          </FrameDescription>
         </FrameHeader>
         <FramePanel>
           <FieldGroup className="gap-4">
@@ -73,11 +85,13 @@ export function ContextCard({
           </FieldGroup>
         </FramePanel>
         <FrameFooter className="flex-row flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" disabled={pending} onClick={() => onSkip()}>
-            Skip and run with my question
-          </Button>
+          {!initial && (
+            <Button type="button" variant="outline" disabled={pending} onClick={() => onSkip()}>
+              Skip and run with my question
+            </Button>
+          )}
           <Button type="button" disabled={pending} onClick={start}>
-            Start run
+            {initial ? 'Run with these' : 'Start run'}
           </Button>
         </FrameFooter>
       </Frame>

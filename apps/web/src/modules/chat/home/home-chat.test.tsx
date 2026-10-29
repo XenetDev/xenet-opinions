@@ -92,6 +92,7 @@ const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLT
 const UPLOAD = {
   '/api/uploads/sign': () => Response.json({ mode: 'form' }),
   '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
+  '/api/chats/:id/readiness': () => Response.json({ ready: true }),
 }
 const attach = () =>
   fireEvent.change(screen.getByTestId('file-input'), {
@@ -121,7 +122,13 @@ describe('HomeChat', () => {
     expect(pushState).toHaveBeenCalledWith(null, '', `/c/${id}`)
     expect(router.push).not.toHaveBeenCalled()
     expect(router.refresh).not.toHaveBeenCalled()
-    expect(calls).toEqual(['POST /api/uploads/sign', 'POST /api/uploads', 'POST /api/chats/:id/messages'])
+    expect(calls).toEqual([
+      'POST /api/uploads/sign',
+      'POST /api/uploads',
+      'POST /api/chats/:id/readiness',
+      'POST /api/chats/:id/messages',
+    ])
+    expect(fetchStub.mock.calls.find(([url]) => url.endsWith('/readiness'))![0]).toBe(`/api/chats/${id}/readiness`)
     const [url, init] = fetchStub.mock.calls.find(([url]) => url.endsWith('/messages'))!
     expect(url).toBe(`/api/chats/${id}/messages`)
     const body = JSON.parse(String(init?.body))
@@ -227,7 +234,7 @@ describe('HomeChat', () => {
     attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(4))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false),
     )

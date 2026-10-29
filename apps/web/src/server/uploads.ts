@@ -1,6 +1,7 @@
 import { schema } from '@xo/db'
 import { uploadKey } from '@xo/storage'
 import { generateId } from 'ai'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
 import type { ValidatedFile } from '@/server/upload-rules'
@@ -59,4 +60,23 @@ export async function createSeedUpload(input: {
     files: [{ name: 'seed.md', mediaType: 'text/markdown', size: bytes.byteLength, bytes }],
   })
   return seed!
+}
+
+export async function readOwnedUploads(input: {
+  chatId: string
+  userId: string
+  uploadIds: string[]
+}): Promise<Array<{ id: string; filename: string; mediaType: string; storageKey: string }>> {
+  if (input.uploadIds.length === 0) return []
+  return db
+    .select({
+      id: uploads.id,
+      filename: uploads.filename,
+      mediaType: uploads.mediaType,
+      storageKey: uploads.storageKey,
+    })
+    .from(uploads)
+    .where(
+      and(inArray(uploads.id, input.uploadIds), eq(uploads.chatId, input.chatId), eq(uploads.userId, input.userId)),
+    )
 }

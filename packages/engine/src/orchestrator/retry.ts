@@ -26,3 +26,7 @@ export function prepareRetry(run: Run): { ids: RunIds; cursors: RunCursors; stag
   }
   return { ids, cursors: { ...cursors, retries: 0, startAttempts: 0, idlePolls: 0 }, stage }
 }
+
+export function prepareRestart(_run: Run): { ids: RunIds; cursors: RunCursors; stage: 'ontology' } {
+  return { ids: {}, cursors: { retries: 0, startAttempts: 0, idlePolls: 0 }, stage: 'ontology' }
+}

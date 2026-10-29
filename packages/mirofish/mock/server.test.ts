@@ -222,6 +222,27 @@ describe('mock MiroFish options', () => {
     }
   })
 
+  it('fails with the injected message when one is given', async () => {
+    const mock = await startMockMiroFish({ port: 0, speed: 100 })
+    try {
+      await fetch(`${mock.url}/__mock/fail-stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ stage: 'graph_build', message: '没有找到符合条件的实体' }),
+      })
+      const client = createMiroFishClient({ baseUrl: mock.url })
+      const { project_id } = await client.graph.generateOntology({ files, requirement: 'x' })
+      const graphTask = await client.graph.build({ projectId: project_id })
+      const task = await poll(
+        () => client.graph.getTask(graphTask.task_id!),
+        (t) => t.status === 'failed',
+      )
+      expect(task.error).toBe('没有找到符合条件的实体')
+    } finally {
+      await mock.close()
+    }
+  })
+
   it('rejects an unknown fail stage', async () => {
     const mock = await startMockMiroFish({ port: 0, speed: 100 })
     try {

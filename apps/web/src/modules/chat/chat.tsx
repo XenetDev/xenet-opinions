@@ -2,10 +2,11 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
-import { needsSeedContext } from '@xo/engine/policy'
+import { SEED_PROMPT_MIN_WORDS, wordCount } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Thinking } from '@/components/ui/thinking'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import { useUsage } from '@/modules/chat/shell/usage-context'
 import type { Limits } from '@/server/limits'
@@ -19,6 +20,7 @@ import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
 import { ContextCard, type SeedContext } from './parts/context-card'
+import { requestReadiness } from './readiness'
 import { runTransport } from './run-transport'
 import { SEND_FAILED, sendNotices } from './send-notices'
 import { Thread } from './thread/thread'
@@ -37,6 +39,23 @@ const INTERVIEW_NOTICES: Record<string, string> = {
 }
 
 type RunBody = { uploadIds: string[]; runOptions: RunOptionsValue; seed?: SeedContext }
+
+type PendingRun = {
+  text: string
+  runOptions: RunOptionsValue
+  uploadIds: string[]
+  draft?: SeedContext
+  checking: boolean
+}
+
+const seedFrom = (draft: SeedContext): SeedContext | undefined => {
+  const seed = Object.fromEntries(
+    Object.entries(draft)
+      .map(([key, value]) => [key, value?.trim()])
+      .filter(([, value]) => value),
+  ) as SeedContext
+  return Object.keys(seed).length > 0 ? seed : undefined
+}
 
 type LatestRun = {
   id: string
@@ -90,7 +109,9 @@ export function Chat({
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
-  const [pendingRun, setPendingRun] = useState<{ text: string; runOptions: RunOptionsValue } | null>(null)
+  const [pendingRun, setPendingRun] = useState<PendingRun | null>(null)
+  const [actorsCard, setActorsCard] = useState<{ draft?: SeedContext } | 'checking' | null>(null)
+  const checkRef = useRef<object | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const committedRef = useRef(mode === 'existing')
   const startingRef = useRef(false)
@@ -167,6 +188,13 @@ export function Chat({
     resumeGuard.current = true
     void resumeStream()
   }, [run, runActive, status, resumeStream])
+
+  useEffect(
+    () => () => {
+      checkRef.current = null
+    },
+    [],
+  )
 
   useEffect(() => {
     if (status === 'ready' && (run.status === 'done' || run.status === 'failed' || run.status === 'cancelled'))
@@ -261,7 +289,7 @@ export function Chat({
     setNotice(null)
     startingRef.current = true
     startRun(pending.text, {
-      uploadIds: [],
+      uploadIds: pending.uploadIds,
       runOptions: pending.runOptions,
       ...(seed && Object.keys(seed).length > 0 ? { seed } : {}),
     }).then(
@@ -276,11 +304,61 @@ export function Chat({
     )
   }
 
-  const handleRetry = async () => {
+  const sendRun = async (text: string, uploadIds: string[], runOptions: RunOptionsValue) => {
+    if (uploadIds.length === 0 && wordCount(text) >= SEED_PROMPT_MIN_WORDS) {
+      checkRef.current = null
+      setPendingRun(null)
+      await startRun(text, { uploadIds, runOptions })
+      return
+    }
+    if (checkRef.current) return
+    const check = {}
+    checkRef.current = check
+    setPendingRun({ text, runOptions, uploadIds, checking: true })
+    const result = await requestReadiness(chatId, { text, uploadIds })
+    if (checkRef.current !== check) return
+    checkRef.current = null
+    if (!result.ok) {
+      setPendingRun(null)
+      setNotice(sendNotices(limits, !!signIn)[result.code] ?? SEND_FAILED)
+      throw new Error(result.code)
+    }
+    if (result.readiness.ready) {
+      setPendingRun(null)
+      await startRun(text, { uploadIds, runOptions })
+      return
+    }
+    setPendingRun({ text, runOptions, uploadIds, draft: seedFrom(result.readiness.draft), checking: false })
+  }
+
+  const retryRun = async (seed?: SeedContext) => {
     setNotice(null)
-    const response = await fetch(`/api/chats/${chatId}/run/retry`, { method: 'POST' }).catch(() => null)
+    const response = await fetch(`/api/chats/${chatId}/run/retry`, {
+      method: 'POST',
+      ...(seed && { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seed }) }),
+    }).catch(() => null)
     if (response?.status === 201) router.refresh()
     else setNotice(await errorOf(response, 'Something went wrong retrying the run'))
+  }
+
+  const handleRetry = () => retryRun()
+
+  const handleAddActors = async () => {
+    setNotice(null)
+    setActorsCard('checking')
+    const result = await requestReadiness(chatId, { retry: true })
+    if (!result.ok) {
+      setActorsCard(null)
+      setNotice(sendNotices(limits, !!signIn)[result.code] ?? SEND_FAILED)
+      return
+    }
+    const draft = result.readiness.ready ? undefined : seedFrom(result.readiness.draft)
+    setActorsCard({ draft })
+  }
+
+  const restartWith = (seed: SeedContext) => {
+    setActorsCard(null)
+    void retryRun(seed)
   }
 
   const lastMessage = messages.at(-1)
@@ -301,6 +379,7 @@ export function Chat({
   const latestFailed =
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
+  const failedCode = lastMessage?.parts.findLast((part) => part.type === 'data-error')?.data.code
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
@@ -322,15 +401,30 @@ export function Chat({
                 pendingRun
                   ? {
                       text: pendingRun.text,
-                      card: (
+                      card: pendingRun.checking ? (
+                        <Thinking />
+                      ) : (
                         <ContextCard
                           pending={status === 'submitted' || status === 'streaming'}
+                          initial={pendingRun.draft}
                           onStart={(seed) => startPending(seed)}
                           onSkip={() => startPending()}
                         />
                       ),
                     }
                   : undefined
+              }
+              trailing={
+                !latestFailed ? undefined : actorsCard === 'checking' ? (
+                  <Thinking />
+                ) : actorsCard ? (
+                  <ContextCard
+                    pending={false}
+                    initial={actorsCard.draft}
+                    onStart={restartWith}
+                    onSkip={() => restartWith({})}
+                  />
+                ) : undefined
               }
               renderAssistant={(message) => {
                 const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
@@ -345,6 +439,11 @@ export function Chat({
                     windowLive={runActive && message.id === run.assistantMessageId}
                     onCancelRun={interviewMode ? () => void handleStop() : undefined}
                     onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
+                    onAddActors={
+                      latestFailed && message === lastMessage && failedCode === 'no_actors' && !actorsCard
+                        ? () => void handleAddActors()
+                        : undefined
+                    }
                   />
                 )
               }}
@@ -364,10 +463,16 @@ export function Chat({
               onStop={() => void handleStop()}
               disabled={
                 !interviewMode &&
-                (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
+                (status === 'submitted' ||
+                  status === 'streaming' ||
+                  runActive ||
+                  !!pendingRun?.checking ||
+                  actorsCard === 'checking' ||
+                  (limits.paused && !followUpMode))
               }
               onSend={async (text, submit) => {
                 setNotice(null)
+                setActorsCard(null)
                 if (submit.kind === 'followUp' && submit.target === 'agents') {
                   await sendInterview(text, submit.agentIds)
                   return
@@ -376,12 +481,7 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
-                if (needsSeedContext(text, submit.uploadIds.length)) {
-                  setPendingRun({ text, runOptions: submit.runOptions })
-                  return
-                }
-                setPendingRun(null)
-                await startRun(text, { uploadIds: submit.uploadIds, runOptions: submit.runOptions })
+                await sendRun(text, submit.uploadIds, submit.runOptions)
               }}
             />
           </div>

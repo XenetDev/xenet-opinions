@@ -1,6 +1,6 @@
 import type { Run, RunCursors, RunIds } from '@xo/db'
 import { describe, expect, it } from 'vitest'
-import { prepareRetry } from './retry'
+import { prepareRestart, prepareRetry } from './retry'
 import { HANDLERS } from './stages'
 import type { ActiveStage } from './types'
 
@@ -111,6 +111,26 @@ describe('prepareRetry', () => {
   it('does not mutate the source run', () => {
     const run = failedAt('report')
     prepareRetry(run)
+    expect(run.ids).toEqual(ids)
+    expect(run.cursors).toEqual(cursors)
+  })
+})
+
+describe('prepareRestart', () => {
+  it('clears every id and progress cursor and restarts at ontology', () => {
+    const run = failedAt('sim_prepare', {
+      cursors: { ...cursors, feed: { round: 1, totalRounds: 2, twitterActs: 0, redditActs: 0, posts: [] } },
+    })
+    expect(prepareRestart(run)).toEqual({
+      ids: {},
+      cursors: { retries: 0, startAttempts: 0, idlePolls: 0 },
+      stage: 'ontology',
+    })
+  })
+
+  it('does not mutate the source run', () => {
+    const run = failedAt('sim_prepare')
+    prepareRestart(run)
     expect(run.ids).toEqual(ids)
     expect(run.cursors).toEqual(cursors)
   })
