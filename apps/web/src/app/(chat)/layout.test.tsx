@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   usageValue: null as unknown,
 }))
 
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
   cookies: async () => ({
