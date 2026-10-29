@@ -5,9 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import type { Limits } from '@/server/limits'
 import { Chat } from '../chat'
-import type { RecentChat } from './welcome'
 
-export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Limits }) {
+export function HomeChat({ limits }: { limits: Limits }) {
   const router = useRouter()
   const pathname = usePathname()
   const [chatId, setChatId] = useState(generateId)
@@ -32,7 +31,6 @@ export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Lim
       initialMessages={[]}
       activeRun={null}
       latestRun={null}
-      recent={recent}
       limits={limits}
     />
   )

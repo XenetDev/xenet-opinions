@@ -13,7 +13,7 @@ import { useChatActivity } from './chat-activity'
 import { Composer } from './composer/composer'
 import type { RunOptionsValue } from './composer/run-options'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
-import { type RecentChat, Welcome } from './home/welcome'
+import { Welcome } from './home/welcome'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
@@ -56,7 +56,6 @@ const isRunFailure = (messages: OpinionsUIMessage[], text: string) =>
 
 export function Chat({
   mode = 'existing',
-  recent = [],
   chatId,
   initialMessages,
   activeRun,
@@ -65,7 +64,6 @@ export function Chat({
   startedAt,
 }: {
   mode?: 'new' | 'existing'
-  recent?: RecentChat[]
   chatId: string
   initialMessages: OpinionsUIMessage[]
   activeRun: {
@@ -309,7 +307,6 @@ export function Chat({
         <InterviewSelectionProvider enabled={interviewMode}>
           {mode === 'new' && messages.length === 0 && !pendingRun && !startingRef.current ? (
             <Welcome
-              recent={recent}
               onUseStarter={(prompt) => {
                 setDraft(prompt)
                 composerRef.current?.querySelector('textarea')?.focus()

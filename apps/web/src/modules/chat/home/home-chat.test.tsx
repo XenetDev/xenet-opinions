@@ -54,10 +54,7 @@ function homeTree(limits: Partial<Limits> = {}, signIn?: { max: number }) {
       <ChatListProvider chats={[]}>
         <Titles />
         <UsageProvider usage={null} {...(signIn ? { signIn } : {})}>
-          <HomeChat
-            recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
-            limits={{ ...LIMITS, ...limits }}
-          />
+          <HomeChat limits={{ ...LIMITS, ...limits }} />
         </UsageProvider>
       </ChatListProvider>
     </TooltipProvider>
@@ -247,10 +244,10 @@ describe('HomeChat', () => {
     expect(screen.getAllByText('The demo is paused').length).toBeGreaterThan(0)
   })
 
-  it('links resume rows and has no axe violations', async () => {
+  it('lists no recent chats and has no axe violations', async () => {
     stubFetch({})
     const { container } = renderHome()
-    expect(screen.getByRole('link', { name: /Price increase/ }).getAttribute('href')).toBe('/c/old')
+    expect(screen.queryByRole('heading', { name: 'Recent chats' })).toBeNull()
     expect(await axe(container)).toHaveNoViolations()
   })
 })

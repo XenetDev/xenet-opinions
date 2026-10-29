@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
-vi.mock('@/server/chats', () => ({ listChats: vi.fn(async () => []) }))
 vi.mock('@/server/limits', () => ({
   getLimits: (user: { isAnonymous: boolean }) => ({
     demoMode: true,
@@ -25,10 +24,11 @@ beforeEach(() => {
 })
 
 describe('Home page', () => {
-  it('passes limits and no usage props to HomeChat', async () => {
+  it('passes limits and no usage or recent props to HomeChat', async () => {
     const element = await Home()
     expect(element.props.limits).toMatchObject({ signedInMaxRunsPerDay: 3 })
     expect(element.props).not.toHaveProperty('signIn')
     expect(element.props).not.toHaveProperty('usage')
+    expect(element.props).not.toHaveProperty('recent')
   })
 })

@@ -8,7 +8,7 @@ Turn on "Pause for interviews" in the composer when you start a run. After the s
 
 ## Signing in
 
-Every visitor starts with an anonymous session. Sign in from the header or the usage bar opens a dialog over the current page (`/sign-in` links land in the app with the same dialog open); it offers a magic link by email, Google and GitHub; each option appears only when its environment variables are set. Signing in from an anonymous session moves that visitor's chats, uploads and runs to the account. In demo mode guests get 1 run a day and signed-in users get 3. Signed-in users can sign out or delete their account from the avatar menu in the header. Setup is in [docs/hosting.md](docs/hosting.md#sign-in-providers).
+Every visitor starts with an anonymous session. Sign in from the sidebar opens a dialog over the current page (`/sign-in` links land in the app with the same dialog open); it offers a magic link by email, Google and GitHub; each option appears only when its environment variables are set. Signing in from an anonymous session moves that visitor's chats, uploads and runs to the account. In demo mode guests get 1 run a day and signed-in users get 3. Signed-in users can sign out or delete their account from the account menu at the bottom of the sidebar. Setup is in [docs/hosting.md](docs/hosting.md#sign-in-providers).
 
 ## Architecture
 
@@ -43,7 +43,7 @@ Every visitor starts with an anonymous session. Sign in from the header or the u
 
 ## Run it
 
-On a first visit a short guide shows how the app works; the ? button in the header opens it again at any time.
+On a first visit a short guide shows how the app works; How it works in the sidebar opens it again at any time. The sidebar holds your chats, and `⌘K` searches them.
 
 ### 1. Self-host with Docker
 

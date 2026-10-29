@@ -818,7 +818,6 @@ describe('Chat in new mode', () => {
           initialMessages={[]}
           activeRun={null}
           latestRun={null}
-          recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
           limits={{ ...limits, demoMode: true }}
         />
       </UsageProvider>,
@@ -829,7 +828,7 @@ describe('Chat in new mode', () => {
   it('renders the welcome block and fills the composer from a starter', () => {
     renderNew()
     expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Price increase/ }).getAttribute('href')).toBe('/c/old')
+    expect(screen.queryByRole('heading', { name: 'Recent chats' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: STARTER }))
     expect(composer.props?.value).toBe(STARTER)
     expect(fetchSpy).not.toHaveBeenCalled()
