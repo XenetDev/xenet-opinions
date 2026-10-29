@@ -153,13 +153,12 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Chats on this device only. Sign in to keep them.')).toBeTruthy()
   })
 
-  it('orders the footer usage card, Theme, How it works', () => {
+  it('orders the footer usage card, then How it works, with no theme switch', () => {
     renderSidebar()
     const card = screen.getByText('Runs today')
-    const theme = screen.getByRole('button', { name: /Theme/ })
     const help = screen.getByRole('button', { name: 'How it works' })
-    expect(precedes(card, theme)).toBe(true)
-    expect(precedes(theme, help)).toBe(true)
+    expect(precedes(card, help)).toBe(true)
+    expect(screen.queryByRole('button', { name: /Theme|mode/ })).toBeNull()
     fireEvent.click(help)
     expect(guide.open).toHaveBeenCalledOnce()
   })

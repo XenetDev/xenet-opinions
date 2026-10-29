@@ -133,11 +133,17 @@ describe('ChatHeader', () => {
     expect(onSearch).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps only the trigger, title, badge, search and options in the header', () => {
+  it('keeps only the trigger, title, badge, search, options, theme and account in the header', () => {
     renderHeader()
     const banner = within(screen.getByRole('banner'))
-    for (const name of ['New chat', 'How it works', /theme/i, /Switch chat/])
+    for (const name of ['New chat', 'How it works', /Switch chat/])
       expect(banner.queryByRole('button', { name })).toBeNull()
+  })
+
+  it('puts the theme switch just before sign in', () => {
+    renderHeader()
+    const signIn = screen.getByRole('button', { name: 'Sign in' })
+    expect(signIn.previousElementSibling).toBe(screen.getByRole('button', { name: 'Switch to dark mode' }))
   })
 
   it('falls back to "New conversation" for an untitled chat', () => {

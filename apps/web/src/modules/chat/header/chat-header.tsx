@@ -10,6 +10,7 @@ import { useChatList } from '../chat-list-context'
 import { chatTitle, isRunning } from '../shell/chat-meta'
 import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
+import { ThemeToggle } from './theme-toggle'
 
 export function ChatHeader({ signInAvailable, onSearch }: { signInAvailable: boolean; onSearch: () => void }) {
   const pathname = usePathname()
@@ -33,6 +34,7 @@ export function ChatHeader({ signInAvailable, onSearch }: { signInAvailable: boo
         <SearchIcon aria-hidden="true" />
       </Button>
       {chat && <ChatOptions chat={chat} />}
+      <ThemeToggle />
       <AccountMenu signInAvailable={signInAvailable} />
     </header>
   )
