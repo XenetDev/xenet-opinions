@@ -1,5 +1,7 @@
 export const MAX_FILES = 5
-export const MAX_FILE_BYTES = 10 * 1024 * 1024
+export const MAX_FILE_BYTES = 50 * 1024 * 1024
+// MiroFish caps a whole multipart request at 50 MB and the worker sends all of a run's files together.
+export const MAX_TOTAL_BYTES = 48 * 1024 * 1024
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'text/markdown', 'text/plain'])
 const EXTENSION_TYPES: Record<string, string> = {
@@ -23,6 +25,7 @@ export function validateUploads(
 ): { ok: true; files: ValidatedFile[] } | { ok: false; reason: UploadRejection } {
   if (files.length > MAX_FILES) return { ok: false, reason: 'too_many' }
   if (files.some((file) => file.size > MAX_FILE_BYTES)) return { ok: false, reason: 'too_large' }
+  if (files.reduce((total, file) => total + file.size, 0) > MAX_TOTAL_BYTES) return { ok: false, reason: 'too_large' }
   const validated = files.map((file) => ({
     name: file.name,
     mediaType: resolveMediaType(file.name, file.type),

@@ -40,6 +40,11 @@ describe('parseEnv', () => {
     expect(parseEnv({ ...valid, DEMO_ALLOW_PAUSE: '0' }).DEMO_ALLOW_PAUSE).toBe('0')
     expect(() => parseEnv({ ...valid, DEMO_ALLOW_PAUSE: 'yes' })).toThrow()
   })
+  it('defaults STORAGE_DIRECT_UPLOADS to 1 and rejects other values', () => {
+    expect(parseEnv(valid).STORAGE_DIRECT_UPLOADS).toBe('1')
+    expect(parseEnv({ ...valid, STORAGE_DIRECT_UPLOADS: '0' }).STORAGE_DIRECT_UPLOADS).toBe('0')
+    expect(() => parseEnv({ ...valid, STORAGE_DIRECT_UPLOADS: 'yes' })).toThrow()
+  })
   it('defaults HEALTH_CHECK_MIROFISH to 1 and rejects other values', () => {
     expect(parseEnv(valid).HEALTH_CHECK_MIROFISH).toBe('1')
     expect(parseEnv({ ...valid, HEALTH_CHECK_MIROFISH: '0' }).HEALTH_CHECK_MIROFISH).toBe('0')

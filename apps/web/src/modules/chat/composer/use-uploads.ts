@@ -12,6 +12,21 @@ export type PendingFile = {
 }
 
 type UploadResponse = { uploads?: Array<{ id: string }>; reason?: string; error?: string }
+type SignResponse = {
+  mode?: 'form' | 'direct'
+  uploads?: Array<{ token: string; url: string; headers: Record<string, string> }>
+  reason?: string
+  error?: string
+}
+
+const readJson = async <T>(response: Response) => (await response.json().catch(() => ({}))) as T
+const failure = (response: Response, data: { reason?: string; error?: string }) =>
+  response.status === 413 ? 'too_large' : (data.reason ?? data.error ?? 'upload_failed')
+const jsonInit = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(body),
+})
 
 export function useUploads(chatId: string | (() => Promise<string>), deps: { fetch?: typeof fetch } = {}) {
   const [files, setFilesState] = useState<PendingFile[]>([])
@@ -27,12 +42,13 @@ export function useUploads(chatId: string | (() => Promise<string>), deps: { fet
     (incoming: File[]) => {
       let acceptedCount = 0
       setFiles((prev) => {
-        let accepted = prev.filter((f) => f.status !== 'error').length
+        const kept = prev.filter((f) => f.status !== 'error').map((f) => f.file)
         const added = incoming.map((file): PendingFile => {
           const localId = crypto.randomUUID()
-          const result = accepted >= MAX_FILES ? ({ ok: false, reason: 'too_many' } as const) : validateUploads([file])
+          const result =
+            kept.length >= MAX_FILES ? ({ ok: false, reason: 'too_many' } as const) : validateUploads([...kept, file])
           if (!result.ok) return { localId, file, status: 'error', error: result.reason }
-          accepted += 1
+          kept.push(file)
           acceptedCount += 1
           return { localId, file, status: 'pending' }
         })
@@ -60,22 +76,44 @@ export function useUploads(chatId: string | (() => Promise<string>), deps: { fet
           return prev.map((f) => (ids.has(f.localId) ? { ...f, ...patch(f, ++index) } : f))
         })
       mark(() => ({ status: 'uploading', error: undefined }))
-      let reason = 'upload_failed'
       try {
-        const form = new FormData()
-        form.append('chatId', typeof chatId === 'string' ? chatId : await chatId())
-        for (const { file } of pending) form.append('files', file)
-        const response = await (fetchImpl ?? fetch)('/api/uploads', { method: 'POST', body: form })
-        const data = (await response.json().catch(() => ({}))) as UploadResponse
+        const request = fetchImpl ?? fetch
+        const id = typeof chatId === 'string' ? chatId : await chatId()
+        const manifest = pending.map(({ file }) => ({ name: file.name, type: file.type, size: file.size }))
+        const signResponse = await request('/api/uploads/sign', jsonInit({ chatId: id, files: manifest }))
+        const signed = await readJson<SignResponse>(signResponse)
+        if (!signResponse.ok) throw new Error(failure(signResponse, signed))
+        let response: Response
+        if (signed.mode === 'direct' && signed.uploads?.length === pending.length) {
+          const targets = signed.uploads
+          const puts = await Promise.all(
+            targets.map(({ url, headers }, i) =>
+              request(url, { method: 'PUT', headers, body: pending[i]!.file }).catch(() => null),
+            ),
+          )
+          const failed = puts.find((put) => !put?.ok)
+          if (failed !== undefined) throw new Error(failed?.status === 413 ? 'too_large' : 'upload_failed')
+          response = await request(
+            '/api/uploads/complete',
+            jsonInit({ chatId: id, tokens: targets.map((t) => t.token) }),
+          )
+        } else if (signed.mode === 'form') {
+          const form = new FormData()
+          form.append('chatId', id)
+          for (const { file } of pending) form.append('files', file)
+          response = await request('/api/uploads', { method: 'POST', body: form })
+        } else {
+          throw new Error('upload_failed')
+        }
+        const data = await readJson<UploadResponse>(response)
         if (response.status === 201 && data.uploads?.length === pending.length) {
           const uploads = data.uploads
           mark((_, i) => ({ status: 'done', uploadId: uploads[i]!.id }))
         } else {
-          reason = data.reason ?? data.error ?? reason
-          throw new Error(reason)
+          throw new Error(failure(response, data))
         }
       } catch (e) {
-        const message = e instanceof Error ? e.message : reason
+        const message = e instanceof Error ? e.message : 'upload_failed'
         mark(() => ({ status: 'error', error: message }))
         throw e instanceof Error ? e : new Error(message)
       }

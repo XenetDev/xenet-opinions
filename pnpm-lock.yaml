@@ -291,6 +291,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1153.0
         version: 3.1153.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: 3.1153.0
+        version: 3.1153.0
     devDependencies:
       '@types/node':
         specifier: 24.19.2
@@ -400,6 +403,10 @@ packages:
 
   '@aws-sdk/nested-clients@3.997.49':
     resolution: {integrity: sha512-zjqIqzTYLRKhT7TPJDUreK9vG9PjhmnfLCaTaqArkRT7j+Ogl0tuXB7MpSd8rlRfRT+xTOeyNFWaOfyNcf51hg==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/s3-request-presigner@3.1153.0':
+    resolution: {integrity: sha512-GJIV1KbOiTGTutEzTr1Upn+mHYq4ZDXcAJahQ8+5zoajWPNDIAQCeu/fEZ4J63IoocEIMZM2xTeKiEf4ubLXVg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/signature-v4-multi-region@3.996.48':
@@ -5745,6 +5752,15 @@ snapshots:
       '@smithy/core': 3.36.0
       '@smithy/fetch-http-handler': 5.8.0
       '@smithy/node-http-handler': 4.12.1
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
+  '@aws-sdk/s3-request-presigner@3.1153.0':
+    dependencies:
+      '@aws-sdk/core': 3.978.4
+      '@aws-sdk/signature-v4-multi-region': 3.996.48
+      '@aws-sdk/types': 3.974.6
+      '@smithy/core': 3.36.0
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 

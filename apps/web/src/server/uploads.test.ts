@@ -14,11 +14,25 @@ describe('validateUploads', () => {
     expect(validateUploads(files)).toMatchObject({ ok: true })
   })
 
-  it('rejects files over 10 MB', () => {
-    expect(validateUploads([file('a.pdf', 'application/pdf', 11 * 1024 * 1024)])).toEqual({
+  it('rejects files over 50 MB', () => {
+    expect(validateUploads([file('a.pdf', 'application/pdf', 51 * 1024 * 1024)])).toEqual({
       ok: false,
       reason: 'too_large',
     })
+  })
+
+  it('accepts a file between the old 10 MB and the 48 MB total cap', () => {
+    expect(validateUploads([file('a.pdf', 'application/pdf', 40 * 1024 * 1024)])).toMatchObject({ ok: true })
+  })
+
+  it('rejects files totalling more than 48 MB', () => {
+    const mb = 1024 * 1024
+    expect(
+      validateUploads([file('a.pdf', 'application/pdf', 30 * mb), file('b.pdf', 'application/pdf', 30 * mb)]),
+    ).toEqual({ ok: false, reason: 'too_large' })
+    expect(
+      validateUploads([file('a.pdf', 'application/pdf', 24 * mb), file('b.pdf', 'application/pdf', 24 * mb)]),
+    ).toMatchObject({ ok: true })
   })
 
   it('rejects unsupported types', () => {

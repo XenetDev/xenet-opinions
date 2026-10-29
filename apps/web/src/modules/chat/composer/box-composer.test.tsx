@@ -46,10 +46,12 @@ function renderComposer(props: Partial<Props> = {}) {
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
 const type = (value: string) => fireEvent.change(textarea(), { target: { value } })
+const formUpload = <T extends unknown[]>(post: (...args: T) => Promise<Response>) =>
+  vi.fn(async (...args: T) => (args[0] === '/api/uploads/sign' ? Response.json({ mode: 'form' }) : post(...args)))
 const stubUpload = () =>
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 })),
+    formUpload(async () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 })),
   )
 const attach = () =>
   fireEvent.change(screen.getByTestId('file-input'), {
@@ -154,7 +156,7 @@ describe('BoxComposer', () => {
     let release: (value: Response) => void = () => {}
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => new Promise<Response>((resolve) => (release = resolve))),
+      formUpload(() => new Promise<Response>((resolve) => (release = resolve))),
     )
     renderComposer()
     fireEvent.change(screen.getByTestId('file-input'), {
@@ -354,7 +356,7 @@ describe('BoxComposer', () => {
 
   it('creates the chat on attach when there is no chat yet and uploads into it', async () => {
     const onNeedChat = vi.fn(async () => 'new-chat')
-    const fetchStub = vi.fn(async (_url: string, _init: RequestInit) =>
+    const fetchStub = formUpload(async (_url: string, _init: RequestInit) =>
       Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
     )
     vi.stubGlobal('fetch', fetchStub)
@@ -368,7 +370,7 @@ describe('BoxComposer', () => {
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
     expect(onNeedChat).toHaveBeenCalledTimes(1)
-    const body = fetchStub.mock.calls[0]?.[1].body as FormData
+    const body = fetchStub.mock.calls.find(([url]) => url === '/api/uploads')?.[1].body as FormData
     expect(body.get('chatId')).toBe('new-chat')
     expect(onSend.mock.calls[0]?.[1]).toMatchObject({ kind: 'run', uploadIds: ['u1'] })
   })
@@ -400,7 +402,9 @@ describe('BoxComposer', () => {
     })
     type('hello')
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(screen.getByText('too_large')).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText('Files must be 50 MB or smaller, and 48 MB in total per run')).toBeTruthy(),
+    )
     expect(onSend).not.toHaveBeenCalled()
     expect(textarea().value).toBe('hello')
   })
@@ -417,7 +421,9 @@ describe('BoxComposer', () => {
     })
     type('hello')
     fireEvent.click(submit())
-    await waitFor(() => expect(screen.getByText('too_large')).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText('Files must be 50 MB or smaller, and 48 MB in total per run')).toBeTruthy(),
+    )
     await waitFor(() => expect(submit().disabled).toBe(false))
     fireEvent.click(submit())
     await waitFor(() => expect(screen.getByText('Remove failed files to continue')).toBeTruthy())

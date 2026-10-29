@@ -89,7 +89,10 @@ const uploadChatId = (fetchStub: ReturnType<typeof stubFetch>['fetchStub']) =>
   (fetchStub.mock.calls.find(([url]) => url === '/api/uploads')![1]!.body as FormData).get('chatId')
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
-const UPLOAD = { '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }) }
+const UPLOAD = {
+  '/api/uploads/sign': () => Response.json({ mode: 'form' }),
+  '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
+}
 const attach = () =>
   fireEvent.change(screen.getByTestId('file-input'), {
     target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
@@ -118,7 +121,7 @@ describe('HomeChat', () => {
     expect(pushState).toHaveBeenCalledWith(null, '', `/c/${id}`)
     expect(router.push).not.toHaveBeenCalled()
     expect(router.refresh).not.toHaveBeenCalled()
-    expect(calls).toEqual(['POST /api/uploads', 'POST /api/chats/:id/messages'])
+    expect(calls).toEqual(['POST /api/uploads/sign', 'POST /api/uploads', 'POST /api/chats/:id/messages'])
     const [url, init] = fetchStub.mock.calls.find(([url]) => url.endsWith('/messages'))!
     expect(url).toBe(`/api/chats/${id}/messages`)
     const body = JSON.parse(String(init?.body))
@@ -177,7 +180,7 @@ describe('HomeChat', () => {
   ])('stays home with the notice and the attached file on a %s %s', async (status, error, notice) => {
     const pushState = spyPushState()
     stubFetch({
-      '/api/uploads': () => Response.json({ uploads: [{ id: 'u1' }] }, { status: 201 }),
+      ...UPLOAD,
       '/api/chats/:id/messages': () => Response.json({ error }, { status }),
     })
     renderHome()
@@ -224,7 +227,7 @@ describe('HomeChat', () => {
     attach()
     fireEvent.change(textarea(), { target: { value: 'hello' } })
     fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(calls).toHaveLength(3))
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Send message' }).hasAttribute('disabled')).toBe(false),
     )

@@ -9,35 +9,42 @@ const { uploads } = schema
 
 export type UploadSummary = { id: string; filename: string; mediaType: string; sizeBytes: number }
 
+export async function recordUploads(input: {
+  chatId: string
+  userId: string
+  files: Array<{ id: string; storageKey: string; name: string; mediaType: string; size: number }>
+}): Promise<UploadSummary[]> {
+  const rows = input.files.map((file) => ({
+    id: file.id,
+    userId: input.userId,
+    chatId: input.chatId,
+    storageKey: file.storageKey,
+    filename: file.name,
+    mediaType: file.mediaType,
+    sizeBytes: file.size,
+  }))
+  await db.insert(uploads).values(rows)
+  return rows.map((row) => ({ id: row.id, filename: row.filename, mediaType: row.mediaType, sizeBytes: row.sizeBytes }))
+}
+
 export async function createUploads(input: {
   chatId: string
   userId: string
   files: Array<ValidatedFile & { bytes: Uint8Array }>
 }): Promise<UploadSummary[]> {
-  const written: string[] = []
-  const rows: Array<typeof uploads.$inferInsert> = []
+  const written: Array<{ id: string; storageKey: string; name: string; mediaType: string; size: number }> = []
   try {
     for (const file of input.files) {
       const id = generateId()
       const storageKey = uploadKey(input.userId, id, file.name)
       await storage.put(storageKey, file.bytes, file.mediaType)
-      written.push(storageKey)
-      rows.push({
-        id,
-        userId: input.userId,
-        chatId: input.chatId,
-        storageKey,
-        filename: file.name,
-        mediaType: file.mediaType,
-        sizeBytes: file.size,
-      })
+      written.push({ id, storageKey, name: file.name, mediaType: file.mediaType, size: file.size })
     }
-    await db.insert(uploads).values(rows)
+    return await recordUploads({ chatId: input.chatId, userId: input.userId, files: written })
   } catch (error) {
-    await Promise.allSettled(written.map((key) => storage.delete(key)))
+    await Promise.allSettled(written.map((file) => storage.delete(file.storageKey)))
     throw error
   }
-  return rows.map((row) => ({ id: row.id, filename: row.filename, mediaType: row.mediaType, sizeBytes: row.sizeBytes }))
 }
 
 export async function createSeedUpload(input: {

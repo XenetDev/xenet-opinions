@@ -5,7 +5,7 @@ vi.mock('@/lib/db', () => ({ db: { insert: vi.fn() } }))
 
 import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
-import { createUploads } from './uploads'
+import { createUploads, recordUploads } from './uploads'
 
 const file = (name: string) => ({ name, mediaType: 'text/plain', size: 1, bytes: new Uint8Array([1]) })
 
@@ -34,5 +34,30 @@ describe('createUploads', () => {
     expect(values).toHaveBeenCalledTimes(1)
     expect(values.mock.calls[0]![0]).toHaveLength(2)
     expect(result.map((r) => r.filename)).toEqual(['a.txt', 'b.txt'])
+  })
+})
+
+describe('recordUploads', () => {
+  it('inserts rows for already-stored objects without touching storage', async () => {
+    const values = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(db.insert).mockReturnValue({ values } as never)
+    const result = await recordUploads({
+      chatId: 'c1',
+      userId: 'u1',
+      files: [{ id: 'up1', storageKey: 'uploads/u1/up1/a.pdf', name: 'a.pdf', mediaType: 'application/pdf', size: 9 }],
+    })
+    expect(storage.put).not.toHaveBeenCalled()
+    expect(values).toHaveBeenCalledWith([
+      {
+        id: 'up1',
+        userId: 'u1',
+        chatId: 'c1',
+        storageKey: 'uploads/u1/up1/a.pdf',
+        filename: 'a.pdf',
+        mediaType: 'application/pdf',
+        sizeBytes: 9,
+      },
+    ])
+    expect(result).toEqual([{ id: 'up1', filename: 'a.pdf', mediaType: 'application/pdf', sizeBytes: 9 }])
   })
 })
