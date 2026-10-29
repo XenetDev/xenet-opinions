@@ -21,11 +21,10 @@ import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
 import { GuideButton } from '../header/guide-button'
 import { ThemeToggle } from '../header/theme-toggle'
-import { AccountRow } from './account-row'
 import { History } from './history'
 import { UsageCard } from './usage-card'
 
-export function AppSidebar({ signInAvailable, onSearch }: { signInAvailable: boolean; onSearch: () => void }) {
+export function AppSidebar({ onSearch }: { onSearch: () => void }) {
   const router = useRouter()
   const pathname = usePathname()
   const { chats } = useChatList()
@@ -100,7 +99,6 @@ export function AppSidebar({ signInAvailable, onSearch }: { signInAvailable: boo
           <SidebarMenuItem>
             <GuideButton variant="row" />
           </SidebarMenuItem>
-          <AccountRow signInAvailable={signInAvailable} />
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

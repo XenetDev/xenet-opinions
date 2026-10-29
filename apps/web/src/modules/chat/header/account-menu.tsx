@@ -1,6 +1,6 @@
 'use client'
 
-import { LogInIcon, LogOutIcon, Trash2Icon } from 'lucide-react'
+import { LogOutIcon, Trash2Icon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,11 +24,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { authClient } from '@/lib/auth-client'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
-import { useUsage } from './usage-context'
 
 export function initials(name: string, email: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
@@ -35,55 +33,37 @@ export function initials(name: string, email: string): string {
   return letters.toUpperCase()
 }
 
-export function AccountRow({ signInAvailable }: { signInAvailable: boolean }) {
+export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
   const signInDialog = useSignInDialog()
-  const { state, isMobile } = useSidebar()
-  const { signIn } = useUsage()
   const { data, isPending } = authClient.useSession()
   const [deleting, setDeleting] = useState(false)
-  const collapsed = state === 'collapsed' && !isMobile
 
   if (isPending || !data?.user) return null
   const { user } = data
   if (user.isAnonymous === true) {
-    if (!signInAvailable || (!collapsed && signIn)) return null
+    if (!signInAvailable) return null
     return (
-      <SidebarMenuItem>
-        <SidebarMenuButton size="sm" tooltip="Sign in" onClick={signInDialog.open}>
-          <LogInIcon aria-hidden="true" />
-          <span>Sign in</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
+      <Button variant="default" size="sm" onClick={signInDialog.open}>
+        Sign in
+      </Button>
     )
   }
 
-  const name = user.name.trim()
   return (
-    <SidebarMenuItem>
+    <>
       <DropdownMenu>
-        <Tooltip>
-          <DropdownMenuTrigger asChild>
-            <TooltipTrigger asChild>
-              <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent">
-                <Avatar size="sm" aria-hidden="true">
-                  {user.image && <AvatarImage src={user.image} alt="" />}
-                  <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
-                </Avatar>
-                <span className="grid min-w-0 flex-1 text-left leading-tight">
-                  {name && <span className="truncate text-sm font-medium">{user.name}</span>}
-                  <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                </span>
-              </SidebarMenuButton>
-            </TooltipTrigger>
-          </DropdownMenuTrigger>
-          <TooltipContent side="right" align="center" hidden={!collapsed}>
-            Account
-          </TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent side={isMobile ? 'top' : 'right'} align="end" className="w-56">
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" className="rounded-full" aria-label="Account menu">
+            <Avatar size="sm">
+              {user.image && <AvatarImage src={user.image} alt="" />}
+              <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="flex flex-col font-normal">
-            {name && <span className="truncate text-sm font-medium">{user.name}</span>}
+            {user.name.trim() && <span className="truncate text-sm font-medium">{user.name}</span>}
             <span className="truncate text-xs text-muted-foreground">{user.email}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -126,6 +106,6 @@ export function AccountRow({ signInAvailable }: { signInAvailable: boolean }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SidebarMenuItem>
+    </>
   )
 }

@@ -44,16 +44,13 @@ export function UsageCard() {
         </p>
       )}
       {signIn && (
-        <div className="flex items-center justify-between gap-2 border-t pt-2">
-          <span className="text-muted-foreground">Sign in for {signIn.max} runs a day</span>
-          <button
-            type="button"
-            className="cursor-pointer font-medium underline-offset-2 hover:underline"
-            onClick={signInDialog.open}
-          >
-            Sign in
-          </button>
-        </div>
+        <button
+          type="button"
+          className="cursor-pointer self-start text-muted-foreground underline-offset-2 hover:underline"
+          onClick={signInDialog.open}
+        >
+          Sign in for {signIn.max} runs a day
+        </button>
       )}
     </div>
   )

@@ -8,9 +8,10 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
 import { chatTitle, isRunning } from '../shell/chat-meta'
+import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
 
-export function ChatHeader({ onSearch }: { onSearch: () => void }) {
+export function ChatHeader({ signInAvailable, onSearch }: { signInAvailable: boolean; onSearch: () => void }) {
   const pathname = usePathname()
   const { chats } = useChatList()
   const { activity } = useChatActivity()
@@ -32,6 +33,7 @@ export function ChatHeader({ onSearch }: { onSearch: () => void }) {
         <SearchIcon aria-hidden="true" />
       </Button>
       {chat && <ChatOptions chat={chat} />}
+      <AccountMenu signInAvailable={signInAvailable} />
     </header>
   )
 }

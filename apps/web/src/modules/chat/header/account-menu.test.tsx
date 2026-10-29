@@ -2,10 +2,8 @@
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SidebarMenu, SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
-import { UsageProvider } from './usage-context'
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 const auth = vi.hoisted(() => ({
@@ -32,7 +30,7 @@ vi.mock('@/lib/auth-client', () => ({
 vi.mock('sonner', () => ({ toast: toasts }))
 vi.mock('@/modules/auth/sign-in-dialog', () => ({ useSignInDialog: () => dialog }))
 
-import { AccountRow, initials } from './account-row'
+import { AccountMenu, initials } from './account-menu'
 
 const registered = {
   user: { id: 'u', name: 'Ada Lovelace', email: 'ada@example.com', image: null, isAnonymous: false },
@@ -67,80 +65,43 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-const renderRow = (signInAvailable = true, open = true, signIn?: { max: number }) =>
+const renderRow = (signInAvailable = true) =>
   render(
     <TooltipProvider>
-      <UsageProvider usage={null} {...(signIn ? { signIn } : {})}>
-        <SidebarProvider defaultOpen={open}>
-          <SidebarMenu>
-            <AccountRow signInAvailable={signInAvailable} />
-          </SidebarMenu>
-        </SidebarProvider>
-      </UsageProvider>
+      <AccountMenu signInAvailable={signInAvailable} />
     </TooltipProvider>,
   )
 
-const trigger = () => screen.getByRole('button', { name: /ada@example\.com/ })
+const trigger = () => screen.getByRole('button', { name: 'Account menu' })
 const openMenu = () => fireEvent.keyDown(trigger(), { key: 'Enter' })
 const menu = () => screen.getByRole('menu')
 
-describe('AccountRow', () => {
+describe('AccountMenu', () => {
   it('renders nothing while pending or without a session', () => {
     auth.session = { data: null, isPending: true }
     const { container } = renderRow()
-    expect(container.querySelector('li')).toBeNull()
+    expect(container.textContent).toBe('')
     cleanup()
     auth.session = { data: null, isPending: false }
-    expect(renderRow().container.querySelector('li')).toBeNull()
+    expect(renderRow().container.textContent).toBe('')
   })
 
-  it('gives guests a Sign in row in the expanded sidebar when the usage card has none', async () => {
+  it('offers guests a Sign in button that opens the dialog', async () => {
     auth.session = { data: anonymous, isPending: false }
-    const { container } = renderRow(true, true)
-    const button = screen.getByRole('button', { name: 'Sign in' })
-    expect(button.querySelector('svg')).toBeTruthy()
-    fireEvent.click(button)
+    const { container } = renderRow()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(dialog.open).toHaveBeenCalledOnce()
     expect(await axe(container)).toHaveNoViolations()
   })
 
-  it('renders nothing for guests in the expanded sidebar when the usage card offers Sign in', () => {
+  it('shows guests nothing without a sign-in provider', () => {
     auth.session = { data: anonymous, isPending: false }
-    const { container } = renderRow(true, true, { max: 3 })
-    expect(container.querySelector('li')).toBeNull()
-  })
-
-  it('renders nothing for guests in the expanded sidebar without a sign-in provider', () => {
-    auth.session = { data: anonymous, isPending: false }
-    const { container } = renderRow(false, true)
-    expect(container.querySelector('li')).toBeNull()
-  })
-
-  it('keeps the rail Sign in button even when the usage card offers Sign in', () => {
-    auth.session = { data: anonymous, isPending: false }
-    renderRow(true, false, { max: 3 })
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
-  })
-
-  it('gives guests a Sign in icon button in the rail that opens the dialog', async () => {
-    auth.session = { data: anonymous, isPending: false }
-    const { container } = renderRow(true, false)
-    const button = screen.getByRole('button', { name: 'Sign in' })
-    expect(button.querySelector('svg')).toBeTruthy()
-    fireEvent.click(button)
-    expect(dialog.open).toHaveBeenCalledOnce()
-    expect(await axe(container)).toHaveNoViolations()
-  })
-
-  it('shows guests nothing in the rail without a sign-in provider', () => {
-    auth.session = { data: anonymous, isPending: false }
-    const { container } = renderRow(false, false)
-    expect(container.querySelector('li')).toBeNull()
+    expect(renderRow(false).container.textContent).toBe('')
   })
 
   it('shows avatar initials, name and email, and a menu with Sign out and Delete account', () => {
     renderRow()
-    expect(trigger().textContent).toBe('ALAda Lovelaceada@example.com')
+    expect(trigger().textContent).toBe('AL')
     openMenu()
     expect(within(menu()).getByText('Ada Lovelace')).toBeTruthy()
     expect(within(menu()).getByText('ada@example.com')).toBeTruthy()
@@ -148,15 +109,9 @@ describe('AccountRow', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete account' })).toBeTruthy()
   })
 
-  it('keeps the avatar as the rail button for signed-in users', () => {
-    renderRow(true, false)
-    expect(trigger().querySelector('[data-slot="avatar"]')).toBeTruthy()
-  })
-
   it('hides the name line when the name is empty', () => {
     auth.session = { data: { user: { ...registered.user, name: '' } }, isPending: false }
     renderRow()
-    expect(trigger().textContent).toBe('Aada@example.com')
     openMenu()
     const label = within(menu()).getByText('ada@example.com').parentElement
     expect(label?.children).toHaveLength(1)

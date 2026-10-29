@@ -73,7 +73,7 @@ const renderSidebar = ({ open = true, chats = CHATS }: { open?: boolean; chats?:
         <ChatListProvider chats={chats}>
           <ChatActivityProvider>
             <UsageProvider usage={{ used: 1, max: 3, resetAt: null }}>
-              <AppSidebar signInAvailable onSearch={onSearch} />
+              <AppSidebar onSearch={onSearch} />
             </UsageProvider>
           </ChatActivityProvider>
         </ChatListProvider>
@@ -121,15 +121,13 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Chats on this device only. Sign in to keep them.')).toBeTruthy()
   })
 
-  it('orders the footer usage card, Theme, How it works, account row', () => {
+  it('orders the footer usage card, Theme, How it works', () => {
     renderSidebar()
     const card = screen.getByText('Runs today')
     const theme = screen.getByRole('button', { name: /Theme/ })
     const help = screen.getByRole('button', { name: 'How it works' })
-    const account = screen.getByRole('button', { name: /ada@example\.com/ })
     expect(precedes(card, theme)).toBe(true)
     expect(precedes(theme, help)).toBe(true)
-    expect(precedes(help, account)).toBe(true)
     fireEvent.click(help)
     expect(guide.open).toHaveBeenCalledOnce()
   })
@@ -146,7 +144,6 @@ describe('AppSidebar', () => {
       expect(button.getAttribute('data-state')).toBe('closed')
       expect(button.textContent).not.toMatch(/⌘/)
     }
-    expect(screen.getByRole('button', { name: /ada@example\.com/ }).getAttribute('data-state')).toBe('closed')
     expect(await axe(container)).toHaveNoViolations()
   })
 

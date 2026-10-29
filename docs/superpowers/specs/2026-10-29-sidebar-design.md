@@ -8,11 +8,11 @@ The chat list is the user's memory of what they have asked and what is still run
 
 ## Goals
 
-- A left sidebar on every chat page: brand row, New chat, Search, the chat history grouped by day, and a footer with the usage card, theme, the guide button and the account row.
+- A left sidebar on every chat page: brand row, New chat, Search, the chat history grouped by day, and a footer with the usage card, theme and the guide button.
 - The header shrinks to the chat title, the Working badge and the chat options menu; on mobile it gains a menu button that opens the sidebar as a sheet.
 - Search opens a command palette (⌘K): type to filter chats by title, Enter opens one, with "New chat" always available.
 - The sidebar collapses to an icon rail on desktop and remembers its state; it is a slide-over on mobile.
-- Guests see their device's chats, the one-run quota and a Sign in button in the usage card; signed-in users see their quota and the account row.
+- Guests see their device's chats, the one-run quota and a Sign in button in the usage card; signed-in users see their quota. The Sign in button and account menu live at the far right of the header.
 
 ## Non-goals
 
@@ -35,11 +35,11 @@ The chat list is the user's memory of what they have asked and what is still run
   2. "New chat" button (primary, full width, Lucide `Plus`, shortcut `⌘⇧O`).
   3. "Search chats" row (ghost, Lucide `Search`, `⌘K` kbd) opening the palette.
   4. History: groups "Today", "Yesterday", "Previous 7 days", "Previous 30 days", then month names ("October 2026"), newest first, empty groups omitted. Each row: title (or "New conversation"), truncated, `aria-current="page"` on the active chat, a small pulsing dot with `aria-label="Working"` when the run is queued or running. Empty state: "No chats yet" and, for guests, "Chats on this device only. Sign in to keep them."
-  5. Footer: usage card, then "Theme" (cycles light, dark, system), "How it works" (opens the guide), then the account row (avatar, name, email, menu with Sign out and Delete account) or nothing for guests, since the Sign in button lives in the usage card.
-- **Usage card (exact copy).** Title "Runs today", value `{used} of {max}`, second line `Resets {resetLabel}` or `No runs left until {resetLabel}` (reuse `resetLabel`), and for guests when sign-in is available a third line "Sign in for {n} runs a day" as a full-width "Sign in" button. A thin progress bar under the value. The usage bar above the composer is removed. Usage comes from the same `getUsage` call the home page makes today, passed to the layout; it refreshes after a run is accepted via the existing chat-activity events.
-- **Rail.** Collapsed: logo, New chat, Search and the account avatar as icon buttons with tooltips; history and the usage card hidden.
+  5. Footer: usage card, then "Theme" (cycles light, dark, system), "How it works" (opens the guide), and nothing else: the account controls live in the header.
+- **Usage card (exact copy).** Title "Runs today", value `{used} of {max}`, second line `Resets {resetLabel}` or `No runs left until {resetLabel}` (reuse `resetLabel`), and for guests when sign-in is available a third line, an inline text button "Sign in for {n} runs a day" that opens the sign-in dialog. A thin progress bar under the value. The usage bar above the composer is removed. Usage comes from the same `getUsage` call the home page makes today, passed to the layout; it refreshes after a run is accepted via the existing chat-activity events.
+- **Rail.** Collapsed: logo, New chat and Search as icon buttons with tooltips; history and the usage card hidden.
 - **Mobile (< 768 px).** No rail. Header shows a menu button (Lucide `PanelLeft`, `aria-label="Open sidebar"`) that opens the sidebar as a `Sheet` from the left; choosing a chat closes it.
-- **Header.** `ThreadSwitcher` and the "+" button are removed; the title is plain text. The Working badge and `ChatOptions` stay. Theme, guide and account controls move to the sidebar.
+- **Header.** `ThreadSwitcher` and the "+" button are removed; the title is plain text. The Working badge and `ChatOptions` stay. Theme and guide move to the sidebar. Sign in button (guests) or account avatar menu at the far right, as before.
 - **Home page.** The "Recent chats" section is removed from `Welcome`; starters stay. `page.tsx` no longer builds `recent`.
 - **Palette.** `CommandDialog` from `components/ui/command` (already installed), opened by the Search row and `⌘K`/`Ctrl+K`. Groups: "Actions" with "New chat", and "Chats" filtered by title as the user types (case-insensitive substring; no server call). Selecting navigates and closes.
 - **Chat list.** `ChatListProvider` stays the single source. The layout already loads the list server-side; grouping by day happens in the sidebar with the same `startOfDay` helper the switcher used.
@@ -53,8 +53,8 @@ The chat list is the user's memory of what they have asked and what is still run
 ## Calls made after the builder check (mine, not the owner's)
 
 - **Usage refresh.** The layout calls `getUsage` and seeds a small `UsageProvider`; `Chat` bumps it optimistically where it bumped its local state before, and the `router.refresh()` that already fires when a run is accepted re-reads the real value. `usage` and `signIn` props disappear from the pages, `HomeChat`, `Chat` and `BoxComposer`; `page.tsx` and `c/[id]/page.tsx` stop calling `getUsage`. Quota refusals stay server-side with the existing toast.
-- **Guests.** `getSessionUser` returns the anonymous user, so the card renders for guests with `limits.anonymous`; it is hidden only when there is no session yet. The "Sign in" button and the "Sign in for {n} runs a day" line appear only when `limits.anonymous && limits.demoMode && signInAvailable()`.
-- **Account row.** The existing `AccountMenu` (session hook, sign-out, delete-account dialog and its tests) is re-skinned into the sidebar row; the block's `nav-user.tsx` is a styling reference only. In the rail a signed-in user sees the avatar; a guest sees a Lucide `LogIn` icon button when sign-in is available, else nothing.
+- **Guests.** `getSessionUser` returns the anonymous user, so the card renders for guests with `limits.anonymous`; it is hidden only when there is no session yet. The "Sign in for {n} runs a day" button appears only when `limits.anonymous && limits.demoMode && signInAvailable()`.
+- **Account controls.** Owner decision (2026-10-29, after the builder check): the Sign in button and account avatar dropdown (`AccountMenu`) return to the header's far right; the sidebar has no account row and the rail shows no sign-in or account control.
 - **Day grouping.** Done on the client after mount with the client's clock; before mount the history area shows skeleton rows (the sidebar persists across navigations, so this happens once per load). Rows are sorted by `updatedAt` descending inside the sidebar regardless of provider order. `chatTitle`, `isRunning` and the grouping helper move to `modules/chat/shell/chat-meta.ts` with tests.
 - **Palette.** Repo `CommandDialog` with `shouldFilter={false}`; chats filtered manually (case-insensitive substring on title, at most 50 shown, newest first). "New chat" is always rendered above the results. The block's `chat-search-dialog.tsx` is reference only.
 - **Shortcuts.** `⌘K`/`Ctrl+K` opens the palette, `⌘⇧O`/`Ctrl+Shift+O` starts a new chat, shadcn's `⌘B` keeps toggling the sidebar; all three work while the composer has focus. The palette is the only one that preventDefaults.

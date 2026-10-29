@@ -43,9 +43,9 @@ export function Shell({
 
   return (
     <SidebarProvider open={open} onOpenChange={setOpen} className="h-svh">
-      <AppSidebar signInAvailable={signInAvailable} onSearch={onSearch} />
+      <AppSidebar onSearch={onSearch} />
       <SidebarInset className="min-h-0 min-w-0">
-        <ChatHeader onSearch={onSearch} />
+        <ChatHeader signInAvailable={signInAvailable} onSearch={onSearch} />
         <main className="flex min-h-0 flex-1 flex-col">{children}</main>
       </SidebarInset>
       <ChatPalette open={searchOpen} onOpenChange={onSearchOpenChange} />

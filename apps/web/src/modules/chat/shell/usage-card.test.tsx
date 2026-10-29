@@ -67,8 +67,8 @@ describe('UsageCard', () => {
 
   it('offers sign-in with signIn', async () => {
     const { container } = render(card(1, { max: 3 }))
-    expect(screen.getByText('Sign in for 3 runs a day')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in for 3 runs a day' }))
     expect(dialog.open).toHaveBeenCalledOnce()
     expect(await axe(container)).toHaveNoViolations()
   })

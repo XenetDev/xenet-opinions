@@ -56,7 +56,7 @@ vi.mock('@/modules/chat/shell/usage-context', () => ({
 }))
 vi.mock('@/server/chats', () => ({ listChats: vi.fn(async () => []) }))
 vi.mock('@/modules/chat/header/chat-header', () => ({
-  ChatHeader: (props: { onSearch: () => void }) => {
+  ChatHeader: (props: { signInAvailable: boolean; onSearch: () => void }) => {
     mocks.header(props)
     return null
   },
@@ -64,7 +64,7 @@ vi.mock('@/modules/chat/header/chat-header', () => ({
 vi.mock('@/modules/chat/shell/app-sidebar', async () => {
   const { useSidebar } = await import('@/components/ui/sidebar')
   return {
-    AppSidebar: (props: { signInAvailable: boolean; onSearch: () => void }) => {
+    AppSidebar: (props: { onSearch: () => void }) => {
       const sidebar = useSidebar()
       mocks.toggle = sidebar.toggleSidebar
       mocks.sidebar({ ...props, open: sidebar.open })
@@ -93,10 +93,10 @@ beforeEach(() => {
 })
 
 describe('Chat layout', () => {
-  it.each([true, false])('passes signInAvailable=%s to the sidebar', async (available) => {
+  it.each([true, false])('passes signInAvailable=%s to the header', async (available) => {
     mocks.available = available
     render(await ChatLayout({ children: null }))
-    expect(mocks.sidebar).toHaveBeenCalledWith(expect.objectContaining({ signInAvailable: available }))
+    expect(mocks.header).toHaveBeenCalledWith(expect.objectContaining({ signInAvailable: available }))
   })
 
   it('mounts the sidebar and the header with the same search handler around the page', async () => {

@@ -6,11 +6,21 @@ import { SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 
+const session = vi.hoisted(() => ({ isAnonymous: true }))
 const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
   usePathname: () => nav.pathname,
+}))
+
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    useSession: () => ({
+      data: { user: { id: 'g', name: 'Guest', email: 'g@x.y', image: null, isAnonymous: session.isAnonymous } },
+      isPending: false,
+    }),
+  },
 }))
 
 import { type ChatActivity, ChatActivityProvider, useChatActivity } from '../chat-activity'
@@ -25,6 +35,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  session.isAnonymous = true
   nav.pathname = '/c/a'
   nav.push.mockReset()
   nav.refresh.mockReset()
@@ -58,13 +69,13 @@ const Sidebar = () => <History chats={useChatList().chats} activeId="a" activeRu
 
 const onSearch = vi.fn()
 
-const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity) => {
+const renderHeader = (chats: ChatListItem[] = CHATS, activity?: ChatActivity, signInAvailable = true) => {
   const result = render(
     <TooltipProvider>
       <SidebarProvider>
         <ChatListProvider chats={chats}>
           <ChatActivityProvider>
-            <ChatHeader onSearch={onSearch} />
+            <ChatHeader signInAvailable={signInAvailable} onSearch={onSearch} />
             <Sidebar />
             <Grab />
           </ChatActivityProvider>
@@ -81,6 +92,22 @@ const sidebar = () => screen.getByTestId('history')
 const openOptions = () => fireEvent.keyDown(screen.getByRole('button', { name: 'Chat options' }), { key: 'Enter' })
 
 describe('ChatHeader', () => {
+  it('offers sign in to anonymous visitors as the last element in the header', () => {
+    renderHeader()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'Sign in' }))
+  })
+
+  it('keeps the avatar menu last for registered users', () => {
+    session.isAnonymous = false
+    renderHeader()
+    expect(screen.getByRole('banner').lastElementChild).toBe(screen.getByRole('button', { name: 'Account menu' }))
+  })
+
+  it('hides sign in when no provider is available', () => {
+    renderHeader(CHATS, undefined, false)
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+  })
+
   it('names the open chat and reads "New chat" on the home page', () => {
     renderHeader()
     expect(title().textContent).toBe('Price increase')
@@ -109,7 +136,7 @@ describe('ChatHeader', () => {
   it('keeps only the trigger, title, badge, search and options in the header', () => {
     renderHeader()
     const banner = within(screen.getByRole('banner'))
-    for (const name of ['New chat', 'Sign in', 'Account menu', 'How it works', /theme/i, /Switch chat/])
+    for (const name of ['New chat', 'How it works', /theme/i, /Switch chat/])
       expect(banner.queryByRole('button', { name })).toBeNull()
   })
 
