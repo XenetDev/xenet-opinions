@@ -1,13 +1,13 @@
-import { buildSeedDocument, checkRunPolicy, QUOTA_WINDOW_MS, tailRunAsUIMessageStream } from '@xo/engine'
+import { buildSeedDocument, tailRunAsUIMessageStream } from '@xo/engine'
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
 import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
 import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
-import { getLimits } from '@/server/limits'
 import { messageText, parseMessageBody } from '@/server/message-body'
-import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
+import { checkRunGate } from '@/server/run-gate'
+import { countOwnedUploads, RunActiveError, runStore, startRun } from '@/server/runs'
 import { createSeedUpload } from '@/server/uploads'
 
 export const runtime = 'nodejs'
@@ -62,26 +62,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const uploadIds = [...new Set(body.uploadIds)]
 
-  const limits = getLimits(user)
-  const now = new Date()
-  const window = limits.demoMode
-    ? await runsStartedSince(user.id, new Date(now.getTime() - QUOTA_WINDOW_MS))
-    : { count: 0, oldestQueuedAt: null }
-  const policy = checkRunPolicy({
-    demoMode: limits.demoMode,
-    paused: limits.paused,
-    runsInWindow: window.count,
-    maxRunsPerDay: limits.maxRunsPerDay,
-    requestedRounds: body.runOptions.maxRounds,
-    maxRounds: limits.maxRounds,
-    windowStartedAt: window.oldestQueuedAt ?? now,
-  })
-  if (!policy.ok) {
-    if (policy.code === 'demo_paused') return Response.json({ error: 'demo_paused' }, { status: 409 })
-    if (policy.code === 'quota_exceeded')
-      return Response.json({ error: 'quota_exceeded', resetAt: policy.resetAt?.toISOString() }, { status: 429 })
-    return Response.json({ error: 'rounds_exceeded', max: policy.max }, { status: 400 })
-  }
+  const gate = await checkRunGate(user, { requestedRounds: body.runOptions.maxRounds })
+  if (!gate.ok) return gate.response
+  const { limits } = gate
 
   if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
     if (!owned) return Response.json({ error: 'not_found' }, { status: 404 })
