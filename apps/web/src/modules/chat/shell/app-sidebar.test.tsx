@@ -169,7 +169,6 @@ describe('AppSidebar', () => {
     expect(screen.queryByTestId('history')).toBeNull()
     expect(screen.queryByText('Runs today')).toBeNull()
     expect(screen.getByRole('link', { name: 'Xenet Opinions' }).querySelector('svg')).toBeTruthy()
-    expect(screen.getByText('Xenet Opinions').className).toContain('sr-only')
     for (const name of ['New chat', 'Search chats']) {
       const button = screen.getByRole('button', { name })
       expect(button.getAttribute('data-slot')).toBe('sidebar-menu-button')

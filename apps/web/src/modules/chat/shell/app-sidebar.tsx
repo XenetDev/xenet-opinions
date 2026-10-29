@@ -55,11 +55,11 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
           <Link
             href="/"
+            aria-label="Xenet Opinions"
             onClick={closeSheet}
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm font-semibold outline-hidden ring-sidebar-ring focus-visible:ring-2 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-1.5"
           >
             <XoMark className="h-auto w-5 shrink-0" />
-            <span className={collapsed ? 'sr-only' : 'truncate'}>Xenet Opinions</span>
           </Link>
           <SidebarTrigger />
         </div>

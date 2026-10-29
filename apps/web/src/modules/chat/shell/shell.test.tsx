@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }))
+const mobile = vi.hoisted(() => ({ value: false }))
+vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mobile.value }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: vi.fn() }),
   usePathname: () => '/',
@@ -26,6 +28,7 @@ vi.mock('../header/chat-header', () => ({
   ),
 }))
 
+import { useSidebar } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ChatActivityProvider } from '../chat-activity'
 import { ChatListProvider } from '../chat-list-context'
@@ -46,7 +49,10 @@ beforeAll(() => {
   )
 })
 
-beforeEach(() => nav.push.mockReset())
+beforeEach(() => {
+  nav.push.mockReset()
+  mobile.value = false
+})
 afterEach(cleanup)
 
 const renderShell = () =>
@@ -65,6 +71,12 @@ const renderShell = () =>
       </ChatListProvider>
     </TooltipProvider>,
   )
+
+let sidebar: ReturnType<typeof useSidebar>
+const Probe = () => {
+  sidebar = useSidebar()
+  return null
+}
 
 const searchButton = () => screen.getByRole('button', { name: 'Search chats' })
 
@@ -120,5 +132,27 @@ describe('Shell search', () => {
     renderShell()
     fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
     expect(nav.push).toHaveBeenCalledWith('/')
+  })
+
+  it('closes the mobile sheet when Cmd+K opens the palette', () => {
+    mobile.value = true
+    render(
+      <TooltipProvider>
+        <ChatListProvider chats={[]}>
+          <ChatActivityProvider>
+            <UsageProvider usage={{ used: 1, max: 3, resetAt: null }}>
+              <Shell signInAvailable defaultOpen hadCookie>
+                <Probe />
+              </Shell>
+            </UsageProvider>
+          </ChatActivityProvider>
+        </ChatListProvider>
+      </TooltipProvider>,
+    )
+    act(() => sidebar.setOpenMobile(true))
+    expect(sidebar.openMobile).toBe(true)
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    expect(sidebar.openMobile).toBe(false)
+    expect(screen.getByRole('dialog', { name: 'Search chats' })).toBeTruthy()
   })
 })

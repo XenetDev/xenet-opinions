@@ -2,11 +2,17 @@
 
 import { useRouter } from 'next/navigation'
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { ChatHeader } from '../header/chat-header'
 import { AppSidebar } from './app-sidebar'
 import { ChatPalette } from './chat-palette'
 import { useShortcuts } from './use-shortcuts'
+
+function MobileSheetBridge({ closeRef }: { closeRef: { current: () => void } }) {
+  const { setOpenMobile } = useSidebar()
+  closeRef.current = () => setOpenMobile(false)
+  return null
+}
 
 export function Shell({
   signInAvailable,
@@ -24,7 +30,9 @@ export function Shell({
   const [searchOpen, setSearchOpen] = useState(false)
   const opener = useRef<Element | null>(null)
   const restore = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const closeMobileSheet = useRef<() => void>(() => {})
   const onSearch = () => {
+    closeMobileSheet.current()
     if (!searchOpen) opener.current = document.activeElement
     setSearchOpen(true)
   }
@@ -43,6 +51,7 @@ export function Shell({
 
   return (
     <SidebarProvider open={open} onOpenChange={setOpen} className="h-svh">
+      <MobileSheetBridge closeRef={closeMobileSheet} />
       <AppSidebar onSearch={onSearch} />
       <SidebarInset className="min-h-0 min-w-0">
         <ChatHeader signInAvailable={signInAvailable} onSearch={onSearch} />
