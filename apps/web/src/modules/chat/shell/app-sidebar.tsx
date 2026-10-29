@@ -59,7 +59,7 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
             onClick={closeSheet}
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm font-semibold outline-hidden ring-sidebar-ring focus-visible:ring-2 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-1.5"
           >
-            <XoMark className="h-auto w-5 shrink-0" />
+            <XoMark className="h-auto w-6 shrink-0" />
           </Link>
           <SidebarTrigger />
         </div>
