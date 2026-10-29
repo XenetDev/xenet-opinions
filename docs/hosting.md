@@ -100,6 +100,7 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `APPLE_APP_BUNDLE_IDENTIFIER` | blank | Optional, for native Apple sign-in |
 | `DEMO_MAX_ROUNDS` | `3` | Rounds cap, demo mode only |
 | `DEMO_ALLOW_PAUSE` | `1` | Read by `web`. `0` hides the "Pause for interviews before the report" checkbox and forces the option off |
+| `STORAGE_DIRECT_UPLOADS` | `0` in the bundle | Read by `web`. `1` (the app default) makes the browser upload straight to the S3 bucket through presigned URLs; that needs an `S3_ENDPOINT` the browser can reach and a bucket CORS rule allowing `PUT` from the app's origin. The bundle's MinIO is internal, so it posts files through `web` instead |
 | `MOCK_INTERVIEW_DELAY_MS` | `1500` | Mock MiroFish only: delay per interview call, so answers visibly arrive one by one |
 | `ENV_KEEPALIVE_MS` | `1200000` | Length of the interview window (20 minutes) |
 | `ENV_SWEEP_INTERVAL_MS` | `60000` | Sweeper interval; `0` disables it |
@@ -253,7 +254,7 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 - Plan: functions need Fluid compute, which is on by default for new projects. With it, Hobby allows up to 300 s per function (default and maximum) and Pro allows 300 s by default and up to 800 s (checked against Vercel's [function limits](https://vercel.com/docs/functions/limitations) in October 2026). The app's 300 s routes therefore fit on Hobby. Pro is still recommended: Hobby is limited to non-commercial personal use, and its included monthly usage (4 active CPU hours, 360 GB-hours of provisioned memory) can be used up by run streams, which hold a function open for minutes at a time; once exceeded, Hobby pauses the feature until 30 days have passed.
 - Duration: `apps/web/vercel.json` sets `maxDuration` 300 for `src/app/api/**/*.ts`, and the long routes (`chats/[id]/messages`, `chats/[id]/stream`) also export `maxDuration = 300`.
 - Project settings: root directory `apps/web`, framework Next.js, install command `cd ../.. && pnpm install --frozen-lockfile` (install at the repo root), build command left at the default (`next build`). Keep "Include files outside the root directory" enabled; the app imports workspace packages.
-- Upload size: Vercel limits request bodies to 4.5 MB, below the app's 10 MB per-file limit, so larger files fail on Vercel until uploads move to presigned URLs.
+- Uploads: Vercel limits request bodies to 4.5 MB, so the browser uploads files directly to the bucket through presigned URLs and the app only signs and records them. The limits are 50 MB per file and 48 MB in total per run (MiroFish accepts at most 50 MB per request). The bucket needs a CORS rule allowing `PUT`, `GET` and `HEAD` from the app's origin, and `STORAGE_DIRECT_UPLOADS` must stay at its default `1`.
 - Environment:
 
 | Variable | Value |

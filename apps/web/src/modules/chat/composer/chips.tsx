@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { Badge } from '@/components/reui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { uploadNotice } from '../send-notices'
 import type { PendingFile } from './use-uploads'
 
 const FILE_STATUS = { pending: 'Pending', uploading: 'Uploading', done: 'Uploaded', error: 'Failed' } as const
@@ -64,7 +65,7 @@ export function FileChips({ files, onRemove }: { files: PendingFile[]; onRemove:
           )}
         >
           <span className="sr-only">{FILE_STATUS[item.status]}</span>
-          {item.status === 'error' && <span className="truncate">{item.error}</span>}
+          {item.status === 'error' && <span className="truncate">{uploadNotice(item.error)}</span>}
         </Chip>
       ))}
     </fieldset>

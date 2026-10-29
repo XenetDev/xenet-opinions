@@ -114,6 +114,7 @@ services:
       - "${XO_WEB_PORT:-3000}:3000"
     environment:
       <<: *storage-env
+      STORAGE_DIRECT_UPLOADS: "0"
       DATABASE_URL: postgresql://xo:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.selfhost}@postgres:5432/xo
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env.selfhost}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:${XO_WEB_PORT:-3000}}

@@ -1,4 +1,10 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3'
 import { describe, expect, it, vi } from 'vitest'
 import { createStorageFromEnv } from './from-env'
 import { createS3Storage } from './s3'
@@ -49,6 +55,44 @@ describe('createS3Storage', () => {
     const cmd = send.mock.calls[0]![0]
     expect(cmd).toBeInstanceOf(DeleteObjectCommand)
     expect(cmd.input).toEqual({ Bucket: 'b', Key: 'k/1' })
+  })
+
+  it('presignPut returns a signed URL for the key and the content-type header', async () => {
+    const client = new S3Client({ region: 'us-east-1', credentials: { accessKeyId: 'id', secretAccessKey: 'secret' } })
+    const storage = createS3Storage(opts, client)
+    const signed = await storage.presignPut!('uploads/u1/x/a.pdf', {
+      contentType: 'application/pdf',
+      contentLength: 1234,
+      expiresInSeconds: 600,
+    })
+    const url = new URL(signed.url)
+    expect(url.pathname).toContain('uploads/u1/x/a.pdf')
+    expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/)
+    expect(url.searchParams.get('X-Amz-Expires')).toBe('600')
+    expect(url.searchParams.get('X-Amz-SignedHeaders')).toContain('content-length')
+    expect(signed.headers).toEqual({ 'content-type': 'application/pdf' })
+  })
+
+  it('head returns size and content type', async () => {
+    const send = vi.fn().mockResolvedValue({ ContentLength: 42, ContentType: 'text/plain' })
+    expect(await createS3Storage(opts, stub(send)).head!('k/1')).toEqual({ size: 42, contentType: 'text/plain' })
+    const cmd = send.mock.calls[0]![0]
+    expect(cmd).toBeInstanceOf(HeadObjectCommand)
+    expect(cmd.input).toEqual({ Bucket: 'b', Key: 'k/1' })
+  })
+
+  it('head returns null when the object is missing', async () => {
+    const notFound = vi.fn().mockRejectedValue(Object.assign(new Error('x'), { name: 'NotFound' }))
+    expect(await createS3Storage(opts, stub(notFound)).head!('k')).toBeNull()
+    const status404 = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('x'), { name: 'Unknown', $metadata: { httpStatusCode: 404 } }))
+    expect(await createS3Storage(opts, stub(status404)).head!('k')).toBeNull()
+  })
+
+  it('head rethrows other errors', async () => {
+    const send = vi.fn().mockRejectedValue(new Error('boom'))
+    await expect(createS3Storage(opts, stub(send)).head!('k')).rejects.toThrow('boom')
   })
 })
 

@@ -16,6 +16,7 @@ export const envSchema = z
     MIROFISH_LOCALE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(MIROFISH_LOCALES).default('en')),
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     STORAGE_LOCAL_DIR: z.string().default('.data/uploads'),
+    STORAGE_DIRECT_UPLOADS: z.enum(['1', '0']).default('1'),
     S3_BUCKET: z.string().optional(),
     S3_REGION: z.string().optional(),
     S3_ENDPOINT: z.string().optional(),
