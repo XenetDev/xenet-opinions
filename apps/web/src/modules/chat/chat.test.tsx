@@ -878,14 +878,18 @@ describe('Chat', () => {
       expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'why?' }, { body: { uploadIds: [], runOptions } })
     })
 
-    it('sends a 40-word prompt at once without checking', async () => {
+    it('runs a prompt-only send with the drafted seed and no card', async () => {
+      answerReadiness({ ready: true, seed: DRAFT })
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send long prompt-only run' }))
       await waitFor(() =>
-        expect(chat.sendMessage).toHaveBeenCalledWith({ text: LONG_PROMPT }, { body: { uploadIds: [], runOptions } }),
+        expect(chat.sendMessage).toHaveBeenCalledWith(
+          { text: LONG_PROMPT },
+          { body: { uploadIds: [], runOptions, seed: DRAFT } },
+        ),
       )
       expect(card()).toBeNull()
-      expect(readinessBodies()).toEqual([])
+      expect(readinessBodies()).toEqual([{ text: LONG_PROMPT, uploadIds: [] }])
     })
 
     it('checks a run with a file once and sends it with no seed when ready', async () => {
@@ -1006,6 +1010,7 @@ describe('Chat', () => {
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       await screen.findByTestId('context-card')
+      answerReadiness({ ready: true })
       fireEvent.click(screen.getByRole('button', { name: 'Send long prompt-only run' }))
       await waitFor(() => expect(card()).toBeNull())
       expect(chat.sendMessage).toHaveBeenCalledTimes(1)

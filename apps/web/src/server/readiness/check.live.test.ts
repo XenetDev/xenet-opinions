@@ -58,12 +58,13 @@ describe.skipIf(!process.env.LLM_API_KEY)('checkReadiness against the live model
   )
 
   it(
-    'drafts who is involved for a short price-change prompt',
+    'seeds a short price-change prompt with at least four named groups',
     async () => {
       const result = await checkReadiness({ text: 'Should we raise our Pro plan price by 20%?', documents: [] })
-      expect(result.ready).toBe(false)
-      if (result.ready) return
-      expect(result.draft.actors.trim()).not.toBe('')
+      expect(result.ready).toBe(true)
+      if (!result.ready) return
+      const groups = (result.seed?.actors ?? '').split('\n').filter((line) => line.trim().startsWith('-'))
+      expect(groups.length).toBeGreaterThanOrEqual(4)
     },
     TIMEOUT,
   )

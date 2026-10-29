@@ -29,6 +29,7 @@ export async function requestReadiness(
   const json = (await response.json().catch(() => null)) as (Readiness & { error?: string }) | null
   if (!response.ok) return { ok: false, code: json?.error ?? 'readiness_failed' }
   if (json?.ready === false && json.draft) return { ok: true, readiness: { ready: false, draft: json.draft } }
-  if (json?.ready === true) return { ok: true, readiness: { ready: true } }
+  if (json?.ready === true)
+    return { ok: true, readiness: json.seed ? { ready: true, seed: json.seed } : { ready: true } }
   return fallback
 }
