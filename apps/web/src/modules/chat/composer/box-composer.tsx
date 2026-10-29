@@ -1,5 +1,6 @@
 'use client'
 
+import type { SourcesData } from '@xo/engine/parts'
 import type { ChatStatus } from 'ai'
 import { ArrowUpIcon, PaperclipIcon, PlusIcon } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, useCallback, useId, useRef, useState } from 'react'
@@ -27,7 +28,7 @@ const PLACEHOLDERS = {
 } as const
 
 export type ComposerSubmit =
-  | { kind: 'run'; uploadIds: string[]; runOptions: RunOptionsValue }
+  | { kind: 'run'; uploadIds: string[]; files: SourcesData['files']; runOptions: RunOptionsValue }
   | { kind: 'followUp'; target: 'report' | 'agents'; agentIds: string[] }
 
 export function BoxComposer({
@@ -116,6 +117,9 @@ export function BoxComposer({
     await onSend(value, {
       kind: 'run',
       uploadIds,
+      files: files.flatMap(({ file }, i) =>
+        uploadIds[i] ? [{ id: uploadIds[i], filename: file.name, mediaType: file.type, sizeBytes: file.size }] : [],
+      ),
       runOptions: { ...runOptions, pauseForInterviews: allowPause && runOptions.pauseForInterviews },
     })
     reset()

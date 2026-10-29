@@ -54,7 +54,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/c/c1',
 }))
-const promptOnly = { kind: 'run', uploadIds: [], runOptions: { maxRounds: 1, pauseForInterviews: false } }
+const promptOnly = { kind: 'run', uploadIds: [], files: [], runOptions: { maxRounds: 1, pauseForInterviews: false } }
 const LONG_PROMPT = Array.from({ length: 40 }, (_, index) => `word${index}`).join(' ')
 
 vi.mock('./composer/composer', async () => {
@@ -96,7 +96,19 @@ vi.mock('./composer/composer', async () => {
           <button type="button" onClick={() => send(promptOnly, LONG_PROMPT)}>
             Send long prompt-only run
           </button>
-          <button type="button" onClick={() => send({ ...promptOnly, uploadIds: ['u1'] }, 'short')}>
+          <button
+            type="button"
+            onClick={() =>
+              send(
+                {
+                  ...promptOnly,
+                  uploadIds: ['u1'],
+                  files: [{ id: 'u1', filename: 'deck.pdf', mediaType: 'application/pdf', sizeBytes: 2048 }],
+                },
+                'short',
+              )
+            }
+          >
             Send short run with a file
           </button>
         </>
@@ -905,6 +917,7 @@ describe('Chat', () => {
       expect(await screen.findByText('We drafted who to simulate')).toBeTruthy()
       const question = screen.getByRole('group', { name: 'You: short' })
       expect(question.compareDocumentPosition(card()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(question.textContent).toContain('deck.pdf')
       expect(screen.queryByRole('button', { name: 'Skip and run with my question' })).toBeNull()
       expect(chat.sendMessage).not.toHaveBeenCalled()
       fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))

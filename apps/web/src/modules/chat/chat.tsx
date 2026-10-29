@@ -1,7 +1,7 @@
 'use client'
 
 import { useChat } from '@ai-sdk/react'
-import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
+import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
 import { SEED_PROMPT_MIN_WORDS, wordCount } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
@@ -44,6 +44,7 @@ type PendingRun = {
   text: string
   runOptions: RunOptionsValue
   uploadIds: string[]
+  files: SourcesData['files']
   draft?: SeedContext
   checking: boolean
 }
@@ -304,7 +305,12 @@ export function Chat({
     )
   }
 
-  const sendRun = async (text: string, uploadIds: string[], runOptions: RunOptionsValue) => {
+  const sendRun = async (
+    text: string,
+    uploadIds: string[],
+    files: SourcesData['files'],
+    runOptions: RunOptionsValue,
+  ) => {
     if (uploadIds.length === 0 && wordCount(text) >= SEED_PROMPT_MIN_WORDS) {
       checkRef.current = null
       setPendingRun(null)
@@ -314,7 +320,7 @@ export function Chat({
     if (checkRef.current) return
     const check = {}
     checkRef.current = check
-    setPendingRun({ text, runOptions, uploadIds, checking: true })
+    setPendingRun({ text, runOptions, uploadIds, files, checking: true })
     const result = await requestReadiness(chatId, { text, uploadIds })
     if (checkRef.current !== check) return
     checkRef.current = null
@@ -328,7 +334,7 @@ export function Chat({
       await startRun(text, { uploadIds, runOptions })
       return
     }
-    setPendingRun({ text, runOptions, uploadIds, draft: seedFrom(result.readiness.draft), checking: false })
+    setPendingRun({ text, runOptions, uploadIds, files, draft: seedFrom(result.readiness.draft), checking: false })
   }
 
   const retryRun = async (seed?: SeedContext) => {
@@ -401,6 +407,7 @@ export function Chat({
                 pendingRun
                   ? {
                       text: pendingRun.text,
+                      files: pendingRun.files,
                       card: pendingRun.checking ? (
                         <Thinking />
                       ) : (
@@ -481,7 +488,7 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
-                await sendRun(text, submit.uploadIds, submit.runOptions)
+                await sendRun(text, submit.uploadIds, submit.files, submit.runOptions)
               }}
             />
           </div>

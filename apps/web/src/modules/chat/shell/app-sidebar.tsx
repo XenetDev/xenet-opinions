@@ -20,7 +20,6 @@ import { authClient } from '@/lib/auth-client'
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
 import { GuideButton } from '../header/guide-button'
-import { ThemeToggle } from '../header/theme-toggle'
 import { History } from './history'
 import { UsageCard } from './usage-card'
 
@@ -103,9 +102,6 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
       <SidebarFooter>
         {!collapsed && <UsageCard />}
         <SidebarMenu>
-          <SidebarMenuItem>
-            <ThemeToggle variant="row" />
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <GuideButton variant="row" />
           </SidebarMenuItem>
