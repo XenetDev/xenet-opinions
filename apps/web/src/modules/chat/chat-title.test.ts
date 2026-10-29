@@ -29,6 +29,21 @@ describe('chatTitleFrom', () => {
     expect(chatTitleFrom(text)).toBe(`${'a'.repeat(100)}…`)
   })
 
+  it('hard cuts when the only space is at the word floor', () => {
+    const text = `${'a'.repeat(40)} ${'b'.repeat(120)}`
+    expect(chatTitleFrom(text)).toBe(`${`${'a'.repeat(40)} ${'b'.repeat(79)}`}…`)
+  })
+
+  it('backs up when a space sits just past the word floor', () => {
+    const text = `${'a'.repeat(41)} ${'b'.repeat(120)}`
+    expect(chatTitleFrom(text)).toBe(`${'a'.repeat(41)}…`)
+  })
+
+  it('keeps a complete word when character 121 is a space', () => {
+    const text = `${'a'.repeat(60)} ${'b'.repeat(59)} tail`
+    expect(chatTitleFrom(text)).toBe(`${'a'.repeat(60)} ${'b'.repeat(59)}…`)
+  })
+
   it('cuts a single long word hard at 120', () => {
     expect(chatTitleFrom('x'.repeat(150))).toBe(`${'x'.repeat(120)}…`)
   })

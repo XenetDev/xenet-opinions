@@ -10,6 +10,7 @@ import { useChatList } from '@/modules/chat/chat-list-context'
 import { useUsage } from '@/modules/chat/shell/usage-context'
 import type { Limits } from '@/server/limits'
 import { useChatActivity } from './chat-activity'
+import { chatTitleFrom } from './chat-title'
 import { Composer } from './composer/composer'
 import type { RunOptionsValue } from './composer/run-options'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
@@ -239,14 +240,14 @@ export function Chat({
       committedRef.current = true
       window.history.pushState(null, '', `/c/${chatId}`)
       bumpUsage()
-      upsertChat({ id: chatId, title: text.slice(0, 60), runStatus: 'queued' })
+      upsertChat({ id: chatId, title: chatTitleFrom(text), runStatus: 'queued' })
       setSendCount((count) => count + 1)
       setWatching(true)
       return
     }
     bumpUsage()
     const title = chats.find((chat) => chat.id === chatId)?.title
-    upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+    upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: chatTitleFrom(text) }) })
     runIdAtSendRef.current = run.runId
     setSendCount((count) => count + 1)
     setWatching(true)

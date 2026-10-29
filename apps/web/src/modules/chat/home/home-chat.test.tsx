@@ -129,7 +129,7 @@ describe('HomeChat', () => {
       runOptions: { maxRounds: 3, pauseForInterviews: false },
     })
     expect(typeof body.message.id).toBe('string')
-    expect(screen.getByTestId('titles').textContent).toBe(`${id}:${STARTER.slice(0, 60)}:queued`)
+    expect(screen.getByTestId('titles').textContent).toBe(`${id}:${STARTER}:queued`)
     expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
   })
 

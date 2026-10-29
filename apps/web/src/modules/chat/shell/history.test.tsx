@@ -124,7 +124,8 @@ describe('History', () => {
 
   it('renders three skeleton rows before mount', () => {
     const html = renderToString(wrap(<Harness />))
-    expect(html.match(/data-sidebar="menu-skeleton"/g)).toHaveLength(3)
+    expect(html.match(/data-slot="skeleton"/g)).toHaveLength(3)
+    expect(['w-3/4', 'w-1/2', 'w-2/3'].map((width) => html.includes(width))).toEqual([true, true, true])
     expect(html).not.toContain('Price increase')
   })
 

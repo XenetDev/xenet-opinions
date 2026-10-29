@@ -8,11 +8,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ChatListItem } from '../chat-list-context'
 import { chatTitle, groupChatsByDay, isRunning } from './chat-meta'
+
+const SKELETON_WIDTHS = ['w-3/4', 'w-1/2', 'w-2/3']
 
 export function History({
   chats,
@@ -35,9 +37,9 @@ export function History({
       <div data-testid="history">
         <SidebarGroup>
           <SidebarMenu>
-            {[0, 1, 2].map((key) => (
-              <SidebarMenuItem key={key}>
-                <SidebarMenuSkeleton />
+            {SKELETON_WIDTHS.map((width) => (
+              <SidebarMenuItem key={width}>
+                <Skeleton className={`mx-2 my-1.5 h-4 ${width}`} />
               </SidebarMenuItem>
             ))}
           </SidebarMenu>

@@ -3,7 +3,7 @@ import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
 import { generateId } from 'ai'
 import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { chatTitleFrom } from './chat-title'
+import { chatTitleFrom } from '@/modules/chat/chat-title'
 
 const { chats, messages, runs, uploads } = schema
 

@@ -12,7 +12,7 @@ The chat list is the user's memory of what they have asked and what is still run
 - The header shrinks to the chat title, the Working badge and the chat options menu; on mobile it gains a menu button that opens the sidebar as a sheet.
 - Search opens a command palette (⌘K): type to filter chats by title, Enter opens one, with "New chat" always available.
 - The sidebar collapses to an icon rail on desktop and remembers its state; it is a slide-over on mobile.
-- Guests see their device's chats, the one-run quota and a Sign in button in the usage card; signed-in users see their quota. The Sign in button and account menu live at the far right of the header.
+- Guests see their device's chats, the one-run quota and a "Sign in for {n} runs a day" text link in the usage card; signed-in users see their quota. The Sign in button and account menu live at the far right of the header.
 
 ## Non-goals
 
@@ -61,7 +61,7 @@ The chat list is the user's memory of what they have asked and what is still run
 - **Collapsed by default below 1024 px** when no `sidebar_state` cookie exists; otherwise follow the cookie. Mobile (< 768 px) is always the sheet.
 - **Running indicators.** The header's Working badge shows on mobile too (drop `max-md:hidden`). The sidebar dot for the active chat uses `activity.running || isRunning(runStatus)`, other rows `isRunning(runStatus)`. The live step text from the old switcher is dropped.
 - **Block files.** Install `@reui/app-shell-21` once to pull `sidebar`, `item` and `use-mobile` into `components/ui` and `hooks`; do not overwrite existing `components/ui` files (`empty`, `tooltip`, etc.); skip `toggle-group`, `resizable` and `react-resizable-panels`; delete the block folder after the parts are moved. `thread-sidebar.tsx` is the structural reference for the history list and footer.
-- **Tests.** Header tests covering moved controls are ported to the new sidebar, palette and usage-card tests rather than deleted.
+- **Tests.** Header tests covering moved controls are ported to the new header, sidebar, palette and usage-card tests rather than deleted.
 
 ## Left to the builder
 
