@@ -109,6 +109,7 @@ export function Chat({
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
   const [pendingRun, setPendingRun] = useState<PendingRun | null>(null)
+  const [actorsCard, setActorsCard] = useState<{ draft?: SeedContext } | 'checking' | null>(null)
   const checkRef = useRef<object | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const committedRef = useRef(mode === 'existing')
@@ -329,11 +330,34 @@ export function Chat({
     setPendingRun({ text, runOptions, uploadIds, draft: seedFrom(result.readiness.draft), checking: false })
   }
 
-  const handleRetry = async () => {
+  const retryRun = async (seed?: SeedContext) => {
     setNotice(null)
-    const response = await fetch(`/api/chats/${chatId}/run/retry`, { method: 'POST' }).catch(() => null)
+    const response = await fetch(`/api/chats/${chatId}/run/retry`, {
+      method: 'POST',
+      ...(seed && { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seed }) }),
+    }).catch(() => null)
     if (response?.status === 201) router.refresh()
     else setNotice(await errorOf(response, 'Something went wrong retrying the run'))
+  }
+
+  const handleRetry = () => retryRun()
+
+  const handleAddActors = async () => {
+    setNotice(null)
+    setActorsCard('checking')
+    const result = await requestReadiness(chatId, { retry: true })
+    if (!result.ok) {
+      setActorsCard(null)
+      setNotice(sendNotices(limits, !!signIn)[result.code] ?? SEND_FAILED)
+      return
+    }
+    const draft = result.readiness.ready ? undefined : seedFrom(result.readiness.draft)
+    setActorsCard({ draft })
+  }
+
+  const restartWith = (seed: SeedContext) => {
+    setActorsCard(null)
+    void retryRun(seed)
   }
 
   const lastMessage = messages.at(-1)
@@ -354,6 +378,7 @@ export function Chat({
   const latestFailed =
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
+  const failedCode = lastMessage?.parts.findLast((part) => part.type === 'data-error')?.data.code
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
@@ -390,6 +415,20 @@ export function Chat({
                     }
                   : undefined
               }
+              trailing={
+                actorsCard === 'checking' ? (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    Reading your brief…
+                  </p>
+                ) : actorsCard ? (
+                  <ContextCard
+                    pending={false}
+                    initial={actorsCard.draft}
+                    onStart={restartWith}
+                    onSkip={() => restartWith({})}
+                  />
+                ) : undefined
+              }
               renderAssistant={(message) => {
                 const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
                 const asked = question && messageText(question)
@@ -403,6 +442,11 @@ export function Chat({
                     windowLive={runActive && message.id === run.assistantMessageId}
                     onCancelRun={interviewMode ? () => void handleStop() : undefined}
                     onRetry={latestFailed && message === lastMessage ? () => void handleRetry() : undefined}
+                    onAddActors={
+                      latestFailed && message === lastMessage && failedCode === 'no_actors' && !actorsCard
+                        ? () => void handleAddActors()
+                        : undefined
+                    }
                   />
                 )
               }}

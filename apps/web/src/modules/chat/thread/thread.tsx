@@ -63,12 +63,14 @@ export function Thread({
   renderAssistant,
   startedAt,
   pending,
+  trailing,
   className,
 }: {
   messages: OpinionsUIMessage[]
   renderAssistant: (message: OpinionsUIMessage) => ReactNode
   startedAt?: string
   pending?: { text: string; card: ReactNode }
+  trailing?: ReactNode
   className?: string
 }) {
   const arrivals = useArrivals(messages.map((message) => message.id))
@@ -107,6 +109,11 @@ export function Thread({
                 </MessageScrollerItem>
               )
             })}
+            {trailing && (
+              <MessageScrollerItem className={cn('flex flex-col gap-4 [content-visibility:visible]', ENTER)}>
+                <AssistantTurn>{trailing}</AssistantTurn>
+              </MessageScrollerItem>
+            )}
             {pending && (
               <>
                 <MessageScrollerItem key={PENDING_ID} className={cn('[content-visibility:visible]', ENTER)}>

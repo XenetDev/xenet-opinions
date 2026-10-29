@@ -701,6 +701,67 @@ describe('Chat', () => {
     expect(seen.at(-1)).toEqual({ chatId: 'c1', running: false })
   })
 
+  describe('adding who is involved after a no-people failure', () => {
+    const failedWith = (code: string) => {
+      chat.messages = [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'why?' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'data-error', data: { stage: 'ontology', code, message: 'Nothing to simulate' } }],
+        },
+      ] as typeof chat.messages
+    }
+    const retryCalls = () => fetchSpy.mock.calls.filter(([url]) => String(url).endsWith('/run/retry'))
+    const answer = (reply: unknown, retry: () => Response = () => Response.json({ runId: 'r2' }, { status: 201 })) =>
+      answerReadiness(reply, (url) => (String(url).endsWith('/run/retry') ? Promise.resolve(retry()) : undefined))
+
+    it('keeps Retry from here for other failures', () => {
+      failedWith('engine_failed')
+      renderChat()
+      expect(screen.getByRole('button', { name: 'Retry from here' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: "Add who's involved" })).toBeNull()
+    })
+
+    it('shows the drafted card under the failed run and restarts with the seed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT })
+      renderChat()
+      expect(screen.queryByRole('button', { name: 'Retry from here' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect(await screen.findByText('We drafted who to simulate')).toBeTruthy()
+      expect(readinessBodies()).toEqual([{ retry: true }])
+      expect(screen.queryByRole('button', { name: 'Skip and run with my question' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      await waitFor(() => expect(retryCalls()).toHaveLength(1))
+      const [url, init] = retryCalls()[0] as [string, RequestInit]
+      expect(url).toBe('/api/chats/c1/run/retry')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(String(init.body))).toEqual({ seed: DRAFT })
+      await waitFor(() => expect(screen.queryByTestId('context-card')).toBeNull())
+    })
+
+    it('shows the unfilled card for an empty draft and skip still posts a seed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: EMPTY_DRAFT })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect(await screen.findByText('A little more context helps the simulation')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Skip and run with my question' }))
+      await waitFor(() => expect(retryCalls()).toHaveLength(1))
+      expect(JSON.parse(String((retryCalls()[0] as [string, RequestInit])[1].body))).toEqual({ seed: {} })
+    })
+
+    it('shows a notice when the check is refused', async () => {
+      failedWith('no_actors')
+      fetchSpy.mockImplementation(() => Promise.resolve(Response.json({ error: 'demo_paused' }, { status: 409 })))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      expect((await screen.findAllByText('The demo is paused right now. Try again later.')).length).toBeGreaterThan(0)
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+  })
+
   describe('checking the brief before a run', () => {
     const card = () => screen.queryByTestId('context-card')
     const runOptions = { maxRounds: 1, pauseForInterviews: false }

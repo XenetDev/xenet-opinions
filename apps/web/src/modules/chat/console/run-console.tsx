@@ -45,6 +45,7 @@ export function RunConsole({
   windowLive = true,
   onCancelRun,
   onRetry,
+  onAddActors,
 }: {
   parts: OpinionsUIMessage['parts']
   chatId?: string
@@ -54,6 +55,7 @@ export function RunConsole({
   windowLive?: boolean
   onCancelRun?: () => void
   onRetry?: () => void
+  onAddActors?: () => void
 }) {
   const [now, setNow] = useState(() => Date.now())
   const [requested, setRequested] = useState(false)
@@ -115,10 +117,16 @@ export function RunConsole({
     </div>
   )
 
-  const retryAction = onRetry && (
-    <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-      Retry from here
+  const retryAction = onAddActors ? (
+    <Button type="button" size="sm" variant="outline" onClick={onAddActors}>
+      Add who's involved
     </Button>
+  ) : (
+    onRetry && (
+      <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+        Retry from here
+      </Button>
+    )
   )
 
   const liveIndex = model.rows.findIndex((row) => row.kind === 'live')

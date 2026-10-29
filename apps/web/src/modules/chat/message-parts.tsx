@@ -44,6 +44,7 @@ function groupInterviews(parts: OpinionsUIMessage['parts']) {
 export function MessageParts({
   parts,
   onRetry,
+  onAddActors,
   chatId,
   title,
   windowUntil,
@@ -53,6 +54,7 @@ export function MessageParts({
 }: {
   parts: OpinionsUIMessage['parts']
   onRetry?: () => void
+  onAddActors?: () => void
   chatId?: string
   title?: string
   windowUntil?: string | null
@@ -82,6 +84,7 @@ export function MessageParts({
             windowLive={windowLive}
             onCancelRun={onCancelRun}
             onRetry={onRetry}
+            onAddActors={onAddActors}
           />
         </div>
       )}
