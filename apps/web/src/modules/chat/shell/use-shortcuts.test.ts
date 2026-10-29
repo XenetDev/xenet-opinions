@@ -56,6 +56,13 @@ describe('useShortcuts', () => {
     expect(onNewChat).not.toHaveBeenCalled()
   })
 
+  it('ignores Alt chords and IME composition', () => {
+    const { onSearch } = setup()
+    press({ key: 'k', metaKey: true, altKey: true })
+    press({ key: 'k', metaKey: true, isComposing: true })
+    expect(onSearch).not.toHaveBeenCalled()
+  })
+
   it('stops listening on unmount and uses the latest handlers', () => {
     const first = vi.fn()
     const second = vi.fn()

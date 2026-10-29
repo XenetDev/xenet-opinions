@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ChatHeader } from '../header/chat-header'
 import { AppSidebar } from './app-sidebar'
@@ -23,15 +23,17 @@ export function Shell({
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
   const opener = useRef<Element | null>(null)
+  const restore = useRef<ReturnType<typeof setTimeout>>(undefined)
   const onSearch = () => {
-    opener.current = document.activeElement
+    if (!searchOpen) opener.current = document.activeElement
     setSearchOpen(true)
   }
   const onSearchOpenChange = (next: boolean) => {
     setSearchOpen(next)
     const target = opener.current
-    if (!next && target instanceof HTMLElement) setTimeout(() => target.focus())
+    if (!next && target instanceof HTMLElement) restore.current = setTimeout(() => target.focus())
   }
+  useEffect(() => () => clearTimeout(restore.current), [])
   useShortcuts({ onSearch, onNewChat: () => router.push('/') })
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: tablet default applies once on mount, bypassing the cookie so it is never saved as a choice

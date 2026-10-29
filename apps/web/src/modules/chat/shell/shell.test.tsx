@@ -79,6 +79,7 @@ describe('Shell search', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Header search' }))
     expect(screen.getByRole('dialog', { name: 'Search chats' })).toBeTruthy()
     fireEvent.keyDown(screen.getByPlaceholderText('Search chats…'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.keyDown(window, { key: 'k', metaKey: true })
     expect(screen.getByRole('dialog', { name: 'Search chats' })).toBeTruthy()
   })
@@ -92,7 +93,7 @@ describe('Shell search', () => {
     await waitFor(() => expect(document.activeElement).toBe(searchButton()))
   })
 
-  it('keeps composer text typed before opening', () => {
+  it('keeps composer text typed before opening', async () => {
     renderShell()
     const composer = screen.getByRole('textbox', { name: 'Composer' }) as HTMLTextAreaElement
     fireEvent.change(composer, { target: { value: 'draft text' } })
@@ -101,6 +102,18 @@ describe('Shell search', () => {
     expect(screen.getByRole('dialog', { name: 'Search chats' })).toBeTruthy()
     fireEvent.keyDown(screen.getByPlaceholderText('Search chats…'), { key: 'Escape' })
     expect(composer.value).toBe('draft text')
+    await waitFor(() => expect(document.activeElement).toBe(composer))
+  })
+
+  it('returns focus to the composer after Cmd+K is pressed twice', async () => {
+    renderShell()
+    const composer = screen.getByRole('textbox', { name: 'Composer' })
+    composer.focus()
+    fireEvent.keyDown(composer, { key: 'k', metaKey: true })
+    fireEvent.keyDown(screen.getByPlaceholderText('Search chats…'), { key: 'k', metaKey: true })
+    fireEvent.keyDown(screen.getByPlaceholderText('Search chats…'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(composer))
   })
 
   it('starts a new chat on Cmd+Shift+O', () => {

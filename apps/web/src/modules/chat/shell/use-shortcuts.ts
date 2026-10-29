@@ -12,7 +12,7 @@ export function useShortcuts(handlers: Shortcuts) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || !(event.metaKey || event.ctrlKey)) return
+      if (event.defaultPrevented || event.altKey || event.isComposing || !(event.metaKey || event.ctrlKey)) return
       const key = event.key.toLowerCase()
       if (key === 'k' && !event.shiftKey) {
         event.preventDefault()

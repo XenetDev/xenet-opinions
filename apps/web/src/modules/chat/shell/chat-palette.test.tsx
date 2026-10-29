@@ -59,6 +59,12 @@ describe('ChatPalette', () => {
     expect(chatRows().map((o) => o.textContent)).toEqual(['Coffee shop pricing', 'Hiring plan', 'Price increase'])
   })
 
+  it('widens the dialog and truncates titles', () => {
+    renderPalette()
+    expect(screen.getByRole('dialog').className).toContain('sm:max-w-xl')
+    expect(screen.getByText('Hiring plan').className).toContain('truncate')
+  })
+
   it('filters by title case-insensitively and keeps New chat', () => {
     renderPalette()
     fireEvent.change(screen.getByPlaceholderText('Search chats…'), { target: { value: 'COFFEE' } })
@@ -80,6 +86,23 @@ describe('ChatPalette', () => {
     fireEvent.click(screen.getByRole('option', { name: 'New chat' }))
     expect(nav.push).toHaveBeenCalledWith('/')
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps the top match selected as the query grows', () => {
+    renderPalette()
+    const input = screen.getByPlaceholderText('Search chats…')
+    fireEvent.change(input, { target: { value: 'p' } })
+    fireEvent.change(input, { target: { value: 'pr' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(nav.push).toHaveBeenCalledWith('/c/b')
+  })
+
+  it('clears the query after a selection', () => {
+    renderPalette()
+    const input = screen.getByPlaceholderText('Search chats…') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'hiring' } })
+    fireEvent.click(chatRows()[0] as HTMLElement)
+    expect(input.value).toBe('')
   })
 
   it('says so when nothing matches', () => {
