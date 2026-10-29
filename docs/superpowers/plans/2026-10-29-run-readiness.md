@@ -181,3 +181,5 @@
 ### Release notes for the operator (no task)
 
 Set `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` on the Vercel project to the same values as the MiroFish app on Fly before merging; without them the check stays off. Verify on production with a pitch-deck PDF and "Is this a good investment opportunity".
+
+Redeploy the worker on Fly as well: the `no_actors` error code is set in `@xo/engine` inside the worker, so until it is redeployed a no-people failure shows "Retry from here" instead of "Add who's involved". Runs that failed before the deploy keep "Retry from here".
