@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ available: true }))
-
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -9,14 +7,12 @@ vi.mock('next/navigation', () => ({
   },
 }))
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
-vi.mock('@/lib/auth-providers', () => ({ signInAvailable: () => mocks.available }))
 vi.mock('@/server/chats', () => ({
   getOwnedChat: vi.fn(async () => ({ id: 'c1', createdAt: new Date('2026-10-28T00:00:00Z') })),
 }))
 vi.mock('@/server/chat-page', () => ({
   loadChatPage: vi.fn(async () => ({ initialMessages: [], activeRun: null, latestRun: null })),
 }))
-vi.mock('@/server/usage', () => ({ getUsage: vi.fn(async () => null) }))
 vi.mock('@/server/limits', () => ({
   getLimits: (user: { isAnonymous: boolean }) => ({
     demoMode: true,
@@ -37,17 +33,14 @@ import ChatPage from './page'
 const open = () => ChatPage({ params: Promise.resolve({ id: 'c1' }) })
 
 beforeEach(() => {
-  mocks.available = true
   vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
 })
 
 describe('Chat page', () => {
-  it('upsells sign-in to anonymous users when a provider is available', async () => {
-    expect((await open()).props.signIn).toEqual({ max: 3 })
-  })
-
-  it('does not upsell sign-in when no provider is available', async () => {
-    mocks.available = false
-    expect((await open()).props).not.toHaveProperty('signIn')
+  it('passes limits and no usage props to Chat', async () => {
+    const { props } = await open()
+    expect(props.limits).toMatchObject({ signedInMaxRunsPerDay: 3 })
+    expect(props).not.toHaveProperty('signIn')
+    expect(props).not.toHaveProperty('usage')
   })
 })

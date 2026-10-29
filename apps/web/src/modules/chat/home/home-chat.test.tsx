@@ -11,6 +11,7 @@ const location = vi.hoisted(() => ({ pathname: '/' }))
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => location.pathname }))
 
 import { ChatListProvider, useChatList } from '@/modules/chat/chat-list-context'
+import { UsageProvider } from '../shell/usage-context'
 import { HomeChat } from './home-chat'
 
 beforeAll(() => {
@@ -52,11 +53,12 @@ function homeTree(limits: Partial<Limits> = {}, signIn?: { max: number }) {
     <TooltipProvider>
       <ChatListProvider chats={[]}>
         <Titles />
-        <HomeChat
-          recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
-          limits={{ ...LIMITS, ...limits }}
-          {...(signIn ? { signIn } : {})}
-        />
+        <UsageProvider usage={null} {...(signIn ? { signIn } : {})}>
+          <HomeChat
+            recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
+            limits={{ ...LIMITS, ...limits }}
+          />
+        </UsageProvider>
       </ChatListProvider>
     </TooltipProvider>
   )

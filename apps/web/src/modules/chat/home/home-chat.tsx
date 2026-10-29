@@ -4,22 +4,10 @@ import { generateId } from 'ai'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import type { Limits } from '@/server/limits'
-import type { Usage } from '@/server/usage-from'
 import { Chat } from '../chat'
-import type { SignInUpsell } from '../composer/usage-bar'
 import type { RecentChat } from './welcome'
 
-export function HomeChat({
-  recent,
-  limits,
-  usage = null,
-  signIn,
-}: {
-  recent: RecentChat[]
-  limits: Limits
-  signIn?: SignInUpsell
-  usage?: Usage | null
-}) {
+export function HomeChat({ recent, limits }: { recent: RecentChat[]; limits: Limits }) {
   const router = useRouter()
   const pathname = usePathname()
   const [chatId, setChatId] = useState(generateId)
@@ -46,8 +34,6 @@ export function HomeChat({
       latestRun={null}
       recent={recent}
       limits={limits}
-      usage={usage}
-      {...(signIn ? { signIn } : {})}
     />
   )
 }
