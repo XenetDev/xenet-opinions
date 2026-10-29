@@ -79,6 +79,9 @@ describe('materialiseRun', () => {
     expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:graph_build')).toMatchObject({
       data: { stage: 'graph_build', status: 'failed', message: 'boom' },
     })
+    expect(parts.find((p) => p.type === 'data-error')).toMatchObject({
+      data: { stage: 'graph_build', code: 'internal', message: 'boom' },
+    })
     expect(count(parts, 'text')).toBe(0)
     expect(store.parts.get('m1')).toEqual(parts)
   })

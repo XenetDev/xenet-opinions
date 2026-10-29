@@ -17,7 +17,10 @@ export const eventToChunks = (event: {
         { type: 'text-end', id: 'report' },
       ]
     case 'error':
-      return [{ type: 'error', errorText: (event.payload as ErrorData).message }]
+      return [
+        { type: 'data-error', id: event.partId ?? undefined, data: event.payload } as DataChunk,
+        { type: 'error', errorText: (event.payload as ErrorData).message },
+      ]
     case 'cancelled':
       return [{ type: 'abort', reason: (event.payload as { message: string }).message }, { type: 'finish' }]
     case 'done':

@@ -67,10 +67,12 @@ describe('eventToChunks', () => {
     ])
   })
 
-  it('maps error', () => {
-    expect(
-      eventToChunks({ kind: 'error', partId: null, payload: { stage: 'sim_run', code: 'E', message: 'boom' } }),
-    ).toEqual([{ type: 'error', errorText: 'boom' }])
+  it('maps error to a data part carrying the code, then the stream error', () => {
+    const payload = { stage: 'sim_run', code: 'no_actors', message: 'boom' }
+    expect(eventToChunks({ kind: 'error', partId: null, payload })).toEqual([
+      { type: 'data-error', id: undefined, data: payload },
+      { type: 'error', errorText: 'boom' },
+    ])
   })
 
   it('maps done', () => {

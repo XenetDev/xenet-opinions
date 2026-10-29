@@ -69,9 +69,14 @@ describe.skipIf(!process.env.LLM_API_KEY)('checkReadiness against the live model
   )
 
   it(
-    'passes a long prompt that names its stakeholders',
+    'passes a brief that names its stakeholders',
     async () => {
-      expect(await checkReadiness({ text: detailed, documents: [] })).toEqual({ ready: true })
+      expect(
+        await checkReadiness({
+          text: 'How would people react to this?',
+          documents: [{ filename: 'brief.md', text: detailed }],
+        }),
+      ).toEqual({ ready: true })
     },
     TIMEOUT,
   )
