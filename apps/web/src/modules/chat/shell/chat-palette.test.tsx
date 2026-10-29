@@ -111,6 +111,14 @@ describe('ChatPalette', () => {
     expect(screen.getByText('No chats match')).toBeTruthy()
   })
 
+  it('says no chats yet when there are none and nothing is typed', () => {
+    renderPalette([])
+    expect(screen.getByText('No chats yet')).toBeTruthy()
+    expect(screen.queryByText('No chats match')).toBeNull()
+    fireEvent.change(screen.getByPlaceholderText('Search chats…'), { target: { value: 'zzz' } })
+    expect(screen.getByText('No chats match')).toBeTruthy()
+  })
+
   it('shows at most 50 chats', () => {
     renderPalette(Array.from({ length: 60 }, (_, i) => chat(`id${i}`, `Chat ${i}`, 1 + (i % 28))))
     expect(chatRows()).toHaveLength(50)

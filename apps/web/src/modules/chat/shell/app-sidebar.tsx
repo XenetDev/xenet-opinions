@@ -35,9 +35,18 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
   const activeId = /^\/c\/([^/]+)/.exec(pathname)?.[1]
   const activeRunning = !!activity && activity.chatId === activeId && activity.running
 
-  const newChat = () => {
+  const closeSheet = () => {
     if (isMobile) setOpenMobile(false)
+  }
+
+  const newChat = () => {
+    closeSheet()
     router.push('/')
+  }
+
+  const search = () => {
+    closeSheet()
+    onSearch()
   }
 
   return (
@@ -46,6 +55,7 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
           <Link
             href="/"
+            onClick={closeSheet}
             className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm font-semibold outline-hidden ring-sidebar-ring focus-visible:ring-2 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:px-1.5"
           >
             <XoMark className="h-auto w-5 shrink-0" />
@@ -58,7 +68,7 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
             <SidebarMenuButton
               size="sm"
               tooltip="New chat"
-              aria-keyshortcuts="Meta+Shift+O"
+              aria-keyshortcuts="Meta+Shift+O Control+Shift+O"
               onClick={newChat}
               className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
             >
@@ -72,7 +82,7 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton size="sm" tooltip="Search chats" aria-keyshortcuts="Meta+K" onClick={onSearch}>
+            <SidebarMenuButton size="sm" tooltip="Search chats" aria-keyshortcuts="Meta+K Control+K" onClick={search}>
               <SearchIcon aria-hidden="true" />
               <span className="flex-1">Search chats</span>
               {!collapsed && <Kbd aria-hidden="true">⌘K</Kbd>}

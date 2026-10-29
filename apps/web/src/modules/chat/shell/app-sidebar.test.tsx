@@ -2,14 +2,16 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SidebarProvider } from '@/components/ui/sidebar'
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 
+const mobile = vi.hoisted(() => ({ value: false }))
 const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn() }))
 const session = vi.hoisted(() => ({ isAnonymous: false }))
 const guide = vi.hoisted(() => ({ open: vi.fn() }))
 
+vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => mobile.value }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
   usePathname: () => nav.pathname,
@@ -60,6 +62,7 @@ beforeEach(() => {
   nav.pathname = '/c/a'
   nav.push.mockReset()
   session.isAnonymous = false
+  mobile.value = false
 })
 
 afterEach(cleanup)
@@ -80,6 +83,35 @@ const renderSidebar = ({ open = true, chats = CHATS }: { open?: boolean; chats?:
       </SidebarProvider>
     </TooltipProvider>,
   )
+
+const SheetState = () => {
+  const { openMobile, setOpenMobile } = useSidebar()
+  return (
+    <>
+      <span data-testid="sheet">{String(openMobile)}</span>
+      <button type="button" data-testid="open-sheet" onClick={() => setOpenMobile(true)} />
+    </>
+  )
+}
+
+const renderMobile = () => {
+  mobile.value = true
+  onSearch.mockReset()
+  return render(
+    <TooltipProvider>
+      <SidebarProvider>
+        <ChatListProvider chats={CHATS}>
+          <ChatActivityProvider>
+            <UsageProvider usage={{ used: 1, max: 3, resetAt: null }}>
+              <SheetState />
+              <AppSidebar onSearch={onSearch} />
+            </UsageProvider>
+          </ChatActivityProvider>
+        </ChatListProvider>
+      </SidebarProvider>
+    </TooltipProvider>,
+  )
+}
 
 const precedes = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
@@ -156,5 +188,44 @@ describe('AppSidebar', () => {
   it('has no axe violations', async () => {
     const { container } = renderSidebar()
     expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('lists both modifiers in aria-keyshortcuts', () => {
+    renderSidebar()
+    expect(screen.getByRole('button', { name: 'New chat' }).getAttribute('aria-keyshortcuts')).toBe(
+      'Meta+Shift+O Control+Shift+O',
+    )
+    expect(screen.getByRole('button', { name: 'Search chats' }).getAttribute('aria-keyshortcuts')).toBe(
+      'Meta+K Control+K',
+    )
+  })
+
+  it('puts motion-reduce on the sidebar container and gap', () => {
+    const { container } = renderSidebar()
+    const parts = container.querySelectorAll('[data-slot="sidebar-gap"], [data-slot="sidebar-container"]')
+    expect(parts).toHaveLength(2)
+    for (const part of parts) expect(part.className).toContain('motion-reduce:transition-none')
+  })
+
+  describe('on mobile', () => {
+    it.each([
+      ['Search chats', () => expect(onSearch).toHaveBeenCalledOnce()],
+      ['New chat', () => expect(nav.push).toHaveBeenCalledWith('/')],
+    ])('closes the sheet when %s is pressed', (name, assert) => {
+      renderMobile()
+      fireEvent.click(screen.getByTestId('open-sheet'))
+      expect(screen.getByTestId('sheet').textContent).toBe('true')
+      fireEvent.click(screen.getByRole('button', { name }))
+      expect(screen.getByTestId('sheet').textContent).toBe('false')
+      assert()
+    })
+
+    it('closes the sheet when the brand link is tapped', () => {
+      renderMobile()
+      fireEvent.click(screen.getByTestId('open-sheet'))
+      expect(screen.getByTestId('sheet').textContent).toBe('true')
+      fireEvent.click(document.querySelector('a[href="/"]') as HTMLElement)
+      expect(screen.getByTestId('sheet').textContent).toBe('false')
+    })
   })
 })

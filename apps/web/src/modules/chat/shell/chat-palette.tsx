@@ -83,7 +83,11 @@ export function ChatPalette({ open, onOpenChange }: { open: boolean; onOpenChang
                 <span className="min-w-0 flex-1 truncate">{chatTitle(chat)}</span>
               </CommandItem>
             ))}
-            {matches.length === 0 && <p className="py-4 text-center text-sm">No chats match</p>}
+            {matches.length === 0 && (
+              <p className="py-4 text-center text-sm">
+                {chats.length === 0 && !query.trim() ? 'No chats yet' : 'No chats match'}
+              </p>
+            )}
           </CommandGroup>
         </CommandList>
       </Command>

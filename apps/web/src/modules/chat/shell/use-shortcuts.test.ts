@@ -40,8 +40,9 @@ describe('useShortcuts', () => {
 
   it.each([{ metaKey: true }, { ctrlKey: true }])('starts a new chat on %o+Shift+O', (mod) => {
     const { onSearch, onNewChat } = setup()
-    press({ key: 'o', shiftKey: true, ...mod })
+    const event = press({ key: 'o', shiftKey: true, ...mod })
     expect(onNewChat).toHaveBeenCalledOnce()
+    expect(event.defaultPrevented).toBe(true)
     expect(onSearch).not.toHaveBeenCalled()
   })
 
