@@ -59,15 +59,15 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
   it('titles an untitled chat from the first message and touches updated_at', async () => {
     const chatId = await mkChat()
     const [before] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
-    const first = { ...input(chatId), text: 'x'.repeat(80) }
+    const first = { ...input(chatId), text: 'x'.repeat(150) }
     await startRun(first)
     const [after] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
-    expect(after!.title).toBe('x'.repeat(60))
+    expect(after!.title).toBe(`${'x'.repeat(120)}…`)
     expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime())
     await db.update(schema.runs).set({ status: 'done' }).where(eq(schema.runs.chatId, chatId))
     await startRun({ ...input(chatId), text: 'second' })
     const [again] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
-    expect(again!.title).toBe('x'.repeat(60))
+    expect(again!.title).toBe(`${'x'.repeat(120)}…`)
   })
 
   it('stores pauseForInterviews in the run config', async () => {
