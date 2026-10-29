@@ -44,6 +44,7 @@ describe('documentText', () => {
 
   it('returns an empty string when extraction fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(
       await documentText({ bytes: new Uint8Array([0x00]), mediaType: 'application/pdf', filename: 'bad.pdf' }),
     ).toBe('')

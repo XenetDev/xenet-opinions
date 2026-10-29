@@ -7,6 +7,7 @@ vi.mock('@/env', () => ({
 
 import { env } from '@/env'
 import { checkReadiness } from './check'
+import { readinessSystem } from './prompt'
 
 const input = {
   text: 'Is this a good investment?',
@@ -20,6 +21,10 @@ function stub(impl: () => Promise<unknown>) {
 
 const returning = (output: unknown) => stub(async () => ({ output }))
 
+const shortPrompt = { text: 'Should we raise our Pro plan price?', documents: [] }
+const longPrompt = { text: Array.from({ length: 40 }, (_, i) => `word${i}`).join(' '), documents: [] }
+const EMPTY_CARD = { ready: false, draft: { background: '', actors: '', change: '' } }
+
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -27,6 +32,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   env.LLM_API_KEY = 'key'
 })
 
@@ -72,6 +78,68 @@ describe('checkReadiness', () => {
     const { fn, generate } = returning({ ready: false, draft: { background: 'b', actors: 'a', change: 'c' } })
     expect(await checkReadiness(input, { generate })).toEqual({ ready: true })
     expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('opens the unfilled card for a short prompt without documents when the check is off', async () => {
+    env.LLM_API_KEY = undefined
+    const { fn, generate } = returning({ ready: true, draft: null })
+    expect(await checkReadiness(shortPrompt, { generate })).toEqual(EMPTY_CARD)
+    expect(await checkReadiness(longPrompt, { generate })).toEqual({ ready: true })
+    expect(fn).not.toHaveBeenCalled()
+  })
+
+  it('opens the unfilled card for a short prompt without documents on a timeout', async () => {
+    vi.useFakeTimers()
+    const { generate } = stub(() => new Promise(() => {}))
+    const short = checkReadiness(shortPrompt, { generate })
+    const long = checkReadiness(longPrompt, { generate })
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(await short).toEqual(EMPTY_CARD)
+    expect(await long).toEqual({ ready: true })
+  })
+
+  it('opens the unfilled card for a short prompt without documents on a model error', async () => {
+    const { generate } = stub(async () => {
+      throw new Error('boom')
+    })
+    expect(await checkReadiness(shortPrompt, { generate })).toEqual(EMPTY_CARD)
+    expect(await checkReadiness(longPrompt, { generate })).toEqual({ ready: true })
+  })
+
+  it('asks for JSON of the exact shape in the system prompt', () => {
+    expect(readinessSystem).toContain('JSON')
+    for (const field of ['"ready"', '"draft"', '"background"', '"actors"', '"change"'])
+      expect(readinessSystem).toContain(field)
+  })
+
+  it('asks the real provider for JSON and parses its answer', async () => {
+    const draft = { background: 'Acme sells a billing API.', actors: '- Seed VCs\n- Finance teams', change: 'A round' }
+    const fetchImpl = vi.fn(async (_url: unknown, _init?: RequestInit) =>
+      Response.json({
+        id: 'c1',
+        object: 'chat.completion',
+        created: 0,
+        model: 'gpt-4o-mini',
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: JSON.stringify({ ready: false, draft }) },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    )
+    vi.stubGlobal('AI_SDK_LOG_WARNINGS', false)
+    expect(await checkReadiness(input, { fetch: fetchImpl as unknown as typeof fetch })).toEqual({
+      ready: false,
+      draft,
+    })
+    const [url, init] = fetchImpl.mock.calls[0]!
+    expect(String(url)).toBe('https://api.openai.com/v1/chat/completions')
+    const body = JSON.parse(String(init?.body)) as { response_format: unknown; messages: Array<{ content: unknown }> }
+    expect(body.response_format).toEqual({ type: 'json_object' })
+    expect(JSON.stringify(body.messages).toLowerCase()).toContain('json')
   })
 
   it('cuts each draft field to 2000 characters', async () => {

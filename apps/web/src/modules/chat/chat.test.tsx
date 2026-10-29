@@ -752,6 +752,49 @@ describe('Chat', () => {
       expect(JSON.parse(String((retryCalls()[0] as [string, RequestInit])[1].body))).toEqual({ seed: {} })
     })
 
+    it('turns the composer off while the check runs', async () => {
+      failedWith('no_actors')
+      let reply: (response: Response) => void = () => {}
+      fetchSpy.mockImplementation(
+        () =>
+          new Promise<Response>((resolve) => {
+            reply = resolve
+          }),
+      )
+      renderChat()
+      expect(composer.props?.disabled).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await waitFor(() => expect(composer.props?.disabled).toBe(true))
+      await act(async () => reply(Response.json({ ready: false, draft: DRAFT })))
+      await screen.findByText('We drafted who to simulate')
+      expect(composer.props?.disabled).toBe(false)
+    })
+
+    it('drops the card when a new run is sent', async () => {
+      failedWith('no_actors')
+      const replies = [{ ready: false, draft: DRAFT }, { ready: true }]
+      fetchSpy.mockImplementation((url: string) =>
+        isReadiness(url) ? Promise.resolve(Response.json(replies.shift())) : undefined,
+      )
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await waitFor(() => expect(chat.sendMessage).toHaveBeenCalledTimes(1))
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+
+    it('hides the card once the latest run is no longer failed', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT })
+      const { rerender } = renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      runState.current = { status: 'done', runId: 'r2', assistantMessageId: 'a2' }
+      rerender(<Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={limits} />)
+      expect(screen.queryByTestId('context-card')).toBeNull()
+    })
+
     it('shows a notice when the check is refused', async () => {
       failedWith('no_actors')
       fetchSpy.mockImplementation(() => Promise.resolve(Response.json({ error: 'demo_paused' }, { status: 409 })))
@@ -767,8 +810,8 @@ describe('Chat', () => {
     const runOptions = { maxRounds: 1, pauseForInterviews: false }
     const checking = () => screen.queryAllByRole('status').find((el) => el.textContent === 'Reading your brief…')
 
-    it('asks for context when the check drafts nothing, and sends nothing', async () => {
-      answerReadiness({ ready: false, draft: EMPTY_DRAFT })
+    it('asks for context when the check cannot be reached for a short prompt, and sends nothing', async () => {
+      fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
       renderChat()
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       expect(await composer.sent).toBe('sent')

@@ -416,7 +416,7 @@ export function Chat({
                   : undefined
               }
               trailing={
-                actorsCard === 'checking' ? (
+                !latestFailed ? undefined : actorsCard === 'checking' ? (
                   <p role="status" className="text-sm text-muted-foreground">
                     Reading your brief…
                   </p>
@@ -470,10 +470,12 @@ export function Chat({
                   status === 'streaming' ||
                   runActive ||
                   !!pendingRun?.checking ||
+                  actorsCard === 'checking' ||
                   (limits.paused && !followUpMode))
               }
               onSend={async (text, submit) => {
                 setNotice(null)
+                setActorsCard(null)
                 if (submit.kind === 'followUp' && submit.target === 'agents') {
                   await sendInterview(text, submit.agentIds)
                   return

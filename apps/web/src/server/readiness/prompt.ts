@@ -9,7 +9,10 @@ Otherwise answer ready: false and draft three fields, grounded in the question a
 - actors: 4 to 7 concrete groups whose reactions matter to the question, as a list with one "- " bullet per line, each drawn from or clearly implied by the documents.
 - change: the decision or event being tested, in one or two sentences.
 
-Never write generic placeholders such as "stakeholders" or "the public". Write the draft in the language of the question.`
+Never write generic placeholders such as "stakeholders" or "the public". Write the draft in the language of the question.
+
+Reply with only a JSON object of exactly this shape, with no other text:
+{"ready": boolean, "draft": {"background": string, "actors": string, "change": string} | null}`
 
 export const readinessForcedNote =
   'MiroFish already ran on these documents and found no people or groups to simulate. Answer ready: false and always write the draft.'

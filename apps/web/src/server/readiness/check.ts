@@ -2,6 +2,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { SEED_FIELD_MAX } from '@xo/engine'
 import { generateText, Output } from 'ai'
 import { env } from '@/env'
+import { fallbackReadiness } from './fallback'
 import { readinessForcedNote, readinessSchema, readinessSystem } from './prompt'
 import type { Readiness, ReadinessDraft } from './types'
 
@@ -43,14 +44,22 @@ async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>): Promise
   }
 }
 
-export async function checkReadiness(input: Input, deps: { generate?: typeof generateText } = {}): Promise<Readiness> {
-  const fallback: Readiness = input.force ? { ready: false, draft: EMPTY_DRAFT } : { ready: true }
+export async function checkReadiness(
+  input: Input,
+  deps: { generate?: typeof generateText; fetch?: typeof fetch } = {},
+): Promise<Readiness> {
+  const fallback: Readiness = input.force
+    ? { ready: false, draft: EMPTY_DRAFT }
+    : fallbackReadiness(input.text, input.documents.length)
   if (!env.LLM_API_KEY) return fallback
   const generate = deps.generate ?? generateText
   try {
-    const model = createOpenAICompatible({ name: 'llm', baseURL: env.LLM_BASE_URL, apiKey: env.LLM_API_KEY })(
-      env.LLM_MODEL_NAME,
-    )
+    const model = createOpenAICompatible({
+      name: 'llm',
+      baseURL: env.LLM_BASE_URL,
+      apiKey: env.LLM_API_KEY,
+      ...(deps.fetch && { fetch: deps.fetch }),
+    })(env.LLM_MODEL_NAME)
     const { output } = await withTimeout((abortSignal) =>
       generate({
         model,

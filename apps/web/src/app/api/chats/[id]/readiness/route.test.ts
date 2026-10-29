@@ -130,12 +130,52 @@ describe('POST /api/chats/:id/readiness', () => {
     })
   })
 
-  it('treats an unreadable document as empty text', async () => {
+  it('treats an unreadable document as empty text and logs it', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(readOwnedUploads).mockResolvedValue([upload('u1')])
     vi.mocked(storage.get).mockRejectedValue(new Error('missing'))
     const res = await call({ text: 'brief', uploadIds: ['u1'] })
     expect(res.status).toBe(200)
     expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [{ filename: 'u1.txt', text: '' }] })
+    expect(logged).toHaveBeenCalledTimes(1)
+    expect(logged.mock.calls[0]?.[0]).toBe('readiness document read failed')
+    logged.mockRestore()
+  })
+
+  it('stops waiting for documents after 6 seconds and checks with what it has', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(readOwnedUploads).mockResolvedValue([upload('u1'), upload('u2')])
+      vi.mocked(storage.get).mockImplementation((key) =>
+        key === 'k/u2' ? new Promise(() => {}) : Promise.resolve(new Uint8Array([1])),
+      )
+      const res = call({ text: 'brief', uploadIds: ['u1', 'u2'] })
+      await vi.advanceTimersByTimeAsync(6000)
+      expect((await res).status).toBe(200)
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'brief',
+        documents: [
+          { filename: 'u1.txt', text: 'text of u1.txt' },
+          { filename: 'u2.txt', text: '' },
+        ],
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('returns 400 for more than five uploads', async () => {
+    const res = await call({ text: 'x', uploadIds: ['a', 'b', 'c', 'd', 'e', 'f'] })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_body' })
+    expect(readOwnedUploads).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for text over 20 000 characters', async () => {
+    const res = await call({ text: 'x'.repeat(20_001), uploadIds: [] })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_body' })
+    expect(checkReadiness).not.toHaveBeenCalled()
   })
 
   it('works for a new chat with no uploads', async () => {
@@ -145,10 +185,20 @@ describe('POST /api/chats/:id/readiness', () => {
     expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [] })
   })
 
-  it('answers ready without checking when over the rate limit', async () => {
+  it('opens the unfilled card for a short prompt without documents when over the rate limit', async () => {
     vi.mocked(allowCheck).mockReturnValue(false)
     const res = await call({ text: 'brief', uploadIds: [] })
-    expect(await res.json()).toEqual({ ready: true })
+    expect(await res.json()).toEqual({ ready: false, draft: { background: '', actors: '', change: '' } })
+    expect(checkReadiness).not.toHaveBeenCalled()
+  })
+
+  it('answers ready without checking when over the rate limit with documents or a long prompt', async () => {
+    vi.mocked(allowCheck).mockReturnValue(false)
+    vi.mocked(readOwnedUploads).mockResolvedValue([upload('u1')])
+    expect(await (await call({ text: 'brief', uploadIds: ['u1'] })).json()).toEqual({ ready: true })
+    vi.mocked(readOwnedUploads).mockResolvedValue([])
+    const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ')
+    expect(await (await call({ text: long, uploadIds: [] })).json()).toEqual({ ready: true })
     expect(checkReadiness).not.toHaveBeenCalled()
   })
 

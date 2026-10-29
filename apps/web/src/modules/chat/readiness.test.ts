@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { requestReadiness } from './readiness'
 
 const draft = { background: 'Prices rose', actors: 'Pro customers', change: 'A new fee' }
+const EMPTY_CARD = { ok: true, readiness: { ready: false, draft: { background: '', actors: '', change: '' } } }
+const READY = { ok: true, readiness: { ready: true } }
+const LONG = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ')
 
 describe('requestReadiness', () => {
   it('posts the brief to the readiness endpoint and returns the answer', async () => {
@@ -12,7 +15,24 @@ describe('requestReadiness', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ text: 'why?', uploadIds: ['u1'] }),
+      signal: expect.any(AbortSignal),
     })
+  })
+
+  it('gives up after 12 seconds', async () => {
+    const controller = new AbortController()
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+    const fetchImpl = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+        ),
+    )
+    const result = requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)
+    expect(timeout).toHaveBeenCalledWith(12_000)
+    controller.abort(new DOMException('timed out', 'TimeoutError'))
+    expect(await result).toEqual(EMPTY_CARD)
+    timeout.mockRestore()
   })
 
   it('sends a retry body as is', async () => {
@@ -24,30 +44,32 @@ describe('requestReadiness', () => {
     ])
   })
 
-  it('treats a network failure as ready', async () => {
+  it('opens the unfilled card on a network failure for a short prompt without documents', async () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError('Failed to fetch')
     })
-    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual({
-      ok: true,
-      readiness: { ready: true },
-    })
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual(EMPTY_CARD)
   })
 
-  it.each([500, 502, 503])('treats a %s as ready', async (status) => {
+  it('treats a network failure as ready with documents, a long prompt or a retry', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: ['u1'] }, fetchImpl)).toEqual(READY)
+    expect(await requestReadiness('c1', { text: LONG, uploadIds: [] }, fetchImpl)).toEqual(READY)
+    expect(await requestReadiness('c1', { retry: true }, fetchImpl)).toEqual(READY)
+  })
+
+  it.each([500, 502, 503])('falls back on a %s', async (status) => {
     const fetchImpl = vi.fn(async () => Response.json({ error: 'boom' }, { status }))
-    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual({
-      ok: true,
-      readiness: { ready: true },
-    })
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual(EMPTY_CARD)
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: ['u1'] }, fetchImpl)).toEqual(READY)
   })
 
-  it('treats an unreadable success as ready', async () => {
+  it('falls back on an unreadable success', async () => {
     const fetchImpl = vi.fn(async () => new Response('nope'))
-    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual({
-      ok: true,
-      readiness: { ready: true },
-    })
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: [] }, fetchImpl)).toEqual(EMPTY_CARD)
+    expect(await requestReadiness('c1', { text: 'why?', uploadIds: ['u1'] }, fetchImpl)).toEqual(READY)
   })
 
   it.each([
