@@ -8,6 +8,6 @@ export default mergeConfig(
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
-    test: { include: ['src/**/*.test.tsx'], setupFiles: ['./src/test/axe.ts'] },
+    test: { include: ['src/**/*.test.tsx'], setupFiles: ['./src/test/axe.ts', './src/test/match-media.ts'] },
   }),
 )

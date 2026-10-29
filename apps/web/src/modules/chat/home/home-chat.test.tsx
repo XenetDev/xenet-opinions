@@ -11,6 +11,7 @@ const location = vi.hoisted(() => ({ pathname: '/' }))
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => location.pathname }))
 
 import { ChatListProvider, useChatList } from '@/modules/chat/chat-list-context'
+import { UsageProvider } from '../shell/usage-context'
 import { HomeChat } from './home-chat'
 
 beforeAll(() => {
@@ -52,11 +53,9 @@ function homeTree(limits: Partial<Limits> = {}, signIn?: { max: number }) {
     <TooltipProvider>
       <ChatListProvider chats={[]}>
         <Titles />
-        <HomeChat
-          recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
-          limits={{ ...LIMITS, ...limits }}
-          {...(signIn ? { signIn } : {})}
-        />
+        <UsageProvider usage={null} {...(signIn ? { signIn } : {})}>
+          <HomeChat limits={{ ...LIMITS, ...limits }} />
+        </UsageProvider>
       </ChatListProvider>
     </TooltipProvider>
   )
@@ -130,7 +129,7 @@ describe('HomeChat', () => {
       runOptions: { maxRounds: 3, pauseForInterviews: false },
     })
     expect(typeof body.message.id).toBe('string')
-    expect(screen.getByTestId('titles').textContent).toBe(`${id}:${STARTER.slice(0, 60)}:queued`)
+    expect(screen.getByTestId('titles').textContent).toBe(`${id}:${STARTER}:queued`)
     expect(screen.queryByRole('heading', { name: 'Xenet Opinions' })).toBeNull()
   })
 
@@ -245,10 +244,10 @@ describe('HomeChat', () => {
     expect(screen.getAllByText('The demo is paused').length).toBeGreaterThan(0)
   })
 
-  it('links resume rows and has no axe violations', async () => {
+  it('lists no recent chats and has no axe violations', async () => {
     stubFetch({})
     const { container } = renderHome()
-    expect(screen.getByRole('link', { name: /Price increase/ }).getAttribute('href')).toBe('/c/old')
+    expect(screen.queryByRole('heading', { name: 'Recent chats' })).toBeNull()
     expect(await axe(container)).toHaveNoViolations()
   })
 })

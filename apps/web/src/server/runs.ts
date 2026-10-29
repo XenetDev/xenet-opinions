@@ -3,6 +3,7 @@ import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
 import { generateId } from 'ai'
 import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { chatTitleFrom } from '@/modules/chat/chat-title'
 
 const { chats, messages, runs, uploads } = schema
 
@@ -116,7 +117,7 @@ export async function startRun(input: {
       await tx
         .update(chats)
         .set({
-          title: sql`case when ${chats.title} = '' then ${input.text.slice(0, 60)} else ${chats.title} end`,
+          title: sql`case when ${chats.title} = '' then ${chatTitleFrom(input.text)} else ${chats.title} end`,
           updatedAt: sql`now()`,
         })
         .where(eq(chats.id, input.chatId))

@@ -7,14 +7,14 @@ import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useChatList } from '@/modules/chat/chat-list-context'
+import { useUsage } from '@/modules/chat/shell/usage-context'
 import type { Limits } from '@/server/limits'
-import type { Usage } from '@/server/usage-from'
 import { useChatActivity } from './chat-activity'
+import { chatTitleFrom } from './chat-title'
 import { Composer } from './composer/composer'
 import type { RunOptionsValue } from './composer/run-options'
-import type { SignInUpsell } from './composer/usage-bar'
 import { liveStepLabel, STAGE_TITLES } from './console/derive'
-import { type RecentChat, Welcome } from './home/welcome'
+import { Welcome } from './home/welcome'
 import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
@@ -57,18 +57,14 @@ const isRunFailure = (messages: OpinionsUIMessage[], text: string) =>
 
 export function Chat({
   mode = 'existing',
-  recent = [],
   chatId,
   initialMessages,
   activeRun,
   latestRun,
   limits,
   startedAt,
-  usage: initialUsage = null,
-  signIn,
 }: {
   mode?: 'new' | 'existing'
-  recent?: RecentChat[]
   chatId: string
   initialMessages: OpinionsUIMessage[]
   activeRun: {
@@ -80,8 +76,6 @@ export function Chat({
   } | null
   latestRun: LatestRun | null
   limits: Limits
-  usage?: Usage | null
-  signIn?: SignInUpsell
   startedAt?: string
 }) {
   const router = useRouter()
@@ -92,12 +86,7 @@ export function Chat({
   const runIdAtSendRef = useRef<string | undefined>(undefined)
   const messagesRef = useRef(initialMessages)
   const [notice, setNotice] = useState<string | null>(null)
-  const [usage, setUsage] = useState(initialUsage)
-  const [seenUsage, setSeenUsage] = useState(initialUsage)
-  if (seenUsage !== initialUsage) {
-    setSeenUsage(initialUsage)
-    setUsage(initialUsage)
-  }
+  const { signIn, bump: bumpUsage } = useUsage()
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
@@ -250,15 +239,15 @@ export function Chat({
       }
       committedRef.current = true
       window.history.pushState(null, '', `/c/${chatId}`)
-      setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
-      upsertChat({ id: chatId, title: text.slice(0, 60), runStatus: 'queued' })
+      bumpUsage()
+      upsertChat({ id: chatId, title: chatTitleFrom(text), runStatus: 'queued' })
       setSendCount((count) => count + 1)
       setWatching(true)
       return
     }
-    setUsage((current) => current && { ...current, used: Math.min(current.used + 1, current.max) })
+    bumpUsage()
     const title = chats.find((chat) => chat.id === chatId)?.title
-    upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: text.slice(0, 60) }) })
+    upsertChat({ id: chatId, runStatus: 'queued', ...(!title && { title: chatTitleFrom(text) }) })
     runIdAtSendRef.current = run.runId
     setSendCount((count) => count + 1)
     setWatching(true)
@@ -319,7 +308,6 @@ export function Chat({
         <InterviewSelectionProvider enabled={interviewMode}>
           {mode === 'new' && messages.length === 0 && !pendingRun && !startingRef.current ? (
             <Welcome
-              recent={recent}
               onUseStarter={(prompt) => {
                 setDraft(prompt)
                 composerRef.current?.querySelector('textarea')?.focus()
@@ -369,8 +357,6 @@ export function Chat({
               maxRounds={limits.maxRounds}
               chatId={chatId}
               allowPause={limits.allowPause}
-              usage={usage}
-              {...(signIn ? { signIn } : {})}
               {...(mode === 'new' && { value: draft, onValueChange: setDraft })}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}

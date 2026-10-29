@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
+import { UsageProvider, useUsage } from './shell/usage-context'
 import type { RunStatusState } from './use-run-status'
 
 const chat = vi.hoisted(() => ({
@@ -175,6 +176,13 @@ const OtherHarness = ({ open }: { open: boolean }) => (
     <Spy />
   </ChatActivityProvider>
 )
+
+function UsedProbe() {
+  const { usage } = useUsage()
+  return <span data-testid="used">{usage?.used}</span>
+}
+
+const used = () => screen.getByTestId('used').textContent
 
 const renderChat = (latestRun: LatestRun = null, over: Partial<typeof limits> = {}) =>
   render(
@@ -625,14 +633,9 @@ describe('Chat', () => {
   ])('words the anonymous quota notice by sign-in availability (%s)', async (available, sentence) => {
     const anonymous = { ...limits, anonymous: true, maxRunsPerDay: 1, demoMode: true }
     render(
-      <Chat
-        chatId="c1"
-        initialMessages={[]}
-        activeRun={null}
-        latestRun={null}
-        limits={anonymous}
-        {...(available ? { signIn: { max: 3 } } : {})}
-      />,
+      <UsageProvider usage={null} {...(available ? { signIn: { max: 3 } } : {})}>
+        <Chat chatId="c1" initialMessages={[]} activeRun={null} latestRun={null} limits={anonymous} />
+      </UsageProvider>,
     )
     act(() => chat.options!.onError(new Error('quota_exceeded')))
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe(sentence))
@@ -807,16 +810,17 @@ describe('Chat in new mode', () => {
   const usage = { used: 0, max: 2, resetAt: null }
   const renderNew = () =>
     render(
-      <Chat
-        mode="new"
-        chatId="n1"
-        initialMessages={[]}
-        activeRun={null}
-        latestRun={null}
-        recent={[{ id: 'old', title: 'Price increase', updatedAt: new Date().toISOString() }]}
-        limits={{ ...limits, demoMode: true }}
-        usage={usage}
-      />,
+      <UsageProvider usage={usage}>
+        <UsedProbe />
+        <Chat
+          mode="new"
+          chatId="n1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={{ ...limits, demoMode: true }}
+        />
+      </UsageProvider>,
     )
   const posts = () =>
     fetchSpy.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST').map(([url]) => url)
@@ -824,7 +828,7 @@ describe('Chat in new mode', () => {
   it('renders the welcome block and fills the composer from a starter', () => {
     renderNew()
     expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Price increase/ }).getAttribute('href')).toBe('/c/old')
+    expect(screen.queryByRole('heading', { name: 'Recent chats' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: STARTER }))
     expect(composer.props?.value).toBe(STARTER)
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -856,7 +860,7 @@ describe('Chat in new mode', () => {
     await act(async () => {})
     expect(pushState).toHaveBeenCalledTimes(1)
     expect(upsertChat).toHaveBeenCalledWith({ id: 'n1', title: 'why?', runStatus: 'queued' })
-    expect(composer.props?.usage).toMatchObject({ used: 1 })
+    expect(used()).toBe('1')
     expect(posts()).toEqual(['/api/chats/n1/messages'])
     const init = fetchSpy.mock.calls.find(([url]) => url === '/api/chats/n1/messages')?.[1] as RequestInit
     expect(JSON.parse(String(init.body))).toMatchObject({
@@ -871,19 +875,21 @@ describe('Chat in new mode', () => {
 
   it('adopts fresh usage from the server', () => {
     const view = renderNew()
-    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    expect(used()).toBe('0')
     view.rerender(
-      <Chat
-        mode="new"
-        chatId="n1"
-        initialMessages={[]}
-        activeRun={null}
-        latestRun={null}
-        limits={{ ...limits, demoMode: true }}
-        usage={{ used: 2, max: 2, resetAt: null }}
-      />,
+      <UsageProvider usage={{ used: 2, max: 2, resetAt: null }}>
+        <UsedProbe />
+        <Chat
+          mode="new"
+          chatId="n1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={{ ...limits, demoMode: true }}
+        />
+      </UsageProvider>,
     )
-    expect(composer.props?.usage).toMatchObject({ used: 2 })
+    expect(used()).toBe('2')
   })
 
   it('drops an aborted first send without claiming the URL or showing a notice', async () => {
@@ -904,7 +910,7 @@ describe('Chat in new mode', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy())
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
-    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    expect(used()).toBe('0')
     await act(async () => {})
     expect(screen.queryAllByRole('status').filter((el) => el.textContent)).toEqual([])
     expect(posts()).toEqual(['/api/chats/n1/messages', '/api/chats/n1/run/cancel'])
@@ -924,7 +930,7 @@ describe('Chat in new mode', () => {
     expect(screen.getByRole('heading', { name: 'Xenet Opinions' })).toBeTruthy()
     expect(pushState).not.toHaveBeenCalled()
     expect(upsertChat).not.toHaveBeenCalled()
-    expect(composer.props?.usage).toMatchObject({ used: 0 })
+    expect(used()).toBe('0')
     fetchSpy.mockImplementation(async (url: string) =>
       url === '/api/chats/n1/messages'
         ? new Response(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`, { headers: SSE })
@@ -963,7 +969,7 @@ describe('Chat in new mode', () => {
     respond(new Response(`data: ${JSON.stringify({ type: 'start', messageId: 'a1' })}\n\n`, { headers: SSE }))
     await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
     expect(upsertChat).toHaveBeenCalledWith({ id: 'n1', title: 'why?', runStatus: 'queued' })
-    expect(composer.props?.usage).toMatchObject({ used: 1 })
+    expect(used()).toBe('1')
     const init = fetchSpy.mock.calls.find(([url]) => url === '/api/chats/n1/messages')?.[1] as RequestInit
     expect(JSON.parse(String(init.body))).toMatchObject({
       uploadIds: [],

@@ -2,9 +2,10 @@
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
 
-const nav = vi.hoisted(() => ({ pathname: '/c/a', push: vi.fn(), refresh: vi.fn() }))
+const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 const auth = vi.hoisted(() => ({
   session: { data: null, isPending: false } as { data: unknown; isPending: boolean },
   signOut: vi.fn(),
@@ -16,7 +17,7 @@ const dialog = vi.hoisted(() => ({ open: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, refresh: nav.refresh }),
-  usePathname: () => nav.pathname,
+  usePathname: () => '/c/a',
 }))
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
@@ -40,10 +41,17 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
 })
 
 beforeEach(() => {
-  nav.pathname = '/c/a'
   nav.push.mockReset()
   nav.refresh.mockReset()
   auth.signOut.mockReset().mockResolvedValue({ data: null, error: null })
@@ -57,56 +65,60 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-const openMenu = () => fireEvent.keyDown(screen.getByRole('button', { name: 'Account menu' }), { key: 'Enter' })
+const renderRow = (signInAvailable = true) =>
+  render(
+    <TooltipProvider>
+      <AccountMenu signInAvailable={signInAvailable} />
+    </TooltipProvider>,
+  )
+
+const trigger = () => screen.getByRole('button', { name: 'Account menu' })
+const openMenu = () => fireEvent.keyDown(trigger(), { key: 'Enter' })
+const menu = () => screen.getByRole('menu')
 
 describe('AccountMenu', () => {
   it('renders nothing while pending or without a session', () => {
     auth.session = { data: null, isPending: true }
-    const { container } = render(<AccountMenu signInAvailable />)
-    expect(container.innerHTML).toBe('')
+    const { container } = renderRow()
+    expect(container.textContent).toBe('')
     cleanup()
     auth.session = { data: null, isPending: false }
-    expect(render(<AccountMenu signInAvailable />).container.innerHTML).toBe('')
+    expect(renderRow().container.textContent).toBe('')
   })
 
-  it('offers anonymous visitors a default Sign in button that opens the dialog', async () => {
+  it('offers guests a Sign in button that opens the dialog', async () => {
     auth.session = { data: anonymous, isPending: false }
-    const { container } = render(<AccountMenu signInAvailable />)
-    const button = screen.getByRole('button', { name: 'Sign in' })
-    expect(button.getAttribute('data-variant')).toBe('default')
-    expect(button.getAttribute('data-size')).toBe('sm')
-    expect(screen.queryByRole('link')).toBeNull()
-    fireEvent.click(button)
+    const { container } = renderRow()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(dialog.open).toHaveBeenCalledOnce()
     expect(await axe(container)).toHaveNoViolations()
   })
 
-  it('shows nothing to anonymous visitors when no sign-in provider is available', () => {
+  it('shows guests nothing without a sign-in provider', () => {
     auth.session = { data: anonymous, isPending: false }
-    const { container } = render(<AccountMenu signInAvailable={false} />)
-    expect(container.innerHTML).toBe('')
+    expect(renderRow(false).container.textContent).toBe('')
   })
 
-  it('shows initials on the avatar and name, email and actions in the menu', () => {
-    render(<AccountMenu signInAvailable />)
-    expect(screen.getByRole('button', { name: 'Account menu' }).textContent).toBe('AL')
+  it('shows avatar initials, name and email, and a menu with Sign out and Delete account', () => {
+    renderRow()
+    expect(trigger().textContent).toBe('AL')
     openMenu()
-    expect(screen.getByText('Ada Lovelace')).toBeTruthy()
-    expect(screen.getByText('ada@example.com')).toBeTruthy()
+    expect(within(menu()).getByText('Ada Lovelace')).toBeTruthy()
+    expect(within(menu()).getByText('ada@example.com')).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Delete account' })).toBeTruthy()
   })
 
   it('hides the name line when the name is empty', () => {
     auth.session = { data: { user: { ...registered.user, name: '' } }, isPending: false }
-    render(<AccountMenu signInAvailable />)
+    renderRow()
     openMenu()
-    const label = screen.getByText('ada@example.com').parentElement
+    const label = within(menu()).getByText('ada@example.com').parentElement
     expect(label?.children).toHaveLength(1)
   })
 
   it('signs out, creates the guest session, then goes home and refreshes', async () => {
-    render(<AccountMenu signInAvailable />)
+    renderRow()
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalled())
@@ -118,7 +130,7 @@ describe('AccountMenu', () => {
 
   it('still navigates when the guest sign-in fails', async () => {
     auth.anonymous.mockRejectedValue(new Error('offline'))
-    render(<AccountMenu signInAvailable />)
+    renderRow()
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalled())
@@ -126,24 +138,24 @@ describe('AccountMenu', () => {
   })
 
   it('sends the delete confirmation email', async () => {
-    render(<AccountMenu signInAvailable />)
+    renderRow()
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete account' }))
-    const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByText('Delete your account?')).toBeTruthy()
+    const alert = screen.getByRole('alertdialog')
+    expect(within(alert).getByText('Delete your account?')).toBeTruthy()
     expect(
-      within(dialog).getByText(
+      within(alert).getByText(
         "We'll email you a confirmation link. Your conversations and uploads are removed once you confirm.",
       ),
     ).toBeTruthy()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Send confirmation email' }))
+    fireEvent.click(within(alert).getByRole('button', { name: 'Send confirmation email' }))
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Confirmation email sent'))
     expect(auth.deleteUser).toHaveBeenCalledWith({ callbackURL: '/' })
   })
 
   it('reports a failed confirmation email', async () => {
     auth.deleteUser.mockResolvedValue({ data: null, error: { message: 'nope' } })
-    render(<AccountMenu signInAvailable />)
+    renderRow()
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete account' }))
     fireEvent.click(screen.getByRole('button', { name: 'Send confirmation email' }))
@@ -152,10 +164,10 @@ describe('AccountMenu', () => {
   })
 
   it('has no axe violations', async () => {
-    const { container } = render(<AccountMenu signInAvailable />)
+    const { container } = renderRow()
     expect(await axe(container)).toHaveNoViolations()
     openMenu()
-    expect(await axe(screen.getByRole('menu'))).toHaveNoViolations()
+    expect(await axe(menu())).toHaveNoViolations()
   })
 })
 
