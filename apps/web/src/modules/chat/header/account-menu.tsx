@@ -26,12 +26,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { authClient } from '@/lib/auth-client'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
+import { initials } from '../shell/account-row'
 
-export function initials(name: string, email: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
-  const letters = words.length ? words.map((word) => word.charAt(0)).join('') : email.trim().charAt(0)
-  return letters.toUpperCase()
-}
+export { initials }
 
 export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
