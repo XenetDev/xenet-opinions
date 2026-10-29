@@ -1,18 +1,9 @@
 'use client'
 
 import { type ReactNode, useLayoutEffect, useState } from 'react'
-import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ChatHeader } from '../header/chat-header'
 import { AppSidebar } from './app-sidebar'
-
-function TabletDefault() {
-  const { setOpen } = useSidebar()
-  // biome-ignore lint/correctness/useExhaustiveDependencies: tablet default applies once on mount so later toggles are never overridden
-  useLayoutEffect(() => {
-    if (window.innerWidth < 1024) setOpen(false)
-  }, [])
-  return null
-}
 
 export function Shell({
   signInAvailable,
@@ -25,12 +16,17 @@ export function Shell({
   hadCookie: boolean
   children: ReactNode
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   const [, setSearchOpen] = useState(false)
   const onSearch = () => setSearchOpen(true)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tablet default applies once on mount, bypassing the cookie so it is never saved as a choice
+  useLayoutEffect(() => {
+    if (!hadCookie && window.innerWidth < 1024) setOpen(false)
+  }, [])
+
   return (
-    <SidebarProvider defaultOpen={defaultOpen} className="h-svh">
-      {!hadCookie && <TabletDefault />}
+    <SidebarProvider open={open} onOpenChange={setOpen} className="h-svh">
       <AppSidebar signInAvailable={signInAvailable} onSearch={onSearch} />
       <SidebarInset className="min-h-0 min-w-0">
         <ChatHeader onSearch={onSearch} />

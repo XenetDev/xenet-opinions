@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   providers: { magicLink: true, google: false, github: true, apple: false },
   header: vi.fn(),
   sidebar: vi.fn(),
+  toggle: () => {},
   cookie: undefined as string | undefined,
   dialog: vi.fn(),
   usage: vi.fn(),
@@ -60,7 +61,9 @@ vi.mock('@/modules/chat/shell/app-sidebar', async () => {
   const { useSidebar } = await import('@/components/ui/sidebar')
   return {
     AppSidebar: (props: { signInAvailable: boolean; onSearch: () => void }) => {
-      mocks.sidebar({ ...props, open: useSidebar().open })
+      const sidebar = useSidebar()
+      mocks.toggle = sidebar.toggleSidebar
+      mocks.sidebar({ ...props, open: sidebar.open })
       return null
     },
   }
@@ -68,8 +71,12 @@ vi.mock('@/modules/chat/shell/app-sidebar', async () => {
 
 import ChatLayout from './layout'
 
+const cookieWrites = vi.spyOn(Document.prototype, 'cookie', 'set').mockImplementation(() => {})
+const wrote = () => cookieWrites.mock.calls.map(([value]) => value).join('\n')
+
 beforeEach(() => {
   cleanup()
+  cookieWrites.mockClear()
   mocks.header.mockReset()
   mocks.sidebar.mockReset()
   mocks.cookie = undefined
@@ -100,6 +107,7 @@ describe('Chat layout', () => {
     ['no cookie', undefined, true],
     ['sidebar_state=true', 'true', true],
     ['sidebar_state=false', 'false', false],
+    ['an empty sidebar_state', '', true],
   ])('opens the sidebar by default with %s', async (_, cookie, open) => {
     mocks.cookie = cookie
     render(await ChatLayout({ children: null }))
@@ -108,6 +116,7 @@ describe('Chat layout', () => {
 
   it.each([
     ['collapses on a tablet without a cookie', undefined, false],
+    ['collapses on a tablet with an empty cookie', '', false],
     ['keeps the saved state on a tablet', 'true', true],
   ])('%s', async (_, cookie, open) => {
     const width = window.innerWidth
@@ -116,6 +125,7 @@ describe('Chat layout', () => {
       mocks.cookie = cookie
       render(await ChatLayout({ children: null }))
       expect(mocks.sidebar.mock.lastCall?.[0].open).toBe(open)
+      expect(wrote()).not.toContain('sidebar_state')
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     }
@@ -146,5 +156,19 @@ describe('Chat layout', () => {
     mocks.usageValue = { used: 1, max: 3, resetAt: null }
     render(await ChatLayout({ children: null }))
     expect(mocks.usage).toHaveBeenCalledWith({ usage: mocks.usageValue, signIn: undefined })
+  })
+
+  it('saves a user toggle after the tablet collapse', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 })
+    try {
+      render(await ChatLayout({ children: null }))
+      expect(mocks.sidebar.mock.lastCall?.[0].open).toBe(false)
+      act(() => mocks.toggle())
+      expect(mocks.sidebar.mock.lastCall?.[0].open).toBe(true)
+      expect(wrote()).toContain('sidebar_state=true')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
   })
 })

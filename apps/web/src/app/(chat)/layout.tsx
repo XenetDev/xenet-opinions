@@ -21,7 +21,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
   const store = await cookies()
   const cookie = store.get('sidebar_state')?.value
   const defaultOpen = cookie ? cookie === 'true' : true
-  const hadCookie = cookie !== undefined
+  const hadCookie = !!cookie
 
   return (
     <ChatListProvider chats={chats.map((chat) => ({ ...chat, updatedAt: chat.updatedAt.toISOString() }))}>
