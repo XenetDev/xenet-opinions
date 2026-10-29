@@ -808,7 +808,7 @@ describe('Chat', () => {
   describe('checking the brief before a run', () => {
     const card = () => screen.queryByTestId('context-card')
     const runOptions = { maxRounds: 1, pauseForInterviews: false }
-    const checking = () => screen.queryAllByRole('status').find((el) => el.textContent === 'Reading your brief…')
+    const checking = () => screen.queryAllByRole('status').find((el) => el.textContent?.startsWith('Thinking'))
 
     it('asks for context when the check cannot be reached for a short prompt, and sends nothing', async () => {
       fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))

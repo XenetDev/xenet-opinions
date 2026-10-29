@@ -6,6 +6,7 @@ import { SEED_PROMPT_MIN_WORDS, wordCount } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Thinking } from '@/components/ui/thinking'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import { useUsage } from '@/modules/chat/shell/usage-context'
 import type { Limits } from '@/server/limits'
@@ -401,9 +402,7 @@ export function Chat({
                   ? {
                       text: pendingRun.text,
                       card: pendingRun.checking ? (
-                        <p role="status" className="text-sm text-muted-foreground">
-                          Reading your brief…
-                        </p>
+                        <Thinking />
                       ) : (
                         <ContextCard
                           pending={status === 'submitted' || status === 'streaming'}
@@ -417,9 +416,7 @@ export function Chat({
               }
               trailing={
                 !latestFailed ? undefined : actorsCard === 'checking' ? (
-                  <p role="status" className="text-sm text-muted-foreground">
-                    Reading your brief…
-                  </p>
+                  <Thinking />
                 ) : actorsCard ? (
                   <ContextCard
                     pending={false}
