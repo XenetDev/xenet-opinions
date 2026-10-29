@@ -86,4 +86,13 @@ describe('parseEnv', () => {
     const env = parseEnv(valid)
     expect([env.MAX_RUNS_PER_DAY_ANONYMOUS, env.MAX_RUNS_PER_DAY]).toEqual([1, 3])
   })
+  it('defaults the readiness check model and leaves it off without LLM_API_KEY', () => {
+    const env = parseEnv({ ...valid, LLM_API_KEY: '', LLM_BASE_URL: '', LLM_MODEL_NAME: '' })
+    expect([env.LLM_API_KEY, env.LLM_BASE_URL, env.LLM_MODEL_NAME]).toEqual([
+      undefined,
+      'https://api.openai.com/v1',
+      'gpt-4o-mini',
+    ])
+    expect(parseEnv({ ...valid, LLM_API_KEY: 'sk-1' }).LLM_API_KEY).toBe('sk-1')
+  })
 })

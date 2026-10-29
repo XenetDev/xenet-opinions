@@ -41,6 +41,9 @@ export const envSchema = z
     APPLE_CLIENT_SECRET: optionalString,
     APPLE_APP_BUNDLE_IDENTIFIER: optionalString,
     DEMO_MAX_ROUNDS: z.coerce.number().int().min(1).max(40).default(3),
+    LLM_API_KEY: optionalString,
+    LLM_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().default('https://api.openai.com/v1')),
+    LLM_MODEL_NAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('gpt-4o-mini')),
   })
   .superRefine((env, ctx) => {
     if (env.STORAGE_DRIVER === 's3') {

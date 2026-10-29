@@ -275,6 +275,7 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_*`, `GITHUB_*`, `APPLE_*` | Optional sign-in providers, see [Sign-in providers](#sign-in-providers) |
 | `DEMO_MAX_ROUNDS` | `3` |
 | `HEALTH_CHECK_MIROFISH` | `1` |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as MiroFish's. They power the readiness check before a run, which drafts who to simulate when the brief names no people or groups. Without `LLM_API_KEY` the check is off; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
 
 ## Limits and costs
 
