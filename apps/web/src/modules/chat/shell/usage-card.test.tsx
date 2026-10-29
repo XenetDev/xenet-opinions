@@ -41,6 +41,7 @@ describe('UsageCard', () => {
     const bar = screen.getByRole('progressbar')
     expect(bar.getAttribute('aria-valuenow')).toBe('2')
     expect(bar.getAttribute('aria-valuemax')).toBe('3')
+    expect(bar.getAttribute('aria-valuetext') ?? '2').toMatch(/67|2/)
     expect(await axe(container)).toHaveNoViolations()
   })
 
@@ -49,17 +50,27 @@ describe('UsageCard', () => {
     expect(screen.getByText(`No runs left until ${resetLabel(resetAt)}`)).toBeTruthy()
   })
 
-  it('offers sign-in only with signIn', async () => {
-    const { container, unmount } = render(card(1))
+  it('renders without a max of zero throwing', () => {
+    render(
+      <UsageProvider usage={{ used: 0, max: 0, resetAt: null }}>
+        <UsageCard />
+      </UsageProvider>,
+    )
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('0')
+  })
+
+  it('has no sign-in without signIn', () => {
+    render(card(1))
     expect(screen.queryByRole('button')).toBeNull()
     expect(screen.queryByText('Sign in for 3 runs a day')).toBeNull()
-    unmount()
-    const view = render(card(1, { max: 3 }))
+  })
+
+  it('offers sign-in with signIn', async () => {
+    const { container } = render(card(1, { max: 3 }))
     expect(screen.getByText('Sign in for 3 runs a day')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(dialog.open).toHaveBeenCalledOnce()
-    expect(await axe(view.container)).toHaveNoViolations()
-    expect(container).toBeTruthy()
+    expect(await axe(container)).toHaveNoViolations()
   })
 })
 

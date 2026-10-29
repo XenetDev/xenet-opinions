@@ -34,10 +34,9 @@ export function UsageCard() {
         </span>
       </div>
       <Progress
-        value={usage.max ? (usage.used / usage.max) * 100 : 0}
+        value={usage.max > 0 ? usage.used : 0}
+        max={usage.max > 0 ? usage.max : 1}
         aria-label="Runs used today"
-        aria-valuenow={usage.used}
-        aria-valuemax={usage.max}
       />
       {detail && (
         <p className="text-muted-foreground" suppressHydrationWarning>
