@@ -10,16 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ChatListItem } from '../chat-list-context'
 import { relativeTime, startOfDay } from '../relative-time'
+import { chatTitle, isRunning } from '../shell/chat-meta'
 
 const TABS = [
   { id: 'all', label: 'All' },
   { id: 'today', label: 'Today' },
   { id: 'earlier', label: 'Earlier' },
 ] as const
-
-export const chatTitle = (chat: Pick<ChatListItem, 'title'>) => chat.title || 'New conversation'
-
-export const isRunning = (runStatus: string | undefined) => runStatus === 'queued' || runStatus === 'running'
 
 function SwitcherRow({
   chat,

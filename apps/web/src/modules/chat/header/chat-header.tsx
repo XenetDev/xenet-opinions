@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useChatActivity } from '../chat-activity'
 import { useChatList } from '../chat-list-context'
+import { chatTitle, isRunning } from '../shell/chat-meta'
 import { AccountMenu } from './account-menu'
 import { ChatOptions } from './chat-options'
 import { GuideButton } from './guide-button'
 import { ThemeToggle } from './theme-toggle'
-import { chatTitle, isRunning, ThreadSwitcher } from './thread-switcher'
+import { ThreadSwitcher } from './thread-switcher'
 
 export function ChatHeader({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
