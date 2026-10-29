@@ -69,7 +69,7 @@ export function Thread({
   messages: OpinionsUIMessage[]
   renderAssistant: (message: OpinionsUIMessage) => ReactNode
   startedAt?: string
-  pending?: { text: string; card: ReactNode }
+  pending?: { text: string; files?: SourcesData['files']; card: ReactNode }
   trailing?: ReactNode
   className?: string
 }) {
@@ -117,7 +117,10 @@ export function Thread({
             {pending && (
               <>
                 <MessageScrollerItem key={PENDING_ID} className={cn('[content-visibility:visible]', ENTER)}>
-                  <UserTurn message={{ id: PENDING_ID, role: 'user', parts: [{ type: 'text', text: pending.text }] }} />
+                  <UserTurn
+                    message={{ id: PENDING_ID, role: 'user', parts: [{ type: 'text', text: pending.text }] }}
+                    sources={pending.files && { files: pending.files }}
+                  />
                 </MessageScrollerItem>
                 <MessageScrollerItem className={cn('flex flex-col gap-4 [content-visibility:visible]', ENTER)}>
                   <AssistantTurn>{pending.card}</AssistantTurn>

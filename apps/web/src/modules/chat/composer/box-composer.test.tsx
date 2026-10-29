@@ -205,6 +205,7 @@ describe('BoxComposer', () => {
       expect(onSend).toHaveBeenCalledWith('hello', {
         kind: 'run',
         uploadIds: ['u1'],
+        files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
         runOptions: { maxRounds: 3, pauseForInterviews: true },
       }),
     )
@@ -249,6 +250,7 @@ describe('BoxComposer', () => {
       expect(onSend).toHaveBeenCalledWith('hello', {
         kind: 'run',
         uploadIds: ['u1'],
+        files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
         runOptions: { maxRounds: 1, pauseForInterviews: false },
       }),
     )
@@ -372,7 +374,11 @@ describe('BoxComposer', () => {
     expect(onNeedChat).toHaveBeenCalledTimes(1)
     const body = fetchStub.mock.calls.find(([url]) => url === '/api/uploads')?.[1].body as FormData
     expect(body.get('chatId')).toBe('new-chat')
-    expect(onSend.mock.calls[0]?.[1]).toMatchObject({ kind: 'run', uploadIds: ['u1'] })
+    expect(onSend.mock.calls[0]?.[1]).toMatchObject({
+      kind: 'run',
+      uploadIds: ['u1'],
+      files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
+    })
   })
 
   it('follows a controlled value and reports edits', () => {
