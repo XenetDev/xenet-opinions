@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
-import { needsSeedContext } from '@xo/engine/policy'
+import { SEED_PROMPT_MIN_WORDS, wordCount } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -19,6 +19,7 @@ import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
 import { ContextCard, type SeedContext } from './parts/context-card'
+import { requestReadiness } from './readiness'
 import { runTransport } from './run-transport'
 import { SEND_FAILED, sendNotices } from './send-notices'
 import { Thread } from './thread/thread'
@@ -37,6 +38,23 @@ const INTERVIEW_NOTICES: Record<string, string> = {
 }
 
 type RunBody = { uploadIds: string[]; runOptions: RunOptionsValue; seed?: SeedContext }
+
+type PendingRun = {
+  text: string
+  runOptions: RunOptionsValue
+  uploadIds: string[]
+  draft?: SeedContext
+  checking: boolean
+}
+
+const seedFrom = (draft: SeedContext): SeedContext | undefined => {
+  const seed = Object.fromEntries(
+    Object.entries(draft)
+      .map(([key, value]) => [key, value?.trim()])
+      .filter(([, value]) => value),
+  ) as SeedContext
+  return Object.keys(seed).length > 0 ? seed : undefined
+}
 
 type LatestRun = {
   id: string
@@ -90,7 +108,8 @@ export function Chat({
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
-  const [pendingRun, setPendingRun] = useState<{ text: string; runOptions: RunOptionsValue } | null>(null)
+  const [pendingRun, setPendingRun] = useState<PendingRun | null>(null)
+  const checkRef = useRef<object | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const committedRef = useRef(mode === 'existing')
   const startingRef = useRef(false)
@@ -167,6 +186,13 @@ export function Chat({
     resumeGuard.current = true
     void resumeStream()
   }, [run, runActive, status, resumeStream])
+
+  useEffect(
+    () => () => {
+      checkRef.current = null
+    },
+    [],
+  )
 
   useEffect(() => {
     if (status === 'ready' && (run.status === 'done' || run.status === 'failed' || run.status === 'cancelled'))
@@ -261,7 +287,7 @@ export function Chat({
     setNotice(null)
     startingRef.current = true
     startRun(pending.text, {
-      uploadIds: [],
+      uploadIds: pending.uploadIds,
       runOptions: pending.runOptions,
       ...(seed && Object.keys(seed).length > 0 ? { seed } : {}),
     }).then(
@@ -274,6 +300,33 @@ export function Chat({
         else setPendingRun((current) => current ?? pending)
       },
     )
+  }
+
+  const sendRun = async (text: string, uploadIds: string[], runOptions: RunOptionsValue) => {
+    if (uploadIds.length === 0 && wordCount(text) >= SEED_PROMPT_MIN_WORDS) {
+      checkRef.current = null
+      setPendingRun(null)
+      await startRun(text, { uploadIds, runOptions })
+      return
+    }
+    if (checkRef.current) return
+    const check = {}
+    checkRef.current = check
+    setPendingRun({ text, runOptions, uploadIds, checking: true })
+    const result = await requestReadiness(chatId, { text, uploadIds })
+    if (checkRef.current !== check) return
+    checkRef.current = null
+    if (!result.ok) {
+      setPendingRun(null)
+      setNotice(sendNotices(limits, !!signIn)[result.code] ?? SEND_FAILED)
+      throw new Error(result.code)
+    }
+    if (result.readiness.ready) {
+      setPendingRun(null)
+      await startRun(text, { uploadIds, runOptions })
+      return
+    }
+    setPendingRun({ text, runOptions, uploadIds, draft: seedFrom(result.readiness.draft), checking: false })
   }
 
   const handleRetry = async () => {
@@ -322,9 +375,14 @@ export function Chat({
                 pendingRun
                   ? {
                       text: pendingRun.text,
-                      card: (
+                      card: pendingRun.checking ? (
+                        <p role="status" className="text-sm text-muted-foreground">
+                          Reading your brief…
+                        </p>
+                      ) : (
                         <ContextCard
                           pending={status === 'submitted' || status === 'streaming'}
+                          initial={pendingRun.draft}
                           onStart={(seed) => startPending(seed)}
                           onSkip={() => startPending()}
                         />
@@ -364,7 +422,11 @@ export function Chat({
               onStop={() => void handleStop()}
               disabled={
                 !interviewMode &&
-                (status === 'submitted' || status === 'streaming' || runActive || (limits.paused && !followUpMode))
+                (status === 'submitted' ||
+                  status === 'streaming' ||
+                  runActive ||
+                  !!pendingRun?.checking ||
+                  (limits.paused && !followUpMode))
               }
               onSend={async (text, submit) => {
                 setNotice(null)
@@ -376,12 +438,7 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
-                if (needsSeedContext(text, submit.uploadIds.length)) {
-                  setPendingRun({ text, runOptions: submit.runOptions })
-                  return
-                }
-                setPendingRun(null)
-                await startRun(text, { uploadIds: submit.uploadIds, runOptions: submit.runOptions })
+                await sendRun(text, submit.uploadIds, submit.runOptions)
               }}
             />
           </div>

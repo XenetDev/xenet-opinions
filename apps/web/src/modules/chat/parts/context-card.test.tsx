@@ -3,16 +3,19 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
-import { ContextCard } from './context-card'
+import { NoticeRegion } from '../notice-region'
+import { ContextCard, type SeedContext } from './context-card'
 
 afterEach(cleanup)
 
-const renderCard = (pending = false) => {
+const renderCard = (pending = false, initial?: SeedContext) => {
   const onStart = vi.fn()
   const onSkip = vi.fn()
-  const view = render(<ContextCard onStart={onStart} onSkip={onSkip} pending={pending} />)
+  const view = render(<ContextCard onStart={onStart} onSkip={onSkip} pending={pending} initial={initial} />)
   return { ...view, onStart, onSkip }
 }
+
+const DRAFT = { background: 'Prices rose 10% last year', actors: 'Pro customers, support staff', change: 'A new fee' }
 
 const field = (name: string) => screen.getByRole('textbox', { name }) as HTMLTextAreaElement
 
@@ -78,6 +81,49 @@ describe('ContextCard', () => {
     expect(fireEvent.keyDown(field('Background and constraints'), { key: 'Enter' })).toBe(true)
     expect(onStart).not.toHaveBeenCalled()
     expect(onSkip).not.toHaveBeenCalled()
+  })
+
+  describe('pre-filled with a draft', () => {
+    it('shows the drafted values with the drafted copy and no skip', () => {
+      renderCard(false, DRAFT)
+      expect(screen.getByText('We drafted who to simulate')).toBeTruthy()
+      expect(screen.getByText("Check these and run. Edit anything that's wrong.")).toBeTruthy()
+      expect(screen.getByText('Needs you')).toBeTruthy()
+      expect(screen.queryByText('A little more context helps the simulation')).toBeNull()
+      expect(field('Background and constraints').value).toBe(DRAFT.background)
+      expect(field('Who should be simulated').value).toBe(DRAFT.actors)
+      expect(field('What is changing').value).toBe(DRAFT.change)
+      expect(screen.getByRole('button', { name: 'Run with these' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Start run' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Skip and run with my question' })).toBeNull()
+    })
+
+    it('runs with the drafted values', () => {
+      const { onStart } = renderCard(false, DRAFT)
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      expect(onStart).toHaveBeenCalledWith(DRAFT)
+    })
+
+    it('omits a field the user cleared', () => {
+      const { onStart } = renderCard(false, DRAFT)
+      fireEvent.change(field('What is changing'), { target: { value: '' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      expect(onStart).toHaveBeenCalledWith({ background: DRAFT.background, actors: DRAFT.actors })
+    })
+
+    it('announces the draft', () => {
+      render(
+        <NoticeRegion notices={[]}>
+          <ContextCard onStart={vi.fn()} onSkip={vi.fn()} pending={false} initial={DRAFT} />
+        </NoticeRegion>,
+      )
+      expect(screen.getByRole('status').textContent).toBe('We drafted who to simulate. Check these and run.')
+    })
+
+    it('has no axe violations', async () => {
+      const { container } = renderCard(false, DRAFT)
+      expect(await axe(container)).toHaveNoViolations()
+    })
   })
 
   it('has no axe violations', async () => {
