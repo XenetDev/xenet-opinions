@@ -2,7 +2,6 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
-import { SEED_PROMPT_MIN_WORDS, wordCount } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -311,12 +310,6 @@ export function Chat({
     files: SourcesData['files'],
     runOptions: RunOptionsValue,
   ) => {
-    if (uploadIds.length === 0 && wordCount(text) >= SEED_PROMPT_MIN_WORDS) {
-      checkRef.current = null
-      setPendingRun(null)
-      await startRun(text, { uploadIds, runOptions })
-      return
-    }
     if (checkRef.current) return
     const check = {}
     checkRef.current = check
@@ -330,8 +323,9 @@ export function Chat({
       throw new Error(result.code)
     }
     if (result.readiness.ready) {
+      const seed = result.readiness.seed && seedFrom(result.readiness.seed)
       setPendingRun(null)
-      await startRun(text, { uploadIds, runOptions })
+      await startRun(text, { uploadIds, runOptions, ...(seed && { seed }) })
       return
     }
     setPendingRun({ text, runOptions, uploadIds, files, draft: seedFrom(result.readiness.draft), checking: false })

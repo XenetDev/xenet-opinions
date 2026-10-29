@@ -3,7 +3,7 @@ import { SEED_FIELD_MAX } from '@xo/engine'
 import { generateText, Output } from 'ai'
 import { env } from '@/env'
 import { fallbackReadiness } from './fallback'
-import { readinessForcedNote, readinessSchema, readinessSystem } from './prompt'
+import { readinessForcedNote, readinessNoDocumentsNote, readinessSchema, readinessSystem } from './prompt'
 import type { Readiness, ReadinessDraft } from './types'
 
 const TIMEOUT_MS = 8000
@@ -14,9 +14,9 @@ type Input = { text: string; documents: Array<{ filename: string; text: string }
 function userPrompt(input: Input): string {
   const documents = input.documents.map((doc) => `<document filename="${doc.filename}">\n${doc.text}\n</document>`)
   return [
-    ...(input.force ? [readinessForcedNote] : []),
+    ...(input.force ? [readinessForcedNote] : documents.length ? [] : [readinessNoDocumentsNote]),
     `<question>\n${input.text}\n</question>`,
-    ...(documents.length ? documents : ['No documents were uploaded.']),
+    ...documents,
   ].join('\n\n')
 }
 
@@ -71,6 +71,7 @@ export async function checkReadiness(
     )
     const draft = output.draft && cleanDraft(output.draft)
     if (input.force) return { ready: false, draft: draft ?? EMPTY_DRAFT }
+    if (input.documents.length === 0) return draft?.actors ? { ready: true, seed: draft } : fallback
     if (output.ready || !draft?.actors) return { ready: true }
     return { ready: false, draft }
   } catch (error) {

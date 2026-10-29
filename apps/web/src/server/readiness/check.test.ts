@@ -185,4 +185,28 @@ describe('checkReadiness', () => {
     ])
       expect(prompt).toContain(part)
   })
+
+  it('runs a prompt-only question with the drafted seed instead of a card', async () => {
+    const draft = { background: 'b', actors: '- Pro customers: Maria Lopez, design studio owner', change: 'c' }
+    const { fn, generate } = returning({ ready: false, draft })
+    expect(await checkReadiness(shortPrompt, { generate })).toEqual({ ready: true, seed: draft })
+    const prompt = (fn.mock.calls[0] as unknown as [{ prompt: string }])[0].prompt
+    expect(prompt).toContain('There are no documents')
+  })
+
+  it('runs a prompt-only question with the seed even when the model says ready', async () => {
+    const draft = { background: 'b', actors: '- Commuters: Ana Silva, nurse', change: 'c' }
+    const { generate } = returning({ ready: true, draft })
+    expect(await checkReadiness(longPrompt, { generate })).toEqual({ ready: true, seed: draft })
+  })
+
+  it('falls back when a prompt-only draft has no actors', async () => {
+    const { generate } = returning({ ready: true, draft: null })
+    expect(await checkReadiness(shortPrompt, { generate })).toEqual(EMPTY_CARD)
+    expect(await checkReadiness(longPrompt, { generate })).toEqual({ ready: true })
+  })
+
+  it('asks for named examples in every group', () => {
+    expect(readinessSystem).toContain('named examples')
+  })
 })
