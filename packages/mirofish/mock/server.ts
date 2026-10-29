@@ -18,6 +18,7 @@ export type MockOptions = {
   port?: number
   speed?: number
   failStage?: FailStage
+  failMessage?: string
   token?: string
   host?: string
   interviewDelayMs?: number
@@ -101,6 +102,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
     if (opts.failStage === stage) entity.failed = true
     return entity.failed === true
   }
+  const failure = () => opts.failMessage ?? FAILURE
 
   const need = <T>(value: T | undefined, what: string): T => {
     if (value === undefined) throw new HttpError(404, `${what} not found`)
@@ -122,9 +124,9 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         task_type: type,
         status: 'failed',
         progress,
-        message: FAILURE,
+        message: failure(),
         result: null,
-        error: FAILURE,
+        error: failure(),
       }
     }
     if (timeline.done) {
@@ -208,7 +210,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
       twitter_actions_count: active * 3,
       reddit_actions_count: active * 2,
       total_actions_count: active * 5,
-      error: failed ? FAILURE : null,
+      error: failed ? failure() : null,
     }
   }
 
@@ -218,7 +220,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
   const reportView = (reportId: string) => {
     const report = need(store.reports.get(reportId), 'report')
     const base = { report_id: report.id, simulation_id: report.simulationId }
-    if (fails(report, 'report')) return { ...base, status: 'failed', markdown_content: null, error: FAILURE }
+    if (fails(report, 'report')) return { ...base, status: 'failed', markdown_content: null, error: failure() }
     if (logLinesAvailable(report.timeline) < agentLogFixture.length) {
       return { ...base, status: 'generating', markdown_content: null, error: null }
     }
@@ -238,6 +240,7 @@ export const startMockMiroFish = async (options: MockOptions = {}) => {
         throw new HttpError(400, `stage must be one of ${FAIL_STAGES.join(', ')} or null`)
       }
       opts.failStage = (stage as FailStage | null) ?? undefined
+      opts.failMessage = typeof body.message === 'string' ? body.message : undefined
       return { failStage: opts.failStage ?? null }
     }),
     compile('POST', '/api/graph/ontology/generate', async ({ req }) => {
