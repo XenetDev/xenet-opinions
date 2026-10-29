@@ -27,6 +27,7 @@ import { SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { authClient } from '@/lib/auth-client'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
+import { useUsage } from './usage-context'
 
 export function initials(name: string, email: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
@@ -38,6 +39,7 @@ export function AccountRow({ signInAvailable }: { signInAvailable: boolean }) {
   const router = useRouter()
   const signInDialog = useSignInDialog()
   const { state, isMobile } = useSidebar()
+  const { signIn } = useUsage()
   const { data, isPending } = authClient.useSession()
   const [deleting, setDeleting] = useState(false)
   const collapsed = state === 'collapsed' && !isMobile
@@ -45,7 +47,7 @@ export function AccountRow({ signInAvailable }: { signInAvailable: boolean }) {
   if (isPending || !data?.user) return null
   const { user } = data
   if (user.isAnonymous === true) {
-    if (!collapsed || !signInAvailable) return null
+    if (!signInAvailable || (!collapsed && signIn)) return null
     return (
       <SidebarMenuItem>
         <SidebarMenuButton size="sm" tooltip="Sign in" onClick={signInDialog.open}>

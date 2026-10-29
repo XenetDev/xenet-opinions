@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { SidebarMenu, SidebarProvider } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
+import { UsageProvider } from './usage-context'
 
 const nav = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 const auth = vi.hoisted(() => ({
@@ -66,14 +67,16 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
-const renderRow = (signInAvailable = true, open = true) =>
+const renderRow = (signInAvailable = true, open = true, signIn?: { max: number }) =>
   render(
     <TooltipProvider>
-      <SidebarProvider defaultOpen={open}>
-        <SidebarMenu>
-          <AccountRow signInAvailable={signInAvailable} />
-        </SidebarMenu>
-      </SidebarProvider>
+      <UsageProvider usage={null} {...(signIn ? { signIn } : {})}>
+        <SidebarProvider defaultOpen={open}>
+          <SidebarMenu>
+            <AccountRow signInAvailable={signInAvailable} />
+          </SidebarMenu>
+        </SidebarProvider>
+      </UsageProvider>
     </TooltipProvider>,
   )
 
@@ -91,10 +94,32 @@ describe('AccountRow', () => {
     expect(renderRow().container.querySelector('li')).toBeNull()
   })
 
-  it('renders nothing for guests in the expanded sidebar', () => {
+  it('gives guests a Sign in row in the expanded sidebar when the usage card has none', async () => {
     auth.session = { data: anonymous, isPending: false }
     const { container } = renderRow(true, true)
+    const button = screen.getByRole('button', { name: 'Sign in' })
+    expect(button.querySelector('svg')).toBeTruthy()
+    fireEvent.click(button)
+    expect(dialog.open).toHaveBeenCalledOnce()
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('renders nothing for guests in the expanded sidebar when the usage card offers Sign in', () => {
+    auth.session = { data: anonymous, isPending: false }
+    const { container } = renderRow(true, true, { max: 3 })
     expect(container.querySelector('li')).toBeNull()
+  })
+
+  it('renders nothing for guests in the expanded sidebar without a sign-in provider', () => {
+    auth.session = { data: anonymous, isPending: false }
+    const { container } = renderRow(false, true)
+    expect(container.querySelector('li')).toBeNull()
+  })
+
+  it('keeps the rail Sign in button even when the usage card offers Sign in', () => {
+    auth.session = { data: anonymous, isPending: false }
+    renderRow(true, false, { max: 3 })
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
   })
 
   it('gives guests a Sign in icon button in the rail that opens the dialog', async () => {
