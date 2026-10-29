@@ -4,6 +4,8 @@ import { MAX_FILES } from './upload-rules'
 
 const seedField = z.string().trim().max(SEED_FIELD_MAX).optional()
 
+export const seedSchema = z.object({ background: seedField, actors: seedField, change: seedField })
+
 const messageBodySchema = z.object({
   id: z.string(),
   message: z.object({
@@ -20,7 +22,7 @@ const messageBodySchema = z.object({
       pauseForInterviews: z.boolean().default(false),
     })
     .default({ maxRounds: 3, pauseForInterviews: false }),
-  seed: z.object({ background: seedField, actors: seedField, change: seedField }).optional(),
+  seed: seedSchema.optional(),
 })
 
 export type MessageBody = z.infer<typeof messageBodySchema>

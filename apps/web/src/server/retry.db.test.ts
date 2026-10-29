@@ -10,7 +10,7 @@ vi.mock('@/lib/db', async () => {
 
 import { db } from '@/lib/db'
 import { retryRun } from './retry'
-import { RunActiveError } from './runs'
+import { RunActiveError, runsStartedSince } from './runs'
 
 const userId = `ur_${crypto.randomUUID()}`
 const chatId = `c_${crypto.randomUUID()}`
@@ -166,6 +166,50 @@ describe.skipIf(!process.env.DATABASE_URL)('retryRun (real db)', () => {
     expect(run.stage).toBe('report')
     expect(run.ids).toEqual({ projectId: 'p', graphId: 'g', simulationId: 's', prepareTaskId: 'pt' })
     expect(run.cursors).toEqual({ simStarted: true, startAcked: true, retries: 0, startAttempts: 0, idlePolls: 0 })
+  })
+
+  it('restarts from ontology with new uploads, copying no events', async () => {
+    const chat = `c_${crypto.randomUUID()}`
+    const assistant = `a_${crypto.randomUUID()}`
+    const failedId = `r_${crypto.randomUUID()}`
+    await db.insert(schema.chats).values({ id: chat, userId })
+    await db.insert(schema.messages).values({ id: assistant, chatId: chat, role: 'assistant', parts: [] })
+    await db.insert(schema.runs).values({
+      id: failedId,
+      chatId: chat,
+      userId,
+      assistantMessageId: assistant,
+      status: 'failed',
+      stage: 'graph_build',
+      config: { requirement: 'hi', maxRounds: 2, uploadIds: ['up1', 'seed1'], pauseForInterviews: true },
+      ids: { projectId: 'p', graphTaskId: 'gt' },
+      cursors: { retries: 1 },
+      error: { stage: 'graph_build', code: 'no_actors', message: 'none' },
+    })
+    await db
+      .insert(schema.runEvents)
+      .values(oldEvents.slice(0, 4).map((e, i) => ({ runId: failedId, seq: i + 1, ...e })))
+    const since = new Date(Date.now() - 60_000)
+    const before = await runsStartedSince(userId, since)
+
+    const { run } = await retryRun({ chatId: chat, userId, restart: { uploadIds: ['up1', 'seed2'] } })
+
+    expect(run.retryOf).toBe(failedId)
+    expect(run.status).toBe('queued')
+    expect(run.stage).toBe('ontology')
+    expect(run.ids).toEqual({})
+    expect(run.cursors).toEqual({ retries: 0, startAttempts: 0, idlePolls: 0 })
+    expect(run.config).toEqual({
+      requirement: 'hi',
+      maxRounds: 2,
+      uploadIds: ['up1', 'seed2'],
+      pauseForInterviews: true,
+    })
+    const events = await db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, run.id))
+    expect(events.map(({ seq, kind, partId, payload }) => ({ seq, kind, partId, payload }))).toEqual([
+      { seq: 1, ...ev('stage', { stage: 'ontology', status: 'pending', message: 'Retrying' }) },
+    ])
+    expect((await runsStartedSince(userId, since)).count).toBe(before.count)
   })
 
   afterAll(async () => {

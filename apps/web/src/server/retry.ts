@@ -1,5 +1,13 @@
 import { type Run, schema } from '@xo/db'
-import { EVENT_KINDS, type EventKind, partIdFor, payloadSchemaFor, prepareRetry, type StageData } from '@xo/engine'
+import {
+  EVENT_KINDS,
+  type EventKind,
+  partIdFor,
+  payloadSchemaFor,
+  prepareRestart,
+  prepareRetry,
+  type StageData,
+} from '@xo/engine'
 import { generateId } from 'ai'
 import { asc, desc, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -12,6 +20,7 @@ const SKIPPED_KINDS = new Set(['error', 'done', 'cancelled'])
 export async function retryRun(input: {
   chatId: string
   userId: string
+  restart?: { uploadIds: string[] }
 }): Promise<{ run: Run; assistantMessageId: string }> {
   const assistantMessageId = generateId()
   try {
@@ -26,7 +35,7 @@ export async function retryRun(input: {
       if (old && (old.status === 'queued' || old.status === 'running')) throw new RunActiveError()
       if (old?.status !== 'failed') throw new RunNotFailedError()
 
-      const { ids, cursors, stage: failedStage } = prepareRetry(old)
+      const { ids, cursors, stage } = input.restart ? prepareRestart(old) : prepareRetry(old)
 
       await tx.insert(messages).values({ id: assistantMessageId, chatId: input.chatId, role: 'assistant', parts: [] })
       const [row] = await tx
@@ -38,21 +47,22 @@ export async function retryRun(input: {
           assistantMessageId,
           retryOf: old.id,
           status: 'queued',
-          stage: failedStage,
-          config: old.config,
+          stage,
+          config: input.restart ? { ...old.config, uploadIds: input.restart.uploadIds } : old.config,
           ids,
           cursors,
           error: null,
         })
         .returning()
 
-      const oldEvents = await tx.select().from(runEvents).where(eq(runEvents.runId, old.id)).orderBy(asc(runEvents.seq))
+      const oldEvents = input.restart
+        ? []
+        : await tx.select().from(runEvents).where(eq(runEvents.runId, old.id)).orderBy(asc(runEvents.seq))
       const copied = oldEvents.filter(
         (event) =>
-          !SKIPPED_KINDS.has(event.kind) &&
-          !(event.kind === 'stage' && (event.payload as StageData).stage === failedStage),
+          !SKIPPED_KINDS.has(event.kind) && !(event.kind === 'stage' && (event.payload as StageData).stage === stage),
       )
-      const retrying: StageData = { stage: failedStage, status: 'pending', message: 'Retrying' }
+      const retrying: StageData = { stage, status: 'pending', message: 'Retrying' }
       const values = [
         ...copied.map((event) => {
           if (!(EVENT_KINDS as readonly string[]).includes(event.kind))

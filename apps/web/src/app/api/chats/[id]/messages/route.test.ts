@@ -369,14 +369,40 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).not.toHaveBeenCalled()
     })
 
-    it('does not seed a run that has uploads', async () => {
+    it('does not seed a run that has uploads and no seed answers', async () => {
       authed()
       start()
-      const res = await call(userMessage('hi'), { seed: { background: 'ignored' } })
+      const res = await call(userMessage('hi'))
       await res.body?.cancel()
       expect(countOwnedUploads).toHaveBeenCalledWith({ chatId: 'c1', userId: 'user1', uploadIds: ['up1'] })
       expect(createSeedUpload).not.toHaveBeenCalled()
       expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ uploadIds: ['up1'] }))
+    })
+
+    it('does not seed a run that has uploads and only blank seed answers', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('hi'), { seed: { background: '  ', actors: '', change: '\n' } })
+      await res.body?.cancel()
+      expect(createSeedUpload).not.toHaveBeenCalled()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ uploadIds: ['up1'] }))
+    })
+
+    it('attaches a seed after the uploads when the answers are non-empty', async () => {
+      authed()
+      start()
+      const uploadIds = ['u1', 'u2', 'u3', 'u4', 'u5']
+      vi.mocked(countOwnedUploads).mockResolvedValue(5)
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds, seed: { actors: 'Customers' } })
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(countOwnedUploads).toHaveBeenCalledTimes(1)
+      expect(createSeedUpload).toHaveBeenCalledTimes(1)
+      const { chatId, userId, document } = vi.mocked(createSeedUpload).mock.calls[0]![0]
+      expect({ chatId, userId }).toEqual({ chatId: 'c1', userId: 'user1' })
+      expect(document).toContain('Should we raise prices?')
+      expect(document).toContain('## Who is involved\nCustomers\n')
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ uploadIds: [...uploadIds, 'seed1'] }))
     })
   })
 

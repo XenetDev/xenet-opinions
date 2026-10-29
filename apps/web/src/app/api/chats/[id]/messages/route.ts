@@ -71,7 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: 'invalid_body' }, { status: 400 })
   }
   if (!owned && !(await ensureOwnedChat(chatId, user.id))) return Response.json({ error: 'not_found' }, { status: 404 })
-  if (uploadIds.length === 0) {
+  if (uploadIds.length === 0 || Object.values(body.seed ?? {}).some(Boolean)) {
     const seed = await createSeedUpload({
       chatId,
       userId: user.id,
