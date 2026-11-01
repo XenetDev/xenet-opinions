@@ -39,7 +39,7 @@ services:
     networks: [internal]
 
   minio-init:
-    image: pgsty/mc@sha256:6ecdaec70bc5e8cf9d0e9a70c190f3beb1c83f11617ff4333f1fcd71ab1daf18
+    image: pgsty/mc@sha256:ce62c9053c69ce12a527a322345b5ad9f44b5f8a7b8189f82e516f2e3f30f1d8
     restart: "no"
     depends_on: [minio]
     environment:
