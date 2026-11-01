@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS build
+FROM python:3.15-slim AS build
 
 ARG MIROFISH_REPO=https://github.com/666ghj/MiroFish
 ARG MIROFISH_REF=7657031ac01184afe2cb220f5ee3545573b5e843
@@ -25,7 +25,7 @@ RUN UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 UV_HTTP_TIMEOUT=600 uv sync --frozen
   && uv cache clean \
   && .venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 ARG MIROFISH_REF=7657031ac01184afe2cb220f5ee3545573b5e843
 
