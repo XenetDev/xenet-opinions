@@ -23,7 +23,8 @@ function PlanUsageCard() {
   const { usage, signIn } = useUsage()
   const signInDialog = useSignInDialog()
   if (!usage?.plan) return null
-  const { plan, used, max, resetAt, cancelAtPeriodEnd } = usage
+  const { plan, used, max, resetAt, subscribed, cancelAtPeriodEnd } = usage
+  const renewal = subscribed ? 'Renews' : 'Resets'
   const left = Math.max(max - used, 0)
   const detail = !resetAt
     ? left === 0
@@ -31,7 +32,7 @@ function PlanUsageCard() {
       : null
     : cancelAtPeriodEnd
       ? `Cancels ${shortDate(resetAt)}`
-      : `${left === 0 ? 'No runs left. Resets' : 'Resets'} ${shortDate(resetAt)}`
+      : `${left === 0 ? `No runs left. ${renewal}` : renewal} ${shortDate(resetAt)}`
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 text-xs">
       <div className="flex items-baseline justify-between gap-2">

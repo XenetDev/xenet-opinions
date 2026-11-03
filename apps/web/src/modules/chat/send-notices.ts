@@ -21,7 +21,9 @@ const planQuotaNotice = (
   limits: Pick<Limits, 'plan' | 'resetAt' | 'signedInMaxRunsPerDay'>,
   signInAvailable: boolean,
 ) => {
-  const reset = limits.resetAt ? `They reset on ${shortDate(limits.resetAt)}.` : ''
+  const when = limits.resetAt ? shortDate(limits.resetAt) : ''
+  const reset = when ? `They reset on ${when}.` : ''
+  const renew = when ? `They renew on ${when}.` : ''
   switch (limits.plan) {
     case 'guest':
       return signInAvailable
@@ -30,9 +32,9 @@ const planQuotaNotice = (
     case 'free':
       return `You've used your free runs this month. Upgrade for more. ${reset}`.trim()
     case 'starter':
-      return `You've used your Starter runs. Upgrade to Pro for more. ${reset}`.trim()
+      return `You've used your Starter runs. Upgrade to Pro for more. ${renew}`.trim()
     default:
-      return `You've used your Pro runs. ${reset}`.trim()
+      return `You've used your Pro runs. ${renew}`.trim()
   }
 }
 

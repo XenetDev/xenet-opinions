@@ -102,14 +102,19 @@ describe('UsageCard with a plan', () => {
     expect(screen.getByRole('link', { name: 'Upgrade' }).getAttribute('href')).toBe('/pricing')
   })
 
+  it('says a subscription renews rather than resets', () => {
+    planned({ subscribed: true })
+    expect(screen.getByText('Renews Dec 3')).toBeTruthy()
+  })
+
   it('says when no runs are left, and hides upgrade on Pro', () => {
-    planned({ plan: 'pro', used: 6, max: 6 })
-    expect(screen.getByText('No runs left. Resets Dec 3')).toBeTruthy()
+    planned({ plan: 'pro', used: 6, max: 6, subscribed: true })
+    expect(screen.getByText('No runs left. Renews Dec 3')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
   })
 
   it('shows a pending cancellation', () => {
-    planned({ cancelAtPeriodEnd: true })
+    planned({ subscribed: true, cancelAtPeriodEnd: true })
     expect(screen.getByText('Cancels Dec 3')).toBeTruthy()
   })
 
