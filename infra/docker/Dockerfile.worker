@@ -1,4 +1,4 @@
-FROM node:24-slim
+FROM node:26-slim
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 COREPACK_HOME=/opt/corepack NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@10.30.0 --activate && chmod -R a+rX /opt/corepack
 WORKDIR /app
