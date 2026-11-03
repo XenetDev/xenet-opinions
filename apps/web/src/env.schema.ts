@@ -31,6 +31,8 @@ export const envSchema = z
     DEMO_ALLOW_PAUSE: z.enum(['1', '0']).default('1'),
     MAX_RUNS_PER_DAY_ANONYMOUS: z.coerce.number().int().min(0).default(1),
     MAX_RUNS_PER_DAY: z.coerce.number().int().min(0).default(3),
+    STRIPE_SECRET_KEY: optionalString,
+    STRIPE_WEBHOOK_SECRET: optionalString,
     RESEND_API_KEY: optionalString,
     EMAIL_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(EMAIL_FROM_PATTERN).optional()),
     GOOGLE_CLIENT_ID: optionalString,

@@ -24,7 +24,9 @@ export function ChatHeader({ signInAvailable, onSearch }: { signInAvailable: boo
   return (
     <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 bg-background/70 px-3 backdrop-blur-md after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-background after:to-transparent supports-backdrop-filter:bg-background/60 sm:px-4">
       <SidebarTrigger aria-label="Open sidebar" className="md:hidden" />
-      <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{chat ? chatTitle(chat) : 'New chat'}</h1>
+      <h1 className="min-w-0 flex-1 truncate text-sm font-medium">
+        {chat ? chatTitle(chat) : pathname === '/pricing' ? 'Plans' : 'New chat'}
+      </h1>
       {running && (
         <Badge variant="primary-light" size="sm" className="shrink-0">
           Working

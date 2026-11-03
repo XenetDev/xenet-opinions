@@ -1,11 +1,11 @@
 import { headers } from 'next/headers'
 import { getSessionUser } from '@/lib/session'
 import { HomeChat } from '@/modules/chat/home/home-chat'
-import { getLimits } from '@/server/limits'
+import { resolveLimits } from '@/server/billing/limits'
 
 export default async function Home() {
   const user = await getSessionUser(await headers())
-  const limits = getLimits(user ?? { isAnonymous: true })
+  const { limits } = await resolveLimits(user)
 
   return <HomeChat limits={limits} />
 }

@@ -92,6 +92,8 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `DEMO_PAUSED` | `0` | `1` refuses new runs (follow-ups still work) |
 | `MAX_RUNS_PER_DAY_ANONYMOUS` | `1` | New runs per guest (not signed in) per 24 h; retries of a failed run are free. Demo mode only |
 | `MAX_RUNS_PER_DAY` | `3` | New runs per signed-in user per 24 h; retries of a failed run are free. Demo mode only |
+| `STRIPE_SECRET_KEY` | blank | Read by `web`. Set it to sell plans: Guest, Free, Starter and Pro limits apply, and `DEMO_MODE`, `DEMO_MAX_ROUNDS` and `MAX_RUNS_PER_DAY*` are ignored. Run `node scripts/stripe-setup.mjs <app-url>` once per Stripe mode. Blank means no billing |
+| `STRIPE_WEBHOOK_SECRET` | blank | Read by `web`. Signing secret for `/api/billing/webhook`, printed by the setup script |
 | `RESEND_API_KEY` | blank | Enables the magic link by email. Needs `EMAIL_FROM` |
 | `EMAIL_FROM` | blank | Sender, `Name <address>` or a bare address on a domain verified in Resend |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | blank | Enable Google sign-in; set both |

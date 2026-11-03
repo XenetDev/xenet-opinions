@@ -1,0 +1,12 @@
+import Stripe from 'stripe'
+
+let client: Stripe | undefined
+
+export const billingEnabled = () => !!process.env.STRIPE_SECRET_KEY
+
+export function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key) throw new Error('billing_disabled')
+  client ??= new Stripe(key)
+  return client
+}

@@ -8,14 +8,17 @@ import { ChatListProvider } from '@/modules/chat/chat-list-context'
 import { Shell } from '@/modules/chat/shell/shell'
 import { UsageProvider } from '@/modules/chat/shell/usage-context'
 import { GuideProvider } from '@/modules/guide/guide-provider'
+import { resolveLimits } from '@/server/billing/limits'
 import { listChats } from '@/server/chats'
-import { getLimits } from '@/server/limits'
 import { getUsage } from '@/server/usage'
+import { usageFromAllowance } from '@/server/usage-from'
 
 export default async function ChatLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser(await headers())
-  const limits = getLimits(user ?? { isAnonymous: true })
-  const [chats, usage] = user ? await Promise.all([listChats(user.id), getUsage(user.id, limits)]) : [[], null]
+  const { limits, allowance } = await resolveLimits(user)
+  const [chats, usage] = user
+    ? await Promise.all([listChats(user.id), allowance ? usageFromAllowance(allowance) : getUsage(user.id, limits)])
+    : [[], null]
   const signIn =
     limits.anonymous && limits.demoMode && signInAvailable() ? { max: limits.signedInMaxRunsPerDay } : undefined
   const store = await cookies()

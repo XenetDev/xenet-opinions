@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
 import { generateId } from 'ai'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Thinking } from '@/components/ui/thinking'
@@ -361,6 +362,7 @@ export function Chat({
     void retryRun(seed)
   }
 
+  const canUpgrade = limits.plan === 'free' || limits.plan === 'starter'
   const lastMessage = messages.at(-1)
   const runMessage = runActive
     ? (messages.find((message) => message.id === run.assistantMessageId) ??
@@ -451,7 +453,19 @@ export function Chat({
             />
           )}
           <div ref={composerRef} className="mx-auto w-full max-w-3xl px-4 pb-4">
-            {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
+            {notice && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {notice}
+                {canUpgrade && notice === sendNotices(limits, !!signIn).quota_exceeded && (
+                  <>
+                    {' '}
+                    <Link href="/pricing" className="font-medium text-foreground underline underline-offset-2">
+                      See plans
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
             {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
             <Composer
               maxRounds={limits.maxRounds}

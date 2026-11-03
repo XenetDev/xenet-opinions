@@ -5,7 +5,7 @@ import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { chatTitleFrom } from '@/modules/chat/chat-title'
 
-const { chats, messages, runs, uploads } = schema
+const { chats, messages, runs, runUsage, uploads } = schema
 
 export const runStore = createDrizzleStore(db)
 
@@ -114,6 +114,7 @@ export async function startRun(input: {
           },
         })
         .returning()
+      await tx.insert(runUsage).values({ runId: row!.id, userId: input.userId })
       await tx
         .update(chats)
         .set({

@@ -10,6 +10,8 @@ import { db } from '@/lib/db'
 import { deleteAccountEmail, magicLinkEmail } from '@/lib/emails'
 import { getMailer, type Mailer } from '@/lib/mailer'
 import { deleteUserStorage, relinkAnonymousUser } from '@/server/account'
+import { billingEnabled } from '@/server/billing/stripe'
+import { cancelUserSubscription } from '@/server/billing/sync'
 
 type AuthDeps = {
   env: Env
@@ -119,6 +121,9 @@ export const auth = betterAuth(
     schema,
     mailer: getMailer,
     relink: relinkAnonymousUser,
-    deleteStorage: deleteUserStorage,
+    deleteStorage: async (userId) => {
+      if (billingEnabled()) await cancelUserSubscription(userId)
+      return deleteUserStorage(userId)
+    },
   }),
 )

@@ -2,9 +2,9 @@ import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { Chat } from '@/modules/chat/chat'
+import { resolveLimits } from '@/server/billing/limits'
 import { loadChatPage } from '@/server/chat-page'
 import { getOwnedChat } from '@/server/chats'
-import { getLimits } from '@/server/limits'
 
 export default async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -13,7 +13,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const chat = await getOwnedChat(id, user.id)
   if (!chat) notFound()
 
-  const limits = getLimits(user)
+  const { limits } = await resolveLimits(user)
   const { initialMessages, activeRun, latestRun } = await loadChatPage(chat.id, user.id)
 
   return (
