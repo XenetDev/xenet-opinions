@@ -1,5 +1,7 @@
 'use client'
 
+import { PLANS } from '@xo/engine/policy'
+import Link from 'next/link'
 import { Progress } from '@/components/ui/progress'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 import { useUsage } from './usage-context'
@@ -14,10 +16,61 @@ export function resetLabel(iso: string, now = new Date()): string {
   return `${when} at ${clock(iso)}`
 }
 
+const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'UTC' })
+
+function PlanUsageCard() {
+  const { usage, signIn } = useUsage()
+  const signInDialog = useSignInDialog()
+  if (!usage?.plan) return null
+  const { plan, used, max, resetAt, subscribed, cancelAtPeriodEnd } = usage
+  const renewal = subscribed ? 'Renews' : 'Resets'
+  const left = Math.max(max - used, 0)
+  const detail = !resetAt
+    ? left === 0
+      ? 'No runs left'
+      : null
+    : cancelAtPeriodEnd
+      ? `Cancels ${shortDate(resetAt)}`
+      : `${left === 0 ? `No runs left. ${renewal}` : renewal} ${shortDate(resetAt)}`
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 text-xs">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">{PLANS[plan].name}</span>
+        <span className="text-muted-foreground tabular-nums">
+          {used} of {max} runs
+        </span>
+      </div>
+      <Progress value={max > 0 ? used : 0} max={max > 0 ? max : 1} aria-label="Runs used" />
+      {detail && (
+        <p className="text-muted-foreground" suppressHydrationWarning>
+          {detail}
+        </p>
+      )}
+      {signIn ? (
+        <button
+          type="button"
+          className="cursor-pointer self-start text-muted-foreground underline-offset-2 hover:underline"
+          onClick={signInDialog.open}
+        >
+          Sign in for {signIn.max} runs a month
+        </button>
+      ) : (
+        plan !== 'pro' && (
+          <Link href="/pricing" className="self-start font-medium underline-offset-2 hover:underline">
+            Upgrade
+          </Link>
+        )
+      )}
+    </div>
+  )
+}
+
 export function UsageCard() {
   const { usage, signIn } = useUsage()
   const signInDialog = useSignInDialog()
   if (!usage) return null
+  if (usage.plan) return <PlanUsageCard />
   const left = Math.max(usage.max - usage.used, 0)
   const detail =
     left === 0 && usage.resetAt

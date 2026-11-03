@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOutIcon, Trash2Icon } from 'lucide-react'
+import { CreditCardIcon, LogOutIcon, SparklesIcon, Trash2Icon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { authClient } from '@/lib/auth-client'
 import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
+import { openBillingPortal } from '@/modules/billing/billing-actions'
+import { useUsage } from '@/modules/chat/shell/usage-context'
 
 export function initials(name: string, email: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
@@ -38,6 +40,7 @@ export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
   const signInDialog = useSignInDialog()
   const { data, isPending } = authClient.useSession()
   const [deleting, setDeleting] = useState(false)
+  const { usage } = useUsage()
 
   if (isPending || !data?.user) return null
   const { user } = data
@@ -67,6 +70,18 @@ export function AccountMenu({ signInAvailable }: { signInAvailable: boolean }) {
             <span className="truncate text-xs text-muted-foreground">{user.email}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {usage?.subscribed && (
+            <DropdownMenuItem onSelect={() => void openBillingPortal()}>
+              <CreditCardIcon aria-hidden="true" />
+              Manage billing
+            </DropdownMenuItem>
+          )}
+          {usage?.plan && usage.plan !== 'pro' && (
+            <DropdownMenuItem onSelect={() => router.push('/pricing')}>
+              <SparklesIcon aria-hidden="true" />
+              Upgrade
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={async () => {
               await authClient.signOut()

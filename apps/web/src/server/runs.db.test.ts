@@ -11,7 +11,7 @@ vi.mock('@/lib/storage', () => ({ storage: { delete: vi.fn() } }))
 
 import { db } from '@/lib/db'
 import { listMessages } from './chats'
-import { RunActiveError, runsStartedSince, startRun } from './runs'
+import { QuotaExceededError, RunActiveError, runsStartedSince, startRun } from './runs'
 
 const userId = `ur_${crypto.randomUUID()}`
 
@@ -68,6 +68,23 @@ describe.skipIf(!process.env.DATABASE_URL)('startRun (real db)', () => {
     await startRun({ ...input(chatId), text: 'second' })
     const [again] = await db.select().from(schema.chats).where(eq(schema.chats.id, chatId))
     expect(again!.title).toBe(`${'x'.repeat(120)}…`)
+  })
+
+  it('never starts more runs than the allowance, even in parallel', async () => {
+    const quotaUser = `quota_${crypto.randomUUID()}`
+    await db
+      .insert(schema.user)
+      .values({ id: quotaUser, name: 'Q', email: `${quotaUser}@example.test`, emailVerified: true })
+    const chatIds = Array.from({ length: 4 }, () => `qc_${crypto.randomUUID()}`)
+    await db.insert(schema.chats).values(chatIds.map((id) => ({ id, userId: quotaUser })))
+    const quota = { max: 2, since: null, resetAt: null }
+    const results = await Promise.allSettled(
+      chatIds.map((chatId) => startRun({ ...input(chatId), userId: quotaUser, quota })),
+    )
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2)
+    const refused = results.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
+    expect(refused.every((reason) => reason instanceof QuotaExceededError)).toBe(true)
+    await db.delete(schema.user).where(eq(schema.user.id, quotaUser))
   })
 
   it('stores pauseForInterviews in the run config', async () => {

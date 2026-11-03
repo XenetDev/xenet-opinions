@@ -7,7 +7,7 @@ import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { messageText, parseMessageBody } from '@/server/message-body'
 import { checkRunGate } from '@/server/run-gate'
-import { countOwnedUploads, RunActiveError, runStore, startRun } from '@/server/runs'
+import { countOwnedUploads, QuotaExceededError, RunActiveError, runStore, startRun } from '@/server/runs'
 import { createSeedUpload } from '@/server/uploads'
 
 export const runtime = 'nodejs'
@@ -90,9 +90,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       uploadIds,
       maxRounds: body.runOptions.maxRounds,
       pauseForInterviews: limits.allowPause && body.runOptions.pauseForInterviews,
+      ...(gate.quota && { quota: gate.quota }),
     })
   } catch (error) {
     if (error instanceof RunActiveError) return Response.json({ error: 'run_active' }, { status: 409 })
+    if (error instanceof QuotaExceededError)
+      return Response.json({ error: 'quota_exceeded', resetAt: error.resetAt }, { status: 429 })
     throw error
   }
 

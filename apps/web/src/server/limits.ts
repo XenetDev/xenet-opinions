@@ -1,3 +1,4 @@
+import type { PlanId } from '@xo/engine/policy'
 import { env } from '@/env'
 
 export type Limits = {
@@ -8,6 +9,8 @@ export type Limits = {
   anonymous: boolean
   maxRounds: number
   allowPause: boolean
+  plan?: PlanId
+  resetAt?: string | null
 }
 
 type LimitsEnv = Pick<

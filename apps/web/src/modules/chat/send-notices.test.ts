@@ -56,3 +56,33 @@ describe('uploadNotice', () => {
     expect(uploadNotice(undefined)).toBe(UPLOAD_FAILED)
   })
 })
+
+describe('sendNotices with plans', () => {
+  const base = {
+    maxRunsPerDay: 4,
+    maxRounds: 5,
+    anonymous: false,
+    signedInMaxRunsPerDay: 2,
+    resetAt: '2026-12-03T07:00:00.000Z',
+  }
+
+  it.each([
+    ['free', "You've used your free runs this month. Upgrade for more."],
+    ['starter', "You've used your Starter runs. Upgrade to Pro for more."],
+    ['pro', "You've used your Pro runs."],
+  ] as const)('names the %s plan and the reset date', (plan, text) => {
+    const notice = sendNotices({ ...base, plan }, true).quota_exceeded
+    expect(notice).toContain(text)
+    expect(notice).toContain('Dec 3')
+  })
+
+  it('points a guest to sign in only when sign-in exists', () => {
+    const guest = { ...base, plan: 'guest', resetAt: null, anonymous: true } as const
+    expect(sendNotices(guest, true).quota_exceeded).toBe("You've used your free run. Sign in for 2 free runs a month.")
+    expect(sendNotices(guest, false).quota_exceeded).toBe("You've used your free run.")
+  })
+
+  it('says the plan caps rounds, not the demo', () => {
+    expect(sendNotices({ ...base, plan: 'starter' }, true).rounds_exceeded).toBe('Your plan allows up to 5 rounds.')
+  })
+})

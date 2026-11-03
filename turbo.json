@@ -41,7 +41,9 @@
     "WORKER_ID",
     "LLM_API_KEY",
     "LLM_BASE_URL",
-    "LLM_MODEL_NAME"
+    "LLM_MODEL_NAME",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET"
   ],
   "tasks": {
     "build": {

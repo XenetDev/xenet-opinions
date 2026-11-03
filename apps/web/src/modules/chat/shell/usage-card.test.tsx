@@ -82,3 +82,46 @@ describe('resetLabel', () => {
     expect(resetLabel('2026-10-31T09:00:00', now)).toMatch(/^Saturday at /)
   })
 })
+
+describe('UsageCard with a plan', () => {
+  const planned = (usage: object, signIn?: { max: number }) =>
+    render(
+      <UsageProvider
+        usage={{ used: 1, max: 4, resetAt: '2026-12-03T07:00:00.000Z', plan: 'starter', ...usage }}
+        {...(signIn ? { signIn } : {})}
+      >
+        <UsageCard />
+      </UsageProvider>,
+    )
+
+  it('shows the plan, runs, reset date and an upgrade link', () => {
+    planned({})
+    expect(screen.getByText('Starter')).toBeTruthy()
+    expect(screen.getByText('1 of 4 runs')).toBeTruthy()
+    expect(screen.getByText('Resets Dec 3')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Upgrade' }).getAttribute('href')).toBe('/pricing')
+  })
+
+  it('says a subscription renews rather than resets', () => {
+    planned({ subscribed: true })
+    expect(screen.getByText('Renews Dec 3')).toBeTruthy()
+  })
+
+  it('says when no runs are left, and hides upgrade on Pro', () => {
+    planned({ plan: 'pro', used: 6, max: 6, subscribed: true })
+    expect(screen.getByText('No runs left. Renews Dec 3')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
+  })
+
+  it('shows a pending cancellation', () => {
+    planned({ subscribed: true, cancelAtPeriodEnd: true })
+    expect(screen.getByText('Cancels Dec 3')).toBeTruthy()
+  })
+
+  it('offers guests sign-in instead of upgrade', () => {
+    planned({ plan: 'guest', used: 1, max: 1, resetAt: null }, { max: 2 })
+    expect(screen.getByText('No runs left')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in for 2 runs a month' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
+  })
+})

@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
 import { generateId } from 'ai'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Thinking } from '@/components/ui/thinking'
@@ -105,7 +106,7 @@ export function Chat({
   const runIdAtSendRef = useRef<string | undefined>(undefined)
   const messagesRef = useRef(initialMessages)
   const [notice, setNotice] = useState<string | null>(null)
-  const { signIn, bump: bumpUsage } = useUsage()
+  const { signIn, usage, bump: bumpUsage } = useUsage()
   const [watching, setWatching] = useState(!!activeRun)
   const [sendCount, setSendCount] = useState(0)
   const [draft, setDraft] = useState('')
@@ -361,6 +362,10 @@ export function Chat({
     void retryRun(seed)
   }
 
+  const canUpgrade = limits.plan === 'free' || limits.plan === 'starter'
+  const quotaNotice = sendNotices(limits, !!signIn).quota_exceeded
+  const outOfRuns = !!limits.plan && !!usage && usage.used >= usage.max && !runActive && !followUpMode
+  const showQuotaLip = notice === quotaNotice || outOfRuns
   const lastMessage = messages.at(-1)
   const runMessage = runActive
     ? (messages.find((message) => message.id === run.assistantMessageId) ??
@@ -451,9 +456,24 @@ export function Chat({
             />
           )}
           <div ref={composerRef} className="mx-auto w-full max-w-3xl px-4 pb-4">
-            {notice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
+            {notice && notice !== quotaNotice && <p className="mt-2 text-sm text-muted-foreground">{notice}</p>}
             {limits.paused && <p className="mt-2 text-sm text-muted-foreground">The demo is paused</p>}
             <Composer
+              {...(showQuotaLip && {
+                lip: (
+                  <>
+                    <span>{quotaNotice}</span>
+                    {canUpgrade && (
+                      <Link
+                        href="/pricing"
+                        className="shrink-0 font-medium text-foreground underline-offset-2 hover:underline"
+                      >
+                        See plans
+                      </Link>
+                    )}
+                  </>
+                ),
+              })}
               maxRounds={limits.maxRounds}
               chatId={chatId}
               allowPause={limits.allowPause}

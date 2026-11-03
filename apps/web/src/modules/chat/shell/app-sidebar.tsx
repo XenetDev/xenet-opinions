@@ -1,6 +1,6 @@
 'use client'
 
-import { PlusIcon, SearchIcon } from 'lucide-react'
+import { PlusIcon, SearchIcon, SparklesIcon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { XoMark } from '@/components/brand/xo-mark'
@@ -22,12 +22,14 @@ import { useChatList } from '../chat-list-context'
 import { GuideButton } from '../header/guide-button'
 import { History } from './history'
 import { UsageCard } from './usage-card'
+import { useUsage } from './usage-context'
 
 export function AppSidebar({ onSearch }: { onSearch: () => void }) {
   const router = useRouter()
   const pathname = usePathname()
   const { chats } = useChatList()
   const { activity } = useChatActivity()
+  const { usage } = useUsage()
   const { state, isMobile, setOpenMobile } = useSidebar()
   const { data } = authClient.useSession()
   const collapsed = state === 'collapsed' && !isMobile
@@ -102,6 +104,16 @@ export function AppSidebar({ onSearch }: { onSearch: () => void }) {
       <SidebarFooter>
         {!collapsed && <UsageCard />}
         <SidebarMenu>
+          {usage?.plan && (
+            <SidebarMenuItem>
+              <SidebarMenuButton size="sm" tooltip="Plans" asChild>
+                <Link href="/pricing" onClick={closeSheet}>
+                  <SparklesIcon aria-hidden="true" />
+                  <span>Plans</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <GuideButton variant="row" />
           </SidebarMenuItem>

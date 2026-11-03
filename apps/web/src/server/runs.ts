@@ -5,7 +5,7 @@ import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { chatTitleFrom } from '@/modules/chat/chat-title'
 
-const { chats, messages, runs, uploads } = schema
+const { chats, messages, runs, runUsage, uploads } = schema
 
 export const runStore = createDrizzleStore(db)
 
@@ -75,6 +75,14 @@ export async function runsStartedSince(
   return { count: row?.n ?? 0, oldestQueuedAt: row?.oldest ?? null }
 }
 
+export type RunQuota = { max: number; since: Date | null; resetAt: string | null }
+
+export class QuotaExceededError extends Error {
+  constructor(readonly resetAt: string | null) {
+    super('quota_exceeded')
+  }
+}
+
 export async function startRun(input: {
   chatId: string
   userId: string
@@ -83,10 +91,24 @@ export async function startRun(input: {
   uploadIds: string[]
   maxRounds: number
   pauseForInterviews: boolean
+  quota?: RunQuota
 }): Promise<{ run: Run; assistantMessageId: string }> {
   const assistantMessageId = generateId()
   try {
     const run = await db.transaction(async (tx) => {
+      if (input.quota) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.userId}))`)
+        const [usage] = await tx
+          .select({ n: count() })
+          .from(runUsage)
+          .where(
+            and(
+              eq(runUsage.userId, input.userId),
+              ...(input.quota.since ? [gte(runUsage.createdAt, input.quota.since)] : []),
+            ),
+          )
+        if ((usage?.n ?? 0) >= input.quota.max) throw new QuotaExceededError(input.quota.resetAt)
+      }
       await tx
         .insert(messages)
         .values({ id: input.message.id, chatId: input.chatId, role: 'user', parts: input.message.parts })
@@ -114,6 +136,7 @@ export async function startRun(input: {
           },
         })
         .returning()
+      await tx.insert(runUsage).values({ runId: row!.id, userId: input.userId })
       await tx
         .update(chats)
         .set({

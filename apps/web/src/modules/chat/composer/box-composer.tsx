@@ -3,8 +3,8 @@
 import type { SourcesData } from '@xo/engine/parts'
 import type { ChatStatus } from 'ai'
 import { ArrowUpIcon, PaperclipIcon, PlusIcon } from 'lucide-react'
-import { type FormEvent, type KeyboardEvent, useCallback, useId, useRef, useState } from 'react'
-import { Frame, FramePanel } from '@/components/reui/frame'
+import { type FormEvent, type KeyboardEvent, type ReactNode, useCallback, useId, useRef, useState } from 'react'
+import { Frame, FrameHeader, FramePanel } from '@/components/reui/frame'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
@@ -44,6 +44,7 @@ export function BoxComposer({
   onNeedChat,
   value,
   onValueChange,
+  lip,
 }: {
   chatId?: string
   mode: 'run' | 'followUp' | 'interview'
@@ -57,6 +58,7 @@ export function BoxComposer({
   onNeedChat?: () => Promise<string>
   value?: string
   onValueChange?: (value: string) => void
+  lip?: ReactNode
 }) {
   const pendingChat = useRef<Promise<string> | null>(null)
   const resolveChatId = useCallback(() => {
@@ -165,6 +167,14 @@ export function BoxComposer({
         spacing="sm"
         className="w-full transition-[color,box-shadow] has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-3 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50"
       >
+        {lip && (
+          <FrameHeader
+            data-testid="composer-lip"
+            className="flex-row items-center justify-between gap-3 rounded-t-[calc(var(--frame-radius)-1px)] bg-muted/40 text-muted-foreground text-xs"
+          >
+            {lip}
+          </FrameHeader>
+        )}
         <FramePanel className="p-0">
           <form onSubmit={submit}>
             <FieldLabel className="sr-only" htmlFor={fieldId}>
