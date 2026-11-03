@@ -12,6 +12,14 @@ export const isPaidStatus = (status: string | null | undefined) =>
 
 const customerIdOf = (sub: Stripe.Subscription) => (typeof sub.customer === 'string' ? sub.customer : sub.customer.id)
 
+async function refundLatestInvoice(sub: Stripe.Subscription, stripe: Stripe): Promise<void> {
+  const invoice = typeof sub.latest_invoice === 'string' ? sub.latest_invoice : sub.latest_invoice?.id
+  if (!invoice) return
+  const { data } = await stripe.invoicePayments.list({ invoice, limit: 1 })
+  const intent = data[0]?.payment.payment_intent
+  if (intent) await stripe.refunds.create({ payment_intent: typeof intent === 'string' ? intent : intent.id })
+}
+
 export async function syncSubscription(subscriptionId: string, stripe: Stripe = getStripe()): Promise<void> {
   const sub = await stripe.subscriptions.retrieve(subscriptionId)
   const customerId = customerIdOf(sub)
@@ -19,7 +27,10 @@ export async function syncSubscription(subscriptionId: string, stripe: Stripe = 
   const userId = byCustomer?.userId ?? sub.metadata.user_id
   if (!userId) throw new Error(`subscription_without_user:${sub.id}`)
   const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId))
-  if (!owner) return
+  if (!owner) {
+    if (isPaidStatus(sub.status)) await stripe.subscriptions.cancel(sub.id)
+    return
+  }
 
   const [current] = byCustomer
     ? [byCustomer]
@@ -31,7 +42,8 @@ export async function syncSubscription(subscriptionId: string, stripe: Stripe = 
     const other = await stripe.subscriptions.retrieve(otherId)
     if (isPaidStatus(other.status)) {
       console.error('duplicate subscription cancelled', { userId, kept: otherId, cancelled: sub.id })
-      await stripe.subscriptions.cancel(sub.id, { prorate: true, invoice_now: true })
+      await stripe.subscriptions.cancel(sub.id)
+      await refundLatestInvoice(sub, stripe)
       return
     }
   }
@@ -64,8 +76,19 @@ export async function syncCheckoutSession(sessionId: string, userId: string, str
   )
 }
 
-export async function cancelUserSubscription(userId: string, stripe?: Stripe): Promise<void> {
+export async function expireOpenCheckouts(customer: string, stripe: Stripe): Promise<void> {
+  const { data } = await stripe.checkout.sessions.list({ customer, status: 'open', limit: 100 })
+  await Promise.all(data.map((session) => stripe.checkout.sessions.expire(session.id)))
+}
+
+export async function cancelUserSubscription(userId: string, stripe: Stripe = getStripe()): Promise<void> {
   const [row] = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId))
-  if (!row?.stripeSubscriptionId || !isPaidStatus(row.status)) return
-  await (stripe ?? getStripe()).subscriptions.cancel(row.stripeSubscriptionId)
+  if (!row) return
+  await expireOpenCheckouts(row.stripeCustomerId, stripe)
+  const { data } = await stripe.subscriptions.list({ customer: row.stripeCustomerId, status: 'all', limit: 100 })
+  await Promise.all(
+    data
+      .filter((sub) => sub.status !== 'canceled' && sub.status !== 'incomplete_expired')
+      .map((sub) => stripe.subscriptions.cancel(sub.id)),
+  )
 }

@@ -12,6 +12,13 @@ const valid = {
 
 describe('parseEnv', () => {
   it('parses a valid environment', () => expect(parseEnv(valid).MIROFISH_URL).toBe('http://localhost:5001'))
+  it('requires the webhook secret when the Stripe key is set', () => {
+    expect(() => parseEnv({ ...valid, STRIPE_SECRET_KEY: 'sk_test_x' })).toThrow()
+    expect(
+      parseEnv({ ...valid, STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x' }).STRIPE_SECRET_KEY,
+    ).toBe('sk_test_x')
+    expect(parseEnv({ ...valid, STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '' }).STRIPE_SECRET_KEY).toBeUndefined()
+  })
   it('rejects a short BETTER_AUTH_SECRET', () =>
     expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: 'short' })).toThrow())
   it('rejects a missing DATABASE_URL', () => expect(() => parseEnv({ ...valid, DATABASE_URL: undefined })).toThrow())

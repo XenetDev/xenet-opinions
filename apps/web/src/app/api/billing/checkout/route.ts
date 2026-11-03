@@ -5,7 +5,7 @@ import { env } from '@/env'
 import { db } from '@/lib/db'
 import { getSessionUser } from '@/lib/session'
 import { billingEnabled, getStripe } from '@/server/billing/stripe'
-import { isPaidStatus } from '@/server/billing/sync'
+import { expireOpenCheckouts, isPaidStatus } from '@/server/billing/sync'
 
 export const runtime = 'nodejs'
 
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
       .onConflictDoNothing({ target: subscriptions.userId })
   }
 
+  await expireOpenCheckouts(customerId, stripe)
   const { data: prices } = await stripe.prices.list({ lookup_keys: [PLANS[plan].lookupKey], active: true, limit: 1 })
   const price = prices[0]
   if (!price) return Response.json({ error: 'price_not_found' }, { status: 500 })

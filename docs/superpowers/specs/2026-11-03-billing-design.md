@@ -97,3 +97,5 @@ A run costs real money. Estimated from the one full `gpt-4.1` run (3 rounds, 10 
 - Point `opinions.xenet.ai` at Vercel; update `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, OAuth redirects and the bucket's CORS rule.
 - Run Stripe's go-live checklist, run the setup script with live keys, and rotate the test key shared in chat.
 - Add terms and refund wording, which Stripe requires for subscriptions.
+- Clear `subscriptions` when moving from sandbox to live keys, because sandbox customer ids do not exist in live mode.
+- Run `pnpm --filter @xo/db db:migrate:prod` before merging, because `startRun` writes to `run_usage` even with billing off.

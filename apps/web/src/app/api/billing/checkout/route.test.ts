@@ -22,7 +22,8 @@ const stripe = vi.hoisted(() => ({
 }))
 vi.mock('@/server/billing/stripe', () => ({ billingEnabled: () => enabled.value, getStripe: () => stripe }))
 const enabled = vi.hoisted(() => ({ value: true }))
-vi.mock('@/server/billing/sync', () => ({ isPaidStatus: (status: string) => status === 'active' }))
+const expireOpenCheckouts = vi.hoisted(() => vi.fn())
+vi.mock('@/server/billing/sync', () => ({ isPaidStatus: (status: string) => status === 'active', expireOpenCheckouts }))
 
 import { POST } from './route'
 
@@ -90,5 +91,6 @@ describe('POST /api/billing/checkout', () => {
     await POST(req({ plan: 'pro' }))
     expect(stripe.customers.create).not.toHaveBeenCalled()
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_old' }))
+    expect(expireOpenCheckouts).toHaveBeenCalledWith('cus_old', stripe)
   })
 })

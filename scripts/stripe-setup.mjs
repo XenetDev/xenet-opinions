@@ -79,6 +79,12 @@ const config = configs[0]
   ? await api('POST', `billing_portal/configurations/${configs[0].id}`, portal)
   : await api('POST', 'billing_portal/configurations', portal)
 console.log(`portal: ${config.id}`)
+if (!config.is_default) {
+  console.error(
+    'This portal configuration is not the default. Save portal settings once in the Stripe Dashboard, then rerun.',
+  )
+  process.exit(1)
+}
 
 if (!appUrl.includes('localhost')) {
   const url = `${appUrl}/api/billing/webhook`

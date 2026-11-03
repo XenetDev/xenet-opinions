@@ -48,6 +48,13 @@ export const envSchema = z
     LLM_MODEL_NAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('gpt-4o-mini')),
   })
   .superRefine((env, ctx) => {
+    if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['STRIPE_WEBHOOK_SECRET'],
+        message: 'STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is set',
+      })
+    }
     if (env.STORAGE_DRIVER === 's3') {
       for (const key of ['S3_BUCKET', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
         if (!env[key])

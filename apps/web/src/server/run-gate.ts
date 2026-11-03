@@ -3,11 +3,11 @@ import type { SessionUser } from '@/lib/session'
 import { resolveLimits } from '@/server/billing/limits'
 import { billingEnabled } from '@/server/billing/stripe'
 import { getLimits, type Limits } from '@/server/limits'
-import { runsStartedSince } from '@/server/runs'
+import { type RunQuota, runsStartedSince } from '@/server/runs'
 
 type Window = Awaited<ReturnType<typeof runsStartedSince>>
 
-export type RunGate = { ok: true; limits: Limits; window: Window } | { ok: false; response: Response }
+export type RunGate = { ok: true; limits: Limits; window: Window; quota?: RunQuota } | { ok: false; response: Response }
 
 async function checkPlanGate(user: SessionUser, requestedRounds: number, spendsQuota: boolean): Promise<RunGate> {
   const { limits, allowance } = await resolveLimits(user)
@@ -19,7 +19,18 @@ async function checkPlanGate(user: SessionUser, requestedRounds: number, spendsQ
     }
   if (requestedRounds > limits.maxRounds)
     return { ok: false, response: Response.json({ error: 'rounds_exceeded', max: limits.maxRounds }, { status: 400 }) }
-  return { ok: true, limits, window: { count: allowance?.used ?? 0, oldestQueuedAt: null } }
+  return {
+    ok: true,
+    limits,
+    window: { count: allowance?.used ?? 0, oldestQueuedAt: null },
+    ...(allowance && {
+      quota: {
+        max: allowance.max,
+        since: allowance.since ? new Date(allowance.since) : null,
+        resetAt: allowance.resetAt,
+      },
+    }),
+  }
 }
 
 export async function checkRunGate(

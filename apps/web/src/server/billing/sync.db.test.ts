@@ -26,8 +26,15 @@ const sub = (id: string, status: string, lookupKey = 'starter_monthly', start = 
 
 function fakeStripe(subs: Sub[]) {
   const cancel = vi.fn(async () => ({}))
+  const refund = vi.fn(async () => ({}))
   const stripe = {
+    invoicePayments: { list: vi.fn(async () => ({ data: [{ payment: { payment_intent: 'pi_dup' } }] })) },
+    refunds: { create: refund },
+    checkout: {
+      sessions: { list: vi.fn(async () => ({ data: [{ id: 'cs_open' }] })), expire: vi.fn(async () => ({})) },
+    },
     subscriptions: {
+      list: vi.fn(async () => ({ data: subs })),
       retrieve: vi.fn(async (id: string) => {
         const found = subs.find((item) => item.id === id)
         if (!found) throw new Error(`missing ${id}`)
@@ -36,7 +43,7 @@ function fakeStripe(subs: Sub[]) {
       cancel,
     },
   } as unknown as Stripe
-  return { stripe, cancel }
+  return { stripe, cancel, refund }
 }
 
 describe.skipIf(!process.env.DATABASE_URL)('syncSubscription (real db)', () => {
@@ -97,11 +104,13 @@ describe.skipIf(!process.env.DATABASE_URL)('syncSubscription (real db)', () => {
   })
 
   it('cancels a second live subscription and keeps the first', async () => {
-    const { stripe, cancel } = fakeStripe([sub('sub_a', 'active'), sub('sub_b', 'active', 'pro_monthly')])
+    const duplicate = { ...sub('sub_b', 'active', 'pro_monthly'), latest_invoice: 'in_dup' } as Sub
+    const { stripe, cancel, refund } = fakeStripe([sub('sub_a', 'active'), duplicate])
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     await sync.syncSubscription('sub_a', stripe)
     await sync.syncSubscription('sub_b', stripe)
-    expect(cancel).toHaveBeenCalledWith('sub_b', { prorate: true, invoice_now: true })
+    expect(cancel).toHaveBeenCalledWith('sub_b')
+    expect(refund).toHaveBeenCalledWith({ payment_intent: 'pi_dup' })
     expect((await row())?.stripeSubscriptionId).toBe('sub_a')
     error.mockRestore()
   })
@@ -111,10 +120,30 @@ describe.skipIf(!process.env.DATABASE_URL)('syncSubscription (real db)', () => {
     await expect(sync.syncSubscription('sub_a', stripe)).rejects.toThrow('subscription_unknown_price')
   })
 
-  it('ignores a subscription for a deleted user', async () => {
+  it('ignores an ended subscription for a deleted user', async () => {
     const orphan = { ...sub('sub_x', 'canceled'), customer: 'cus_gone', metadata: { user_id: 'gone' } } as Sub
-    const { stripe } = fakeStripe([orphan])
+    const { stripe, cancel } = fakeStripe([orphan])
     await expect(sync.syncSubscription('sub_x', stripe)).resolves.toBeUndefined()
+    expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('cancels a live subscription for a deleted user', async () => {
+    const orphan = { ...sub('sub_x', 'active'), customer: 'cus_gone', metadata: { user_id: 'gone' } } as Sub
+    const { stripe, cancel } = fakeStripe([orphan])
+    await sync.syncSubscription('sub_x', stripe)
+    expect(cancel).toHaveBeenCalledWith('sub_x')
+  })
+
+  it('on account deletion cancels every live subscription from Stripe and expires open checkouts', async () => {
+    const { stripe, cancel } = fakeStripe([
+      sub('sub_a', 'active'),
+      sub('sub_b', 'incomplete'),
+      sub('sub_c', 'canceled'),
+    ])
+    await sync.syncSubscription('sub_a', stripe)
+    await sync.cancelUserSubscription(USER, stripe)
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_open')
+    expect(cancel.mock.calls.map((call: unknown[]) => call[0])).toEqual(['sub_a', 'sub_b'])
   })
 
   it('counts usage only inside the period and moves past a stale period by resyncing', async () => {
