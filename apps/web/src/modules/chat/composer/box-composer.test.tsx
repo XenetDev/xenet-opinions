@@ -504,4 +504,12 @@ describe('BoxComposer', () => {
     const { container } = renderComposer({ status: 'streaming', onStop: vi.fn() })
     expect(await axe(container)).toHaveNoViolations()
   })
+
+  it('shows a lip on the composer only when given one', () => {
+    renderComposer()
+    expect(screen.queryByTestId('composer-lip')).toBeNull()
+    cleanup()
+    renderComposer({ lip: <span>No runs left</span> })
+    expect(screen.getByTestId('composer-lip').textContent).toBe('No runs left')
+  })
 })
