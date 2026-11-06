@@ -1,4 +1,5 @@
 import { safeUploadName } from '@xo/storage'
+import { ontologyRequirement } from '../../policy/seed'
 import { advance, emit, running } from '../emit'
 import { ontologyToPart } from '../mirofish-map'
 import type { StageHandler } from '../types'
@@ -19,7 +20,10 @@ export const ontology: StageHandler = {
         type: u.mediaType,
       })),
     )
-    const result = await deps.mirofish.graph.generateOntology({ files, requirement: run.config.requirement })
+    const result = await deps.mirofish.graph.generateOntology({
+      files,
+      requirement: ontologyRequirement(run.config.requirement),
+    })
     const entered = await deps.store.update(run.id, { ids: { projectId: result.project_id } }, deps.fence)
     await emit(deps, entered, 'ontology', ontologyToPart(result))
     return advance(deps, entered, 'ontology', 'graph_build')

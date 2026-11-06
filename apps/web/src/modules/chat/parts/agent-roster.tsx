@@ -98,8 +98,8 @@ export function AgentRoster({ data }: { data: AgentsData }) {
             <SheetTitle>{selected?.name}</SheetTitle>
             <SheetDescription>{selected?.role ?? selected?.handle ?? 'Persona'}</SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col gap-3 px-4">
-            {selected?.bio && <p className="text-sm">{selected.bio}</p>}
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
+            {selected?.bio && <p className="text-sm whitespace-pre-line">{selected.bio}</p>}
             {selected && selected.topics.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {selected.topics.map((topic) => (

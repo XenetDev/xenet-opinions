@@ -37,9 +37,9 @@ describe('closeEnvAndWait', () => {
       { stage: 'interviews', ids },
     )
     const first = await closeEnvAndWait(run, deps)
-    const late = { ...deps, now: () => new Date(NOW.getTime() + 3 * 60_000) }
+    const late = { ...deps, now: () => new Date(NOW.getTime() + 10 * 60_000) }
     expect((await closeEnvAndWait(first.run, late)).closed).toBe(false)
-    const stuck = { ...deps, now: () => new Date(NOW.getTime() + 3 * 60_000 + 1) }
+    const stuck = { ...deps, now: () => new Date(NOW.getTime() + 10 * 60_000 + 1) }
     const err = await closeEnvAndWait(first.run, stuck).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(StageError)
     expect((err as StageError).code).toBe('env_stuck')

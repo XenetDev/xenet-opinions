@@ -20,6 +20,7 @@ import { InterviewSelectionProvider } from './interview-selection'
 import { MessageParts } from './message-parts'
 import { NoticeRegion } from './notice-region'
 import { ContextCard, type SeedContext } from './parts/context-card'
+import { SupersededAttempt } from './parts/superseded-attempt'
 import { requestReadiness } from './readiness'
 import { runTransport } from './run-transport'
 import { SEND_FAILED, sendNotices } from './send-notices'
@@ -442,7 +443,7 @@ export function Chat({
               renderAssistant={(message) => {
                 const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
                 const asked = question && messageText(question)
-                return (
+                const parts = (
                   <MessageParts
                     parts={message.parts}
                     chatId={chatId}
@@ -458,6 +459,12 @@ export function Chat({
                         : undefined
                     }
                   />
+                )
+                const next = messages[messages.indexOf(message) + 1]
+                return next?.role === 'assistant' ? (
+                  <SupersededAttempt parts={message.parts}>{parts}</SupersededAttempt>
+                ) : (
+                  parts
                 )
               }}
             />

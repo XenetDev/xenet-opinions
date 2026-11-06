@@ -84,6 +84,19 @@ describe('profilesToPart', () => {
     })
     expect(part.profiles[1]).toMatchObject({ id: '1', name: 'Agent 2', topics: [] })
   })
+
+  it('shows the full persona rather than the bio MiroFish cuts at 200 characters', () => {
+    const persona = `${'Greg advises family offices on technology partnerships. '.repeat(5)}He distrusts hype.`
+    const part = profilesToPart({ profiles: [{ name: 'Greg', bio: persona.slice(0, 200), persona }] })
+    expect(part.profiles[0]?.bio).toBe(persona)
+  })
+
+  it('caps a very long persona at a sentence end', () => {
+    const persona = 'A sentence about the persona. '.repeat(100)
+    const bio = profilesToPart({ profiles: [{ name: 'X', persona }] }).profiles[0]?.bio ?? ''
+    expect(bio.length).toBeLessThanOrEqual(1500)
+    expect(bio.endsWith('persona.')).toBe(true)
+  })
 })
 
 describe('configToPlatform', () => {
