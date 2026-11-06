@@ -1,1 +1,1 @@
-export { BoxComposer as Composer, type ComposerSubmit } from './box-composer'
+export { BoxComposer as Composer, type ComposerBlock, type ComposerSubmit } from './box-composer'

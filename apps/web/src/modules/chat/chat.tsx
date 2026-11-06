@@ -3,10 +3,10 @@
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
 import { generateId } from 'ai'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Thinking } from '@/components/ui/thinking'
+import { useSignInDialog } from '@/modules/auth/sign-in-dialog'
 import { useChatList } from '@/modules/chat/chat-list-context'
 import { useUsage } from '@/modules/chat/shell/usage-context'
 import type { Limits } from '@/server/limits'
@@ -99,6 +99,7 @@ export function Chat({
   startedAt?: string
 }) {
   const router = useRouter()
+  const signInDialog = useSignInDialog()
   const { chats, upsertChat } = useChatList()
   const { setActivity } = useChatActivity()
   const runActiveRef = useRef(!!activeRun)
@@ -363,9 +364,15 @@ export function Chat({
   }
 
   const canUpgrade = limits.plan === 'free' || limits.plan === 'starter'
-  const quotaNotice = sendNotices(limits, !!signIn).quota_exceeded
+  const quotaNotice = sendNotices(limits, !!signIn).quota_exceeded ?? ''
   const outOfRuns = !!limits.plan && !!usage && usage.used >= usage.max && !runActive && !followUpMode
   const showQuotaLip = notice === quotaNotice || outOfRuns
+  const quotaAction =
+    limits.plan === 'guest' && signIn
+      ? { label: 'Sign in', onClick: signInDialog.open }
+      : canUpgrade
+        ? { label: 'See plans', onClick: () => router.push('/pricing') }
+        : undefined
   const lastMessage = messages.at(-1)
   const runMessage = runActive
     ? (messages.find((message) => message.id === run.assistantMessageId) ??
@@ -463,16 +470,18 @@ export function Chat({
                 lip: (
                   <>
                     <span>{quotaNotice}</span>
-                    {canUpgrade && (
-                      <Link
-                        href="/pricing"
-                        className="shrink-0 font-medium text-foreground underline-offset-2 hover:underline"
+                    {quotaAction && (
+                      <button
+                        type="button"
+                        onClick={quotaAction.onClick}
+                        className="shrink-0 cursor-pointer font-medium text-foreground underline-offset-2 hover:underline"
                       >
-                        See plans
-                      </Link>
+                        {quotaAction.label}
+                      </button>
                     )}
                   </>
                 ),
+                blocked: { message: quotaNotice, ...(quotaAction && { action: quotaAction }) },
               })}
               maxRounds={limits.maxRounds}
               chatId={chatId}

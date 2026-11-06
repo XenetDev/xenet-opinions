@@ -9,6 +9,9 @@ import { InterviewSelectionProvider, useInterviewSelection } from '../interview-
 import { BoxComposer } from './box-composer'
 import { Composer } from './composer'
 
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock('sonner', () => ({ toast: toastSpy }))
+
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
@@ -16,6 +19,7 @@ beforeAll(() => {
 })
 
 afterEach(() => {
+  toastSpy.mockReset()
   cleanup()
   vi.unstubAllGlobals()
 })
@@ -511,5 +515,32 @@ describe('BoxComposer', () => {
     cleanup()
     renderComposer({ lip: <span>No runs left</span> })
     expect(screen.getByTestId('composer-lip').textContent).toBe('No runs left')
+  })
+
+  it('blocks a new run when out of runs: disabled send, tooltip text and a toast on Enter', async () => {
+    const onSend = vi.fn()
+    const onClick = vi.fn()
+    renderComposer({
+      onSend,
+      blocked: { message: "You've used your free run.", action: { label: 'Sign in', onClick } },
+    })
+    type('hello')
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(sendButton)
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(toastSpy).toHaveBeenCalledTimes(2))
+    expect(toastSpy).toHaveBeenCalledWith("You've used your free run.", { action: { label: 'Sign in', onClick } })
+    expect(onSend).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('hello')
+  })
+
+  it('does not block follow-ups when out of runs', async () => {
+    const onSend = vi.fn()
+    renderComposer({ mode: 'followUp', onSend, blocked: { message: 'none left' } })
+    type('why?')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(toastSpy).not.toHaveBeenCalled()
   })
 })
