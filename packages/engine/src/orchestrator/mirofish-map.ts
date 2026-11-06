@@ -71,12 +71,22 @@ export const graphDataToPart = (graphId: string, data: MfGraphData): GraphData =
   return { graphId, nodeCount: data.nodes.length, edgeCount: data.edges.length, nodes: sampled, links }
 }
 
+const PERSONA_MAX = 1500
+
+const fullPersona = (persona: string | undefined, bio: string | undefined) => {
+  const text = persona && persona.length > (bio?.length ?? 0) ? persona : bio
+  if (!text || text.length <= PERSONA_MAX) return text
+  const cut = text.slice(0, PERSONA_MAX)
+  const end = cut.lastIndexOf('. ')
+  return end > PERSONA_MAX / 2 ? cut.slice(0, end + 1) : `${cut.trimEnd()}…`
+}
+
 export const profilesToPart = (realtime: ProfilesRealtime): AgentsData => {
   const profiles = realtime.profiles.map((raw, i) => {
     const p = rec(raw)
     const handle = str(p.handle, p.username)
     const role = str(p.role, p.profession)
-    const bio = str(p.bio, p.persona)
+    const bio = fullPersona(str(p.persona), str(p.bio))
     return {
       id: str(p.agent_id, p.user_id, p.id) ?? String(i),
       name: str(p.name, p.realname, p.username) ?? `Agent ${i + 1}`,

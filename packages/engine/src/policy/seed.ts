@@ -46,3 +46,8 @@ export function buildSeedDocument(input: {
     '',
   ].join('\n')
 }
+
+export const CAST_GUIDANCE =
+  'Who to simulate: the people and organisations whose reactions answer this question, such as customers, investors, staff, partners, competitors, regulators, journalists and online communities. Create personas only for individual people and real, named organisations. Do not create personas for products, projects, documents, places, technologies, markets or abstract groups.'
+
+export const ontologyRequirement = (question: string) => `${question.trim()}\n\n${CAST_GUIDANCE}`

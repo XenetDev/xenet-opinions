@@ -2,6 +2,7 @@ import { MiroFishError } from '@xo/mirofish'
 import { StorageError } from '@xo/storage'
 import { describe, expect, it, vi } from 'vitest'
 import type { StageData } from '../parts'
+import { ontologyRequirement } from '../policy/seed'
 import { FenceError } from '../store/types'
 import { fail } from './fail'
 import { tick } from './machine'
@@ -91,7 +92,7 @@ describe('tick', () => {
     const mf = deps.mirofish
     expect(mf.graph.generateOntology).toHaveBeenCalledWith({
       files: [{ name: 'brief.md', bytes: new Uint8Array([1]), type: 'text/markdown' }],
-      requirement: 'React?',
+      requirement: ontologyRequirement('React?'),
     })
     expect(mf.simulation.start).toHaveBeenCalledWith({ simulationId: 'sim_1', maxRounds: 10 })
     for (const c of vi.mocked(mf.simulation.posts).mock.calls)
@@ -133,7 +134,7 @@ describe('tick', () => {
     await tick(run, deps)
     expect(deps.mirofish.graph.generateOntology).toHaveBeenCalledWith({
       files: [{ name: 'my_brief__v2_.md', bytes: new Uint8Array([1]), type: 'text/markdown' }],
-      requirement: 'React?',
+      requirement: ontologyRequirement('React?'),
     })
     const sources = (store.events.get(run.id) ?? []).find((e) => e.kind === 'sources')
     expect(sources?.payload).toMatchObject({ files: [{ filename: 'my brief (v2)' }] })
@@ -1089,7 +1090,7 @@ describe('interview window', () => {
     })
     await store.update(run.id, { cursors: { reportRequested: true } })
     const closing = await tick(run, deps)
-    setClock(3 * MIN + 1)
+    setClock(10 * MIN + 1)
     const failed = await tick(closing, deps)
     expect(failed).toMatchObject({ status: 'failed', envState: 'closed' })
     expect(failed.error).toMatchObject({ stage: 'interviews', code: 'env_stuck' })

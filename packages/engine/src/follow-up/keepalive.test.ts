@@ -25,7 +25,7 @@ describe('keepalive', () => {
     expect(INTERVIEW_EXTEND_PER_PERSONA_MS).toBe(5 * MIN)
     expect(INTERVIEW_WINDOW_CAP_MS).toBe(60 * MIN)
     expect(ENV_CHECK_INTERVAL_MS).toBe(30_000)
-    expect(CLOSE_WAIT_DEADLINE_MS).toBe(3 * MIN)
+    expect(CLOSE_WAIT_DEADLINE_MS).toBe(10 * MIN)
     expect(INTERVIEW_MIROFISH_TIMEOUT_S).toBe(240)
     expect(INTERVIEW_CLIENT_TIMEOUT_MS).toBe(270_000)
   })

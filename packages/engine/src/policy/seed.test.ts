@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildSeedDocument, needsSeedContext, SEED_PROMPT_MIN_WORDS, wordCount } from './seed'
+import {
+  buildSeedDocument,
+  CAST_GUIDANCE,
+  needsSeedContext,
+  ontologyRequirement,
+  SEED_PROMPT_MIN_WORDS,
+  wordCount,
+} from './seed'
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ')
 
@@ -44,5 +51,14 @@ describe('buildSeedDocument', () => {
     expect(buildSeedDocument({ question: 'Should we raise prices?' })).toBe(
       "# Scenario\n\nShould we raise prices?\n\n## Background and constraints\nA present-day, realistic setting for the question above. The people and organisations involved already exist, know each other's positions, and talk about the decision in public.\n\n## Who is involved\n- The people directly affected by the decision, across different ages, budgets and levels of dependence on what is changing\n- The organisation or authority making the decision, including its leadership and front-line staff\n- Organisations with a competing or opposing interest\n- Journalists, analysts and commentators who cover the topic\n- Online communities and social media where the decision is discussed\n\n## What is changing\nThe decision described in the question is announced publicly and takes effect within the next month.\n",
     )
+  })
+})
+
+describe('ontologyRequirement', () => {
+  it('keeps the question and asks for people and named organisations only', () => {
+    const requirement = ontologyRequirement('  Is this a good investment?  ')
+    expect(requirement.startsWith('Is this a good investment?\n\n')).toBe(true)
+    expect(requirement).toContain(CAST_GUIDANCE)
+    expect(CAST_GUIDANCE).toContain('Do not create personas for products, projects, documents')
   })
 })
