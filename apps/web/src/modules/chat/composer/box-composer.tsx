@@ -4,6 +4,7 @@ import type { SourcesData } from '@xo/engine/parts'
 import type { ChatStatus } from 'ai'
 import { ArrowUpIcon, PaperclipIcon, PlusIcon } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, type ReactNode, useCallback, useId, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { Frame, FrameHeader, FramePanel } from '@/components/reui/frame'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { FieldLabel } from '@/components/ui/field'
@@ -31,6 +32,8 @@ export type ComposerSubmit =
   | { kind: 'run'; uploadIds: string[]; files: SourcesData['files']; runOptions: RunOptionsValue }
   | { kind: 'followUp'; target: 'report' | 'agents'; agentIds: string[] }
 
+export type ComposerBlock = { message: string; action?: { label: string; onClick: () => void } }
+
 export function BoxComposer({
   chatId,
   mode,
@@ -45,6 +48,7 @@ export function BoxComposer({
   value,
   onValueChange,
   lip,
+  blocked,
 }: {
   chatId?: string
   mode: 'run' | 'followUp' | 'interview'
@@ -59,6 +63,7 @@ export function BoxComposer({
   value?: string
   onValueChange?: (value: string) => void
   lip?: ReactNode
+  blocked?: ComposerBlock
 }) {
   const pendingChat = useRef<Promise<string> | null>(null)
   const resolveChatId = useCallback(() => {
@@ -93,6 +98,7 @@ export function BoxComposer({
   const fieldId = useId()
   const stopping = busy || status === 'submitted' || status === 'streaming'
   const uploading = files.some((f) => f.status === 'uploading')
+  const runBlocked = mode === 'run' ? blocked : undefined
 
   const deliver = async (value: string) => {
     if (mode !== 'run') {
@@ -130,6 +136,10 @@ export function BoxComposer({
 
   const send = async () => {
     if (disabled || stopping || uploading || sendingRef.current) return
+    if (runBlocked) {
+      toast(runBlocked.message, runBlocked.action ? { action: runBlocked.action } : {})
+      return
+    }
     if (!text.trim()) {
       field.current?.focus()
       return
@@ -288,14 +298,22 @@ export function BoxComposer({
                           variant="default"
                           aria-label="Send message"
                           disabled={disabled || uploading || sending}
+                          aria-disabled={runBlocked ? true : undefined}
+                          className={runBlocked ? 'opacity-50' : undefined}
                           aria-busy={sending || undefined}
                         >
                           {sending ? <Spinner aria-hidden="true" /> : <ArrowUpIcon aria-hidden="true" />}
                         </InputGroupButton>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Send
-                        <Kbd>Enter</Kbd>
+                        {runBlocked ? (
+                          runBlocked.message
+                        ) : (
+                          <>
+                            Send
+                            <Kbd>Enter</Kbd>
+                          </>
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   )}
