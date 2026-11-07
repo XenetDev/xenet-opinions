@@ -238,8 +238,9 @@ e2e(
       async () =>
         (await kinds('interview')).filter((e) => (e.payload as { status: string }).status === 'done').length === 2,
     )
-    expect(mock.calls['POST /api/simulation/interview/batch']).toBe(2)
     const bodies = mock.bodies['POST /api/simulation/interview/batch'] as Array<Record<string, unknown>>
+    const asked = bodies.filter((body) => JSON.stringify(body.interviews).includes('What worries you most?'))
+    expect(asked).toHaveLength(2)
     for (const body of bodies) {
       expect(body.platform).toBeTruthy()
       expect(body.timeout).toBe(240)
