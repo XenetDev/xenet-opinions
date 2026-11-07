@@ -1,7 +1,16 @@
 import type { ReportSummary } from '@xo/engine/parts'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/reui/badge'
-import { CONFIDENCE_LABELS, capitalise, formatSentiment, ofPeople, splitTotal, uniqueBy } from './format'
+import {
+  basisNote,
+  CONFIDENCE_LABELS,
+  capitalise,
+  formatSentiment,
+  methodNote,
+  ofPeople,
+  topConcernNote,
+  uniqueBy,
+} from './format'
 import { SentimentBar } from './sentiment-bar'
 import { Quote, ShareValue } from './values'
 
@@ -44,8 +53,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 }
 
 export function SummaryTab({ summary }: { summary: ReportSummary }) {
-  const { headline, method } = summary
-  const viewed = splitTotal(summary.split)
+  const { headline } = summary
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,7 +66,7 @@ export function SummaryTab({ summary }: { summary: ReportSummary }) {
             {`Confidence: ${CONFIDENCE_LABELS[summary.confidence.level]}`}
           </Badge>
           <Badge variant="outline" className="font-normal">
-            {`Based on ${method.participants} participants${summary.sources.length ? ` and ${summary.sources.length} web sources` : ''}`}
+            {basisNote(summary)}
           </Badge>
         </div>
       </section>
@@ -78,7 +86,7 @@ export function SummaryTab({ summary }: { summary: ReportSummary }) {
         <Tile
           label="Top concern"
           value={<span className="text-base">{headline.topConcern ? capitalise(headline.topConcern.label) : '—'}</span>}
-          note={headline.topConcern ? `raised by ${headline.topConcern.count} of ${viewed}` : 'No shared concern'}
+          note={topConcernNote(summary)}
         />
       </dl>
 
@@ -108,9 +116,7 @@ export function SummaryTab({ summary }: { summary: ReportSummary }) {
       </div>
 
       <Section title="How this was run">
-        <p className="text-sm/6 text-muted-foreground">
-          {`${method.participants} AI participants in ${method.groups} groups discussed the question over ${method.rounds} rounds, then each answered a closing interview${method.webResearch ? '. Personas drew on web research' : ''}. This is a simulation: use it alongside, not instead of, research with real people for final decisions.`}
-        </p>
+        <p className="text-sm/6 text-muted-foreground">{methodNote(summary.method)}</p>
       </Section>
     </div>
   )

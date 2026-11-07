@@ -74,6 +74,7 @@ type LatestRun = {
   assistantMessageId: string
   envState: 'none' | 'open' | 'closed'
   envKeepaliveUntil: string | null
+  finishedAt?: string | null
 }
 
 const isRunFailure = (messages: OpinionsUIMessage[], text: string) =>
@@ -484,6 +485,7 @@ export function Chat({
                     chatId={chatId}
                     title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
                     question={asked || undefined}
+                    finishedAt={(message.id === latestRun?.assistantMessageId && latestRun.finishedAt) || undefined}
                     windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
                     reportRequested={run.stage === 'interviews' && run.reportRequested}
                     windowLive={runActive && message.id === run.assistantMessageId}

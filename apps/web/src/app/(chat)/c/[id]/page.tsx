@@ -23,7 +23,13 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       chatId={chat.id}
       initialMessages={initialMessages}
       activeRun={activeRun}
-      latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
+      latestRun={
+        latestRun && {
+          ...latestRun,
+          envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null,
+          finishedAt: latestRun.finishedAt?.toISOString() ?? null,
+        }
+      }
       limits={limits}
       webResearchAvailable={!!env.EXA_API_KEY}
       startedAt={chat.createdAt.toISOString()}

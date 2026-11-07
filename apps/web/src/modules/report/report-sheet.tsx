@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EXPORTS, type ExportKind } from './format'
+import { ExportButtons } from './export-buttons'
+import { type ExportKind, reportMetaLine } from './format'
 import { GroupsTab } from './groups-tab'
 import { ParticipantsTab } from './participants-tab'
 import { SourcesTab } from './sources-tab'
@@ -18,11 +19,12 @@ type SheetProps = {
   onOpenChange: (open: boolean) => void
   title?: string
   onExport?: (kind: ExportKind) => void
+  exporting?: ExportKind | null
 } & ({ readOnly: true; chatId?: string; onShare?: never } | { readOnly?: false; chatId: string; onShare?: () => void })
 
 const CONTENT = 'min-h-0 overflow-y-auto px-4 pt-4 pb-8 sm:px-6'
 
-export function ReportSheet({ summary, open, onOpenChange, title, onExport, ...rest }: SheetProps) {
+export function ReportSheet({ summary, open, onOpenChange, title, onExport, exporting, ...rest }: SheetProps) {
   const { method } = summary
   const onShare = rest.readOnly ? undefined : rest.onShare
   const [group, setGroup] = useState<string | null>(null)
@@ -47,22 +49,10 @@ export function ReportSheet({ summary, open, onOpenChange, title, onExport, ...r
         <SheetHeader className="gap-3 border-b px-4 pt-4 pb-3 pr-12 sm:px-6 sm:pr-14">
           <div className="flex flex-col gap-0.5">
             <SheetTitle className="text-base font-semibold text-pretty">{title ?? 'Focus group report'}</SheetTitle>
-            <SheetDescription className="text-xs">
-              {`Simulated focus group · ${method.participants} participants · ${method.groups} groups · ${method.rounds} rounds`}
-            </SheetDescription>
+            <SheetDescription className="text-xs">{reportMetaLine(method)}</SheetDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            {EXPORTS.map(({ kind, label }) => (
-              <Button
-                key={kind}
-                size="sm"
-                variant="outline"
-                disabled={!onExport}
-                onClick={onExport ? () => onExport(kind) : undefined}
-              >
-                {label}
-              </Button>
-            ))}
+            <ExportButtons onExport={onExport} exporting={exporting} only={rest.readOnly ? ['pdf'] : undefined} />
             {!rest.readOnly && (
               <Button size="sm" variant="outline" disabled={!onShare} onClick={onShare}>
                 Share

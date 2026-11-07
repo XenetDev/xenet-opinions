@@ -53,8 +53,20 @@ describe('ReportCard', () => {
     expect((screen.getByRole('button', { name: 'PDF' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('marks the running export busy and blocks the others', () => {
+    render(<ReportCard summary={summary} onOpen={() => {}} onExport={() => {}} exporting="pdf" />)
+    const pdf = screen.getByRole('button', { name: 'PDF' }) as HTMLButtonElement
+    expect(pdf.getAttribute('aria-busy')).toBe('true')
+    expect(pdf.querySelector('[data-slot="spinner"]')).toBeTruthy()
+    for (const name of ['PDF', 'Word', 'Excel'])
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: 'Word' }).getAttribute('aria-busy')).toBeNull()
+  })
+
   it('has no axe violations', async () => {
-    const { container } = render(<ReportCard summary={summary} onOpen={() => {}} />)
+    const { container } = render(
+      <ReportCard summary={summary} onOpen={() => {}} onExport={() => {}} exporting="docx" />,
+    )
     expect(await axe(container)).toHaveNoViolations()
   })
 })

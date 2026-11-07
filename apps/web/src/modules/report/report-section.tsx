@@ -2,8 +2,11 @@
 
 import { type ReportSummary, ReportSummarySchema } from '@xo/engine/parts'
 import { type ReactNode, useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { runExport } from './export/run'
+import { EXPORTS, type ExportKind } from './format'
 import { ReportCard } from './report-card'
 import { ReportSheet } from './report-sheet'
 
@@ -15,15 +18,46 @@ const RETRY_ERRORS: Record<string, string> = {
 }
 const RETRY_FAILED = 'The summary could not be built. Try again.'
 
-export function ReportBlock({ summary, chatId, title }: { summary: ReportSummary; chatId?: string; title?: string }) {
+const exportFailed = (kind: ExportKind) =>
+  `The ${EXPORTS.find((e) => e.kind === kind)?.label} file could not be created. Try again.`
+
+function useReportExport(summary: ReportSummary, title?: string, finishedAt?: string) {
+  const [exporting, setExporting] = useState<ExportKind | null>(null)
+  const onExport = async (kind: ExportKind) => {
+    setExporting(kind)
+    try {
+      const date = finishedAt ? new Date(finishedAt) : new Date()
+      await runExport(kind, summary, { title: title ?? 'Focus group report', date })
+    } catch (error) {
+      console.error('report export failed', { kind, error })
+      toast(exportFailed(kind))
+    } finally {
+      setExporting(null)
+    }
+  }
+  return { exporting, onExport: (kind: ExportKind) => void onExport(kind) }
+}
+
+export function ReportBlock({
+  summary,
+  chatId,
+  title,
+  finishedAt,
+}: {
+  summary: ReportSummary
+  chatId?: string
+  title?: string
+  finishedAt?: string
+}) {
   const [open, setOpen] = useState(false)
+  const exports = useReportExport(summary, title, finishedAt)
   return (
     <>
-      <ReportCard summary={summary} onOpen={() => setOpen(true)} />
+      <ReportCard summary={summary} onOpen={() => setOpen(true)} {...exports} exports={chatId ? undefined : ['pdf']} />
       {chatId ? (
-        <ReportSheet summary={summary} open={open} onOpenChange={setOpen} chatId={chatId} title={title} />
+        <ReportSheet summary={summary} open={open} onOpenChange={setOpen} chatId={chatId} title={title} {...exports} />
       ) : (
-        <ReportSheet summary={summary} open={open} onOpenChange={setOpen} readOnly title={title} />
+        <ReportSheet summary={summary} open={open} onOpenChange={setOpen} readOnly title={title} {...exports} />
       )}
     </>
   )
@@ -70,12 +104,14 @@ export function ReportSection({
   failed,
   chatId,
   title,
+  finishedAt,
   children,
 }: {
   summary?: ReportSummary
   failed: boolean
   chatId?: string
   title?: string
+  finishedAt?: string
   children: ReactNode
 }) {
   const [retried, setRetried] = useState<ReportSummary | null>(null)
@@ -83,7 +119,7 @@ export function ReportSection({
   if (current)
     return (
       <div data-part="report">
-        <ReportBlock summary={current} chatId={chatId} title={title} />
+        <ReportBlock summary={current} chatId={chatId} title={title} finishedAt={finishedAt} />
       </div>
     )
   return (

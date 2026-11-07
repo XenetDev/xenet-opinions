@@ -18,6 +18,7 @@ export type LatestRun = {
   assistantMessageId: string
   envState: EnvState
   envKeepaliveUntil: Date | null
+  finishedAt: Date | null
 }
 
 const TERMINAL = new Set(['done', 'failed', 'cancelled'])
@@ -36,6 +37,7 @@ export async function loadChatPage(
         assistantMessageId: latest.assistantMessageId,
         envState: latest.envState === 'open' || latest.envState === 'closed' ? latest.envState : 'none',
         envKeepaliveUntil: latest.envKeepaliveUntil,
+        finishedAt: latest.finishedAt ?? null,
       }
     : null
   if (active) {

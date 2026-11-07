@@ -3,7 +3,8 @@ import type { ReactNode } from 'react'
 import { Badge } from '@/components/reui/badge'
 import { Frame, FrameFooter, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
 import { Button } from '@/components/ui/button'
-import { CONFIDENCE_LABELS, EXPORTS, type ExportKind, formatSentiment } from './format'
+import { ExportButtons } from './export-buttons'
+import { CONFIDENCE_LABELS, type ExportKind, formatSentiment } from './format'
 import { SentimentBar } from './sentiment-bar'
 import { ShareValue } from './values'
 
@@ -20,10 +21,14 @@ export function ReportCard({
   summary,
   onOpen,
   onExport,
+  exporting,
+  exports,
 }: {
   summary: ReportSummary
   onOpen: () => void
   onExport?: (kind: ExportKind) => void
+  exporting?: ExportKind | null
+  exports?: ExportKind[]
 }) {
   const { headline, method, sources } = summary
   const meta = [
@@ -58,17 +63,7 @@ export function ReportCard({
           <Button size="sm" onClick={onOpen}>
             Open report
           </Button>
-          {EXPORTS.map(({ kind, label }) => (
-            <Button
-              key={kind}
-              size="sm"
-              variant="outline"
-              disabled={!onExport}
-              onClick={onExport ? () => onExport(kind) : undefined}
-            >
-              {label}
-            </Button>
-          ))}
+          <ExportButtons onExport={onExport} exporting={exporting} only={exports} />
         </FrameFooter>
       </Frame>
     </section>

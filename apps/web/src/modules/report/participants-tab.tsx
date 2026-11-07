@@ -1,30 +1,22 @@
-import { NO_VIEW, NOT_CLASSIFIED, type Participant, type ReportSummary } from '@xo/engine/parts'
+import type { Participant, ReportSummary } from '@xo/engine/parts'
 import { Button } from '@/components/ui/button'
-import { ACTION_LABELS, formatScore, groupLabels } from './format'
+import { groupLabels, participantAction, participantDetails, participantOpinion, participantSentiment } from './format'
 import { Quote } from './values'
 
 function ParticipantCard({ participant, group }: { participant: Participant; group?: string }) {
-  const details = [participant.age !== undefined ? String(participant.age) : null, participant.location ?? null].filter(
-    Boolean,
-  )
-  const action = ACTION_LABELS[participant.action]
+  const action = participantAction(participant)
+  const opinion = participantOpinion(participant)
   return (
     <li data-testid="participant-card" className="flex flex-col gap-2 rounded-lg border bg-card p-3">
       <div className="flex flex-col gap-0.5">
         <h3 className="text-sm font-semibold text-foreground">{participant.name}</h3>
-        <p className="text-xs text-muted-foreground">
-          {[...details, participant.role, group].filter(Boolean).join(' · ')}
-        </p>
+        <p className="text-xs text-muted-foreground">{participantDetails(participant, group)}</p>
       </div>
       <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
-        <span data-testid="participant-sentiment">
-          {participant.sentiment === null ? NO_VIEW : `Sentiment ${formatScore(participant.sentiment)}`}
-        </span>
-        {participant.sentiment !== null && action && <span>{action}</span>}
+        <span data-testid="participant-sentiment">{participantSentiment(participant)}</span>
+        {action && <span>{action}</span>}
       </p>
-      {participant.opinion && participant.opinion !== NO_VIEW && participant.opinion !== NOT_CLASSIFIED && (
-        <p className="text-sm/6 text-foreground">{participant.opinion}</p>
-      )}
+      {opinion && <p className="text-sm/6 text-foreground">{opinion}</p>}
       {participant.quote && <Quote>{participant.quote}</Quote>}
     </li>
   )

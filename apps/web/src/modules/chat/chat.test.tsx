@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reportQuestion, reportSummaryFixture } from '@/modules/report/fixture'
 import { axe } from '@/test/axe'
 import { UsageProvider, useUsage } from './shell/usage-context'
 import type { RunStatusState } from './use-run-status'
@@ -24,6 +25,8 @@ const composer = vi.hoisted(() => ({
   sent: undefined as undefined | Promise<string>,
 }))
 const upsertChat = vi.hoisted(() => vi.fn())
+const runExport = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/modules/report/export/run', () => ({ runExport }))
 
 vi.mock('@ai-sdk/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@ai-sdk/react')>()
@@ -402,6 +405,28 @@ describe('Chat', () => {
     renderChat()
     await act(async () => chat.options!.onError(new Error('network down')))
     expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('exports the report with the question and the run finish time', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: reportQuestion }] },
+      { id: 'm1', role: 'assistant', parts: [{ type: 'data-report_summary', data: reportSummaryFixture }] },
+    ]
+    renderChat({
+      id: 'r1',
+      status: 'done',
+      assistantMessageId: 'm1',
+      envState: 'closed',
+      envKeepaliveUntil: null,
+      finishedAt: '2026-11-05T16:20:00.000Z',
+    })
+    fireEvent.click(within(screen.getByTestId('report-card')).getByRole('button', { name: 'PDF' }))
+    await waitFor(() =>
+      expect(runExport).toHaveBeenCalledWith('pdf', reportSummaryFixture, {
+        title: reportQuestion,
+        date: new Date('2026-11-05T16:20:00.000Z'),
+      }),
+    )
   })
 
   it('shows the send-error notice when no run is active', async () => {

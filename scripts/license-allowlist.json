@@ -26,5 +26,8 @@
   "@img/sharp-webcontainers-wasm32": "sharp WebAssembly build, Apache-2.0 per its package metadata, shipped unmodified; listed so every sharp platform is covered",
   "@img/sharp-win32-arm64": "sharp prebuilt binary bundling libvips (Apache-2.0 AND LGPL-3.0-or-later), shipped unmodified; LGPL-3.0 permits this use",
   "@img/sharp-win32-ia32": "sharp prebuilt binary bundling libvips (Apache-2.0 AND LGPL-3.0-or-later), shipped unmodified; LGPL-3.0 permits this use",
-  "@img/sharp-win32-x64": "sharp prebuilt binary bundling libvips (Apache-2.0 AND LGPL-3.0-or-later), shipped unmodified; LGPL-3.0 permits this use"
+  "@img/sharp-win32-x64": "sharp prebuilt binary bundling libvips (Apache-2.0 AND LGPL-3.0-or-later), shipped unmodified; LGPL-3.0 permits this use",
+  "buffers": "exceljs > unzipper > binary dependency by James Halliday; package.json has no licence field, the author published its siblings (binary, chainsaw) as MIT/X11; review if exceljs is replaced",
+  "chainsaw": "MIT/X11 is the MIT licence under its older name (exceljs > unzipper > binary)",
+  "pako": "(MIT AND Zlib): both permissive (exceljs > jszip, @react-pdf/renderer > fontkit)"
 }

@@ -142,7 +142,7 @@ describe('ReportSheet', () => {
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
   })
 
-  it('calls export and share handlers; read-only hides share', () => {
+  it('calls export and share handlers; read-only offers only PDF', () => {
     const onExport = vi.fn()
     const onShare = vi.fn()
     const view = render(
@@ -155,6 +155,16 @@ describe('ReportSheet', () => {
     view.rerender(<ReportSheet summary={summary} open onOpenChange={() => {}} readOnly onExport={onExport} />)
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
     expect(screen.getByRole('button', { name: 'PDF' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Word' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Excel' })).toBeNull()
+  })
+
+  it('marks the running export busy', () => {
+    render(
+      <ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" onExport={() => {}} exporting="xlsx" />,
+    )
+    expect(screen.getByRole('button', { name: 'Excel' }).getAttribute('aria-busy')).toBe('true')
+    expect((screen.getByRole('button', { name: 'PDF' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it.each([/^Summary/, /^Groups/, /^Participants/, /^Sources/, /^Full write-up/])(

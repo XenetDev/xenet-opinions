@@ -1,15 +1,9 @@
 import type { ReportSummary } from '@xo/engine/parts'
-import { hostOf, isWebUrl, uniqueBy } from './format'
+import { hostOf, isWebUrl, sourcesEmptyNote, uniqueBy } from './format'
 
 export function SourcesTab({ summary }: { summary: ReportSummary }) {
   if (!summary.sources.length)
-    return (
-      <p className="text-sm text-muted-foreground">
-        {summary.method.webResearch
-          ? 'Web research found no sources for this run.'
-          : 'Web research was off for this run.'}
-      </p>
-    )
+    return <p className="text-sm text-muted-foreground">{sourcesEmptyNote(summary.method)}</p>
   return (
     <ol className="flex flex-col divide-y rounded-lg border">
       {uniqueBy(summary.sources, (source) => source.url).map((source) => (

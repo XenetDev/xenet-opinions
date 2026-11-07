@@ -49,6 +49,7 @@ export function MessageParts({
   chatId,
   title,
   question,
+  finishedAt,
   windowUntil,
   reportRequested,
   windowLive,
@@ -60,6 +61,7 @@ export function MessageParts({
   chatId?: string
   title?: string
   question?: string
+  finishedAt?: string
   windowUntil?: string | null
   reportRequested?: boolean
   windowLive?: boolean
@@ -139,7 +141,13 @@ export function MessageParts({
           ))}
         </div>
       )}
-      <ReportSection summary={summary} failed={summaryFailed} chatId={chatId} title={question ?? title}>
+      <ReportSection
+        summary={summary}
+        failed={summaryFailed}
+        chatId={chatId}
+        title={question ?? title}
+        finishedAt={finishedAt}
+      >
         {texts.map((text, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
           <div key={i} data-part="text">

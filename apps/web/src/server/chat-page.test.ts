@@ -139,6 +139,7 @@ describe('loadChatPage', () => {
       status: 'done',
       envState: 'open',
       envKeepaliveUntil: deadline,
+      finishedAt: new Date('2026-10-21T09:40:00.000Z'),
     })
     const page = await loadChatPage('c1', 'u1')
     expect(page.initialMessages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', 'a2'])
@@ -148,6 +149,7 @@ describe('loadChatPage', () => {
       assistantMessageId: 'a1',
       envState: 'open',
       envKeepaliveUntil: deadline,
+      finishedAt: new Date('2026-10-21T09:40:00.000Z'),
     })
   })
 
@@ -170,6 +172,7 @@ describe('loadChatPage', () => {
       assistantMessageId: 'a2',
       envState: 'none',
       envKeepaliveUntil: null,
+      finishedAt: null,
     })
   })
 })
