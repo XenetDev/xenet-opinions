@@ -42,6 +42,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 3,
     anonymous: false,
     maxRounds: 40,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })

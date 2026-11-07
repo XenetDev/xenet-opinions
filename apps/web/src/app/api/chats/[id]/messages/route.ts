@@ -62,7 +62,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const uploadIds = [...new Set(body.uploadIds)]
 
-  const gate = await checkRunGate(user, { requestedRounds: body.runOptions.maxRounds })
+  const gate = await checkRunGate(user, {
+    requestedRounds: body.runOptions.maxRounds,
+    requestedParticipants: body.panel?.participants,
+  })
   if (!gate.ok) return gate.response
   const { limits } = gate
 
@@ -89,6 +92,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       text,
       uploadIds,
       maxRounds: body.runOptions.maxRounds,
+      ...(body.panel && { panel: body.panel }),
+      ...(body.researchId && { researchId: body.researchId }),
       pauseForInterviews: limits.allowPause && body.runOptions.pauseForInterviews,
       ...(gate.quota && { quota: gate.quota }),
     })

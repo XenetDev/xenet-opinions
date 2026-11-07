@@ -1,8 +1,21 @@
 import { MAX_INTERVIEW_AGENTS, SEED_FIELD_MAX } from '@xo/engine'
+import { PANEL_AUDIENCE_MAX, PANEL_GROUPS, PANEL_MAX_PARTICIPANTS, PANEL_MIN_PARTICIPANTS } from '@xo/engine/policy'
 import { z } from 'zod'
 import { MAX_FILES } from './upload-rules'
 
 const seedField = z.string().trim().max(SEED_FIELD_MAX).optional()
+
+const groupIds = PANEL_GROUPS.map((group) => group.id) as [
+  (typeof PANEL_GROUPS)[number]['id'],
+  ...(typeof PANEL_GROUPS)[number]['id'][],
+]
+
+export const panelSchema = z.object({
+  participants: z.number().int().min(PANEL_MIN_PARTICIPANTS).max(PANEL_MAX_PARTICIPANTS),
+  audience: z.string().trim().max(PANEL_AUDIENCE_MAX).optional(),
+  groups: z.array(z.enum(groupIds)).max(PANEL_GROUPS.length),
+  webResearch: z.boolean(),
+})
 
 export const seedSchema = z.object({ background: seedField, actors: seedField, change: seedField })
 
@@ -23,6 +36,8 @@ const messageBodySchema = z.object({
     })
     .default({ maxRounds: 3, pauseForInterviews: false }),
   seed: seedSchema.optional(),
+  panel: panelSchema.optional(),
+  researchId: z.string().min(1).max(64).optional(),
 })
 
 export type MessageBody = z.infer<typeof messageBodySchema>

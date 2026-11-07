@@ -16,6 +16,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 5,
     anonymous: true,
     maxRounds: 4,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })
@@ -30,6 +31,14 @@ describe('checkRunGate', () => {
     limits()
     const gate = await checkRunGate(sessionUser())
     expect(gate).toMatchObject({ ok: true, window: { count: 0 }, limits: { maxRounds: 4 } })
+  })
+
+  it('refuses participants above the cap', async () => {
+    limits({ maxParticipants: 10 })
+    const gate = await checkRunGate(sessionUser(), { requestedParticipants: 11 })
+    if (gate.ok) throw new Error('expected a block')
+    expect(gate.response.status).toBe(400)
+    expect(await gate.response.json()).toEqual({ error: 'participants_exceeded', max: 10 })
   })
 
   it('answers demo_paused 409', async () => {

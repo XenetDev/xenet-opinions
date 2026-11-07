@@ -1,4 +1,4 @@
-import { type Run, schema } from '@xo/db'
+import { type Run, type RunConfig, schema } from '@xo/db'
 import { cancelRun, createDrizzleStore, materialiseRun } from '@xo/engine'
 import { generateId } from 'ai'
 import { and, count, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
@@ -91,6 +91,8 @@ export async function startRun(input: {
   uploadIds: string[]
   maxRounds: number
   pauseForInterviews: boolean
+  panel?: RunConfig['panel']
+  researchId?: string
   quota?: RunQuota
 }): Promise<{ run: Run; assistantMessageId: string }> {
   const assistantMessageId = generateId()
@@ -133,6 +135,8 @@ export async function startRun(input: {
             maxRounds: input.maxRounds,
             uploadIds: input.uploadIds,
             pauseForInterviews: input.pauseForInterviews,
+            ...(input.panel && { panel: input.panel }),
+            ...(input.researchId && { researchId: input.researchId }),
           },
         })
         .returning()

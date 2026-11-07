@@ -82,6 +82,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 3,
     anonymous: false,
     maxRounds: 40,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })
@@ -341,6 +342,26 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).toHaveBeenCalledWith(
         expect.objectContaining({ uploadIds: ['seed1'], text: 'Should we raise prices?' }),
       )
+    })
+
+    it('stores the panel and researchId on the run', async () => {
+      authed()
+      start()
+      const panel = { participants: 20, audience: 'Renters', groups: ['customers'], webResearch: false }
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds: [], panel, researchId: 'res1' })
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ panel, researchId: 'res1' }))
+    })
+
+    it('refuses participants above the cap', async () => {
+      authed()
+      limits({ maxParticipants: 10 })
+      const panel = { participants: 20, groups: [], webResearch: false }
+      const res = await call(userMessage('Should we raise prices?'), { panel })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+      expect(startRun).not.toHaveBeenCalled()
     })
 
     it('writes the seed fields into the document', async () => {
@@ -624,6 +645,7 @@ describe('POST /api/chats/[id]/messages', () => {
         signedInMaxRunsPerDay: 3,
         anonymous: user.isAnonymous,
         maxRounds: 3,
+        maxParticipants: 50,
         allowPause: false,
       }))
     const startable = () => {

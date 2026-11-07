@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sendNotices, UPLOAD_FAILED, uploadNotice } from './send-notices'
 
-const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3 }
+const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3, maxParticipants: 10 }
 
 describe('sendNotices quota_exceeded', () => {
   it('upsells sign-in to anonymous users', () => {
@@ -61,6 +61,7 @@ describe('sendNotices with plans', () => {
   const base = {
     maxRunsPerDay: 4,
     maxRounds: 5,
+    maxParticipants: 25,
     anonymous: false,
     signedInMaxRunsPerDay: 2,
     resetAt: '2026-12-03T07:00:00.000Z',
@@ -84,5 +85,16 @@ describe('sendNotices with plans', () => {
 
   it('says the plan caps rounds, not the demo', () => {
     expect(sendNotices({ ...base, plan: 'starter' }, true).rounds_exceeded).toBe('Your plan allows up to 5 rounds.')
+  })
+})
+
+describe('sendNotices participants_exceeded', () => {
+  it('names the plan cap', () => {
+    expect(sendNotices({ ...limits, maxParticipants: 25, plan: 'starter' }, true).participants_exceeded).toBe(
+      'Your plan allows up to 25 participants.',
+    )
+    expect(sendNotices({ ...limits, maxParticipants: 10 }, true).participants_exceeded).toBe(
+      'The demo allows up to 10 participants.',
+    )
   })
 })

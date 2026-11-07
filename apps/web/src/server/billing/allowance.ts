@@ -11,6 +11,7 @@ export type Allowance = {
   used: number
   max: number
   maxRounds: number
+  maxParticipants: number
   since: string | null
   resetAt: string | null
   subscribed: boolean
@@ -81,6 +82,7 @@ export async function getAllowance(user: { id: string; isAnonymous: boolean }, n
     used: usage?.n ?? 0,
     max: plan.runs,
     maxRounds: plan.maxRounds,
+    maxParticipants: plan.maxParticipants,
     since: resolved.since?.toISOString() ?? null,
     resetAt: resolved.resetAt?.toISOString() ?? null,
     subscribed: resolved.subscribed,
@@ -93,6 +95,7 @@ export const guestAllowance = (): Allowance => ({
   used: 0,
   max: PLANS.guest.runs,
   maxRounds: PLANS.guest.maxRounds,
+  maxParticipants: PLANS.guest.maxParticipants,
   since: null,
   resetAt: null,
   subscribed: false,

@@ -36,6 +36,7 @@ const LIMITS: Limits = {
   signedInMaxRunsPerDay: 3,
   anonymous: false,
   maxRounds: 3,
+  maxParticipants: 50,
   allowPause: true,
 }
 

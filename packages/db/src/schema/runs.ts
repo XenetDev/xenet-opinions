@@ -26,7 +26,14 @@ export const RUN_STAGES = [
   'finished',
 ] as const satisfies readonly Stage[]
 
-export type RunConfig = { requirement: string; maxRounds: number; uploadIds: string[]; pauseForInterviews?: boolean }
+export type RunConfig = {
+  requirement: string
+  maxRounds: number
+  uploadIds: string[]
+  pauseForInterviews?: boolean
+  panel?: { participants: number; audience?: string; groups: string[]; webResearch: boolean }
+  researchId?: string
+}
 
 export type RunIds = Partial<{
   projectId: string

@@ -10,7 +10,7 @@ import { openBillingPortal, startCheckout } from './billing-actions'
 
 const CARDS = ['free', 'starter', 'pro'] as const
 
-const runsLine = (id: (typeof CARDS)[number]) => `${PLANS[id].runs} runs a month`
+const runsLine = (id: (typeof CARDS)[number]) => `${PLANS[id].runs} ${PLANS[id].runs === 1 ? 'run' : 'runs'} a month`
 
 export function PricingCards({ plan, subscribed }: { plan: PlanId; subscribed: boolean }) {
   const signInDialog = useSignInDialog()
@@ -90,14 +90,17 @@ export function PricingCards({ plan, subscribed }: { plan: PlanId; subscribed: b
               <span className="text-sm font-normal text-muted-foreground"> /month</span>
             </p>
             <ul className="flex flex-1 flex-col gap-2 text-sm text-muted-foreground">
-              {[runsLine(id), `Up to ${PLANS[id].maxRounds} rounds per run`, 'Reports and persona interviews'].map(
-                (line) => (
-                  <li key={line} className="flex items-start gap-2">
-                    <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                    {line}
-                  </li>
-                ),
-              )}
+              {[
+                runsLine(id),
+                `Up to ${PLANS[id].maxParticipants} participants`,
+                `Up to ${PLANS[id].maxRounds} rounds per run`,
+                'Reports and persona interviews',
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2">
+                  <CheckIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                  {line}
+                </li>
+              ))}
             </ul>
             {action(id)}
           </section>

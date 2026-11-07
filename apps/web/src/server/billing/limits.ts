@@ -18,6 +18,7 @@ export async function resolveLimits(user: { id: string; isAnonymous: boolean } |
       maxRunsPerDay: allowance.max,
       signedInMaxRunsPerDay: PLANS.free.runs,
       maxRounds: allowance.maxRounds,
+      maxParticipants: allowance.maxParticipants,
       plan: allowance.plan satisfies PlanId,
       resetAt: allowance.resetAt,
     },
