@@ -24,7 +24,7 @@ describe('ContextCard', () => {
     renderCard()
     expect(screen.getByText('A little more context helps the simulation')).toBeTruthy()
     expect(screen.getByText('Needs you')).toBeTruthy()
-    expect(screen.getByText('Optional. MiroFish simulates better when it knows the situation.')).toBeTruthy()
+    expect(screen.getByText('Optional. The simulation is better when it knows the situation.')).toBeTruthy()
     expect(field('Background and constraints').placeholder).toBe('The rules, numbers and history that matter')
     expect(field('Who should be simulated').placeholder).toBe('Customers, staff, competitors, the press…')
     expect(field('What is changing').placeholder).toBe('The decision or event you want to test')

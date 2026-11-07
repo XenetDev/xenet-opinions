@@ -2,7 +2,7 @@ import type { Research } from '@xo/db'
 import { PANEL_GROUPS, PANEL_MAX_PARTICIPANTS, type Panel } from '@xo/engine/policy'
 import { z } from 'zod'
 
-export const readinessSystem = `You check whether a question and its documents are ready for MiroFish, a simulator that builds a knowledge graph from the documents and simulates the people and organisations it finds in them, then reports how they react.
+export const readinessSystem = `You check whether a question and its documents are ready for the simulator, which builds a knowledge graph from the documents and simulates the people and organisations it finds in them, then reports how they react.
 
 Answer ready: true, with draft: null, only if the question and documents together name specific groups of people or organisations whose opinions matter to the question (for example "retail customers", "the city council", "seed-stage VCs"). Groups named in the question count as much as groups named in documents, and documents are not required. A document about a product, a company or a plan with no such groups is not ready, even if it is long.
 
@@ -17,7 +17,7 @@ Reply with only a JSON object of exactly this shape, with no other text:
 {"ready": boolean, "draft": {"background": string, "actors": string, "change": string} | null}`
 
 export const readinessForcedNote =
-  'MiroFish already ran on these documents and found no people or groups to simulate. Answer ready: false and always write the draft.'
+  'The simulator already ran on these documents and found no people or groups to simulate. Answer ready: false and always write the draft.'
 
 export const readinessNoDocumentsNote =
   'There are no documents, so the simulator will only see the question and your draft. Answer ready: false and always write the draft.'

@@ -925,7 +925,7 @@ describe('failures', () => {
     expect(next.error).toEqual({
       stage: 'graph_build',
       code: 'api',
-      message: 'The MiroFish Zep API key is not configured.',
+      message: 'The simulation service is not configured (graph memory key).',
     })
   })
 

@@ -80,7 +80,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     } catch (cause) {
       throw new MiroFishError({
         code: 'http',
-        message: `MiroFish returned a non-JSON response (HTTP ${res.status})`,
+        message: `The simulation service returned a non-JSON response (HTTP ${res.status})`,
         path,
         status: res.status,
         cause,
@@ -91,7 +91,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     if (!envelope.success) {
       throw new MiroFishError({
         code: 'http',
-        message: `MiroFish returned an unexpected response (HTTP ${res.status})`,
+        message: `The simulation service returned an unexpected response (HTTP ${res.status})`,
         path,
         status: res.status,
       })
@@ -100,7 +100,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     if (!envelope.data.success) {
       throw new MiroFishError({
         code: 'api',
-        message: envelope.data.error ? englishMessage(envelope.data.error) : 'MiroFish request failed',
+        message: envelope.data.error ? englishMessage(envelope.data.error) : 'The simulation service request failed',
         path,
         status: res.status,
         traceback: envelope.data.traceback,
@@ -111,7 +111,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
     if (!res.ok) {
       throw new MiroFishError({
         code: 'http',
-        message: `MiroFish request failed (HTTP ${res.status})`,
+        message: `The simulation service request failed (HTTP ${res.status})`,
         path,
         status: res.status,
       })
@@ -123,7 +123,7 @@ export const createHttp = (opts: MiroFishClientOptions): Http => {
       const where = issue?.path.join('.') || '(root)'
       throw new MiroFishError({
         code: 'schema',
-        message: `Invalid MiroFish response at ${where}: ${issue?.message ?? 'validation failed'}`,
+        message: `Invalid simulation service response at ${where}: ${issue?.message ?? 'validation failed'}`,
         path,
         status: res.status,
         cause: parsed.error,

@@ -62,7 +62,7 @@ export function ContextCard({
           <FrameDescription>
             {initial
               ? "Check these and run. Edit anything that's wrong."
-              : 'Optional. MiroFish simulates better when it knows the situation.'}
+              : 'Optional. The simulation is better when it knows the situation.'}
           </FrameDescription>
         </FrameHeader>
         <FramePanel>
