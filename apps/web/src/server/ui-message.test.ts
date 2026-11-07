@@ -47,6 +47,17 @@ describe('toUIMessages', () => {
     expect(toUIMessages([row([legacy])])[0]?.parts).toEqual([legacy])
   })
 
+  it('whitelists data-debrief parts and drops invalid ones', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const part = {
+      type: 'data-debrief',
+      id: 'debrief',
+      data: { answers: [{ agentId: '0', name: 'Maya', answer: 'Yes', status: 'done' }] },
+    }
+    const bad = { type: 'data-debrief', data: { answers: [{ agentId: '0', name: 'Maya', status: 'pending' }] } }
+    expect(toUIMessages([row([part, bad])])[0]?.parts).toEqual([part])
+  })
+
   it('whitelists data-interview_window parts and drops invalid ones', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const part = {

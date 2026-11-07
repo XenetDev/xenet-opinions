@@ -90,7 +90,7 @@ describe('eventToChunks cancelled', () => {
 
 describe('partIdFor', () => {
   it('returns the part id per kind', () => {
-    expect(EVENT_KINDS).toHaveLength(14)
+    expect(EVENT_KINDS).toHaveLength(15)
     expect(partIdFor('stage', { stage: 'sim_run', status: 'running' })).toBe('stage:sim_run')
     expect(partIdFor('ontology', {})).toBe('ontology')
     expect(partIdFor('graph', {})).toBe('graph')
@@ -101,6 +101,7 @@ describe('partIdFor', () => {
     expect(partIdFor('sources', {})).toBe('sources')
     expect(partIdFor('report_text', { markdown: '' })).toBe('report')
     expect(partIdFor('interview_window', {})).toBe('interview_window')
+    expect(partIdFor('debrief', { answers: [] })).toBe('debrief')
     expect(partIdFor('interview', { id: 'iv_1' })).toBe('interview:iv_1')
     expect(partIdFor('error', {})).toBeNull()
     expect(partIdFor('done', {})).toBeNull()

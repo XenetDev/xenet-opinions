@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type {
   AgentsData,
+  DebriefData,
   ErrorData,
   GraphData,
   InterviewData,
@@ -14,6 +15,7 @@ import type {
 } from './parts'
 import {
   AgentsDataSchema,
+  DebriefDataSchema,
   ErrorDataSchema,
   GraphDataSchema,
   InterviewDataSchema,
@@ -41,6 +43,7 @@ export const EVENT_KINDS = [
   'report_text',
   'interview_window',
   'interview',
+  'debrief',
   'error',
   'done',
   'cancelled',
@@ -61,6 +64,7 @@ export type RunEventPayloads = {
   report_text: { markdown: string }
   interview_window: InterviewWindowData
   interview: InterviewData
+  debrief: DebriefData
   error: ErrorData
   done: Record<string, never>
   cancelled: CancelledData
@@ -83,6 +87,7 @@ const SCHEMAS = {
   report_text: ReportTextDataSchema,
   interview_window: InterviewWindowDataSchema,
   interview: InterviewDataSchema,
+  debrief: DebriefDataSchema,
   error: ErrorDataSchema,
   done: DoneDataSchema,
   cancelled: CancelledDataSchema,
