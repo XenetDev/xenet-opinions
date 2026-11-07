@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import type { ReactNode } from 'react'
 import './globals.css'
-import { Toaster } from 'sonner'
 import { AnonymousSession } from '@/components/providers/anonymous-session'
 import { ThemeProvider } from '@/components/providers/theme'
+import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const geistSans = Geist({
