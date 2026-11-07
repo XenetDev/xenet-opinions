@@ -42,12 +42,28 @@ const FIXTURE: Classified[] = [
 describe('aggregate', () => {
   it('computes exact headline, split and group numbers for 12 classified personas', () => {
     expect(aggregate(FIXTURE)).toEqual({
-      headline: { sentiment: 0.5, actShare: 0.5, switchShare: 0.38, topConcern: { label: 'price', count: 4 } },
+      headline: {
+        sentiment: 0.5,
+        actShare: 0.5,
+        switchShare: 0.38,
+        topConcern: { label: 'price', count: 4 },
+        counted: 8,
+        actCount: 4,
+        switchCount: 3,
+      },
       split: { positive: 5, neutral: 1, negative: 4 },
       groups: [
-        { id: 'customers', label: 'Customers', people: 6, sentiment: 0.4, actShare: 0.4 },
-        { id: 'dealers-partners', label: 'Dealers/partners', people: 3, sentiment: 0.7, actShare: 0.67 },
-        { id: 'competitors', label: 'Competitors', people: 3, sentiment: 0.5, actShare: null },
+        { id: 'customers', label: 'Customers', people: 6, sentiment: 0.4, actShare: 0.4, counted: 5, actCount: 2 },
+        {
+          id: 'dealers-partners',
+          label: 'Dealers/partners',
+          people: 3,
+          sentiment: 0.7,
+          actShare: 0.67,
+          counted: 3,
+          actCount: 2,
+        },
+        { id: 'competitors', label: 'Competitors', people: 3, sentiment: 0.5, actShare: null, counted: 0, actCount: 0 },
       ],
     })
   })
@@ -55,9 +71,19 @@ describe('aggregate', () => {
   it('leaves personas with no view out of averages, split and shares', () => {
     const silent = [person('x1', customers, null, 'unsure', null), person('x2', customers, null, 'unsure', null)]
     expect(aggregate(silent)).toEqual({
-      headline: { sentiment: null, actShare: null, switchShare: null, topConcern: null },
+      headline: {
+        sentiment: null,
+        actShare: null,
+        switchShare: null,
+        topConcern: null,
+        counted: 0,
+        actCount: 0,
+        switchCount: 0,
+      },
       split: { positive: 0, neutral: 0, negative: 0 },
-      groups: [{ id: 'customers', label: 'Customers', people: 2, sentiment: null, actShare: null }],
+      groups: [
+        { id: 'customers', label: 'Customers', people: 2, sentiment: null, actShare: null, counted: 0, actCount: 0 },
+      ],
     })
     const mixed = aggregate([...silent, person('x3', customers, -2, 'not_act', 'cost')])
     expect(mixed.headline).toEqual({
@@ -65,6 +91,9 @@ describe('aggregate', () => {
       actShare: 0,
       switchShare: 1,
       topConcern: { label: 'cost', count: 1 },
+      counted: 1,
+      actCount: 0,
+      switchCount: 1,
     })
   })
 })

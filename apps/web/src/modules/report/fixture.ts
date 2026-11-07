@@ -13,6 +13,9 @@ export const reportSummaryFixture: ReportSummary = {
     actShare: 0.33,
     switchShare: 0.33,
     topConcern: { label: 'value for money', count: 5 },
+    counted: 9,
+    actCount: 3,
+    switchCount: 3,
   },
   split: { positive: 3, neutral: 1, negative: 7 },
   groups: [
@@ -22,6 +25,8 @@ export const reportSummaryFixture: ReportSummary = {
       people: 4,
       sentiment: -2,
       actShare: 0.25,
+      counted: 4,
+      actCount: 1,
       summary: 'Feels like paying more for the same car.',
     },
     {
@@ -30,6 +35,8 @@ export const reportSummaryFixture: ReportSummary = {
       people: 3,
       sentiment: 1,
       actShare: 0.67,
+      counted: 3,
+      actCount: 2,
       summary: 'Would accept it with a longer hybrid warranty.',
     },
     {
@@ -38,6 +45,8 @@ export const reportSummaryFixture: ReportSummary = {
       people: 3,
       sentiment: -1.3,
       actShare: 0,
+      counted: 2,
+      actCount: 0,
       summary: 'Worried about first-quarter volume targets and fleet re-tenders.',
     },
     {
@@ -46,6 +55,8 @@ export const reportSummaryFixture: ReportSummary = {
       people: 2,
       sentiment: -2,
       actShare: null,
+      counted: 0,
+      actCount: 0,
       summary: 'Likely to frame the rise as a "hybrid tax".',
     },
   ],

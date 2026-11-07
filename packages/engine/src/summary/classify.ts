@@ -1,7 +1,7 @@
 import { generateText, type LanguageModel, Output } from 'ai'
 import { z } from 'zod'
 import type { Classified } from './aggregate'
-import { type Action, type Kind, SENTIMENT_MAX, SENTIMENT_MIN } from './schema'
+import { type Action, type Kind, NO_VIEW, NOT_CLASSIFIED, SENTIMENT_MAX, SENTIMENT_MIN } from './schema'
 
 export type Persona = { agentId: string; name: string; profile: string; texts: string[] }
 
@@ -16,8 +16,6 @@ export type ClassifyOptions = {
 
 export const BATCH_SIZE = 10
 export const CONCURRENCY = 3
-export const NO_VIEW = 'No view expressed'
-export const NOT_CLASSIFIED = 'Not classified'
 const OTHER = 'Other'
 const PROFILE_MAX = 800
 const TEXT_MAX = 4000

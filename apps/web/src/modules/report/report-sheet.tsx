@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReportSummary } from '@xo/engine/parts'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -24,13 +25,14 @@ const CONTENT = 'min-h-0 overflow-y-auto px-4 pt-4 pb-8 sm:px-6'
 export function ReportSheet({ summary, open, onOpenChange, title, onExport, ...rest }: SheetProps) {
   const { method } = summary
   const onShare = rest.readOnly ? undefined : rest.onShare
+  const [group, setGroup] = useState<string | null>(null)
   const tabs = [
     { value: 'summary', label: 'Summary', body: <SummaryTab summary={summary} /> },
     { value: 'groups', label: `Groups (${summary.groups.length})`, body: <GroupsTab summary={summary} /> },
     {
       value: 'participants',
       label: `Participants (${summary.participants.length})`,
-      body: <ParticipantsTab summary={summary} />,
+      body: <ParticipantsTab summary={summary} filter={group} onFilterChange={setGroup} />,
     },
     { value: 'sources', label: `Sources (${summary.sources.length})`, body: <SourcesTab summary={summary} /> },
     { value: 'writeup', label: 'Full write-up', body: <WriteupTab summary={summary} /> },

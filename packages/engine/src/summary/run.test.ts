@@ -113,7 +113,15 @@ describe('runSummary', () => {
     expect(summary).toEqual({
       verdict: 'Owners are against the rise; dealers accept it.',
       confidence: { level: 'low', reason: 'Only three participants.' },
-      headline: { sentiment: -0.5, actShare: 0.5, switchShare: 0.5, topConcern: { label: 'price', count: 1 } },
+      headline: {
+        sentiment: -0.5,
+        actShare: 0.5,
+        switchShare: 0.5,
+        topConcern: { label: 'price', count: 1 },
+        counted: 2,
+        actCount: 1,
+        switchCount: 1,
+      },
       split: { positive: 1, neutral: 0, negative: 1 },
       groups: [
         {
@@ -122,9 +130,20 @@ describe('runSummary', () => {
           people: 2,
           sentiment: -3,
           actShare: 0,
+          counted: 1,
+          actCount: 0,
           summary: 'Owners worry about price.',
         },
-        { id: 'dealers-partners', label: 'Dealers/partners', people: 1, sentiment: 2, actShare: 1, summary: '' },
+        {
+          id: 'dealers-partners',
+          label: 'Dealers/partners',
+          people: 1,
+          sentiment: 2,
+          actShare: 1,
+          counted: 1,
+          actCount: 1,
+          summary: '',
+        },
       ],
       findings: [
         {

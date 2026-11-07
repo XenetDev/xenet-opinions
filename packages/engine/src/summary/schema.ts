@@ -3,6 +3,9 @@ import { z } from 'zod'
 export const SENTIMENT_MIN = -5
 export const SENTIMENT_MAX = 5
 
+export const NO_VIEW = 'No view expressed'
+export const NOT_CLASSIFIED = 'Not classified'
+
 export const ACTIONS = ['act', 'not_act', 'unsure', 'n/a'] as const
 export const ActionSchema = z.enum(ACTIONS)
 export type Action = z.infer<typeof ActionSchema>
@@ -19,6 +22,9 @@ export const HeadlineSchema = z.object({
   actShare: ShareSchema.nullable(),
   switchShare: ShareSchema.nullable(),
   topConcern: z.object({ label: z.string(), count: Count }).nullable(),
+  counted: Count.optional(),
+  actCount: Count.optional(),
+  switchCount: Count.optional(),
 })
 export type Headline = z.infer<typeof HeadlineSchema>
 
@@ -31,6 +37,8 @@ export const SummaryGroupSchema = z.object({
   people: Count,
   sentiment: SentimentSchema.nullable(),
   actShare: ShareSchema.nullable(),
+  counted: Count.optional(),
+  actCount: Count.optional(),
   summary: z.string(),
 })
 export type SummaryGroup = z.infer<typeof SummaryGroupSchema>

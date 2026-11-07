@@ -1,5 +1,5 @@
 import type { ReportSummary } from '@xo/engine/parts'
-import { hostOf, isWebUrl } from './format'
+import { hostOf, isWebUrl, uniqueBy } from './format'
 
 export function SourcesTab({ summary }: { summary: ReportSummary }) {
   if (!summary.sources.length)
@@ -12,8 +12,8 @@ export function SourcesTab({ summary }: { summary: ReportSummary }) {
     )
   return (
     <ol className="flex flex-col divide-y rounded-lg border">
-      {summary.sources.map((source) => (
-        <li key={`${source.url}-${source.title}`} className="flex flex-col gap-0.5 px-3 py-2.5">
+      {uniqueBy(summary.sources, (source) => source.url).map((source) => (
+        <li key={source.url} className="flex flex-col gap-0.5 px-3 py-2.5">
           {isWebUrl(source.url) ? (
             <a
               href={source.url}

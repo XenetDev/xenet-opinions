@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { NO_VIEW, NOT_CLASSIFIED } from '@xo/engine/parts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { axe } from '@/test/axe'
 import { reportQuestion, reportSummaryFixture as summary } from './fixture'
@@ -41,6 +42,71 @@ describe('ReportSheet', () => {
     expect(screen.getByText('No view expressed', { selector: '[data-testid="participant-sentiment"]' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'All (12)' }))
     expect(cards()).toHaveLength(12)
+  })
+
+  it('keeps the group filter across tab switches', () => {
+    render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" />)
+    selectTab(/^Participants/)
+    fireEvent.click(screen.getByRole('button', { name: 'Prospects (3)' }))
+    selectTab(/^Groups/)
+    selectTab(/^Participants/)
+    expect(cards()).toEqual(['Aylin Kaya', 'Lukas Schmidt', 'Hannah Fischer'])
+  })
+
+  it('treats not-classified participants as no view', () => {
+    const felix = summary.participants.at(-1)!
+    render(
+      <ReportSheet
+        summary={{ ...summary, participants: [{ ...felix, opinion: NOT_CLASSIFIED }] }}
+        open
+        onOpenChange={() => {}}
+        chatId="c1"
+      />,
+    )
+    selectTab(/^Participants/)
+    const card = screen.getByTestId('participant-card')
+    expect(within(card).getByTestId('participant-sentiment').textContent).toBe(NO_VIEW)
+    expect(within(card).queryByText(NOT_CLASSIFIED)).toBeNull()
+  })
+
+  it('reads people counts from the engine and hides them when absent', () => {
+    const { headline } = summary
+    const view = render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" />)
+    expect(screen.getAllByText('3 of 9 people')).toHaveLength(2)
+    view.rerender(
+      <ReportSheet
+        summary={{ ...summary, headline: { ...headline, counted: 10, actCount: 4, switchCount: 2 } }}
+        open
+        onOpenChange={() => {}}
+        chatId="c1"
+      />,
+    )
+    expect(screen.getByText('4 of 10 people')).toBeTruthy()
+    expect(screen.getByText('2 of 10 people')).toBeTruthy()
+    const { counted: _c, actCount: _a, switchCount: _s, ...stored } = headline
+    view.rerender(<ReportSheet summary={{ ...summary, headline: stored }} open onOpenChange={() => {}} chatId="c1" />)
+    expect(screen.queryByText(/ of \d+ people$/)).toBeNull()
+  })
+
+  it('renders duplicate model lists without key collisions', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(
+      <ReportSheet
+        summary={{
+          ...summary,
+          risks: [...summary.risks, summary.risks[0]!],
+          findings: [...summary.findings, summary.findings[0]!],
+          sources: [...summary.sources, summary.sources[0]!],
+        }}
+        open
+        onOpenChange={() => {}}
+        chatId="c1"
+      />,
+    )
+    selectTab(/^Sources/)
+    expect(screen.getAllByRole('link')).toHaveLength(3)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
   })
 
   it('shows groups with a dash for organisation-only shares', () => {

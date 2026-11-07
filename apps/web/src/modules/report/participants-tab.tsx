@@ -1,7 +1,4 @@
-'use client'
-
-import type { Participant, ReportSummary } from '@xo/engine/parts'
-import { useState } from 'react'
+import { NO_VIEW, NOT_CLASSIFIED, type Participant, type ReportSummary } from '@xo/engine/parts'
 import { Button } from '@/components/ui/button'
 import { ACTION_LABELS, formatScore, groupLabels } from './format'
 import { Quote } from './values'
@@ -21,11 +18,11 @@ function ParticipantCard({ participant, group }: { participant: Participant; gro
       </div>
       <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
         <span data-testid="participant-sentiment">
-          {participant.sentiment === null ? 'No view expressed' : `Sentiment ${formatScore(participant.sentiment)}`}
+          {participant.sentiment === null ? NO_VIEW : `Sentiment ${formatScore(participant.sentiment)}`}
         </span>
         {participant.sentiment !== null && action && <span>{action}</span>}
       </p>
-      {participant.opinion && participant.opinion !== 'No view expressed' && (
+      {participant.opinion && participant.opinion !== NO_VIEW && participant.opinion !== NOT_CLASSIFIED && (
         <p className="text-sm/6 text-foreground">{participant.opinion}</p>
       )}
       {participant.quote && <Quote>{participant.quote}</Quote>}
@@ -33,8 +30,15 @@ function ParticipantCard({ participant, group }: { participant: Participant; gro
   )
 }
 
-export function ParticipantsTab({ summary }: { summary: ReportSummary }) {
-  const [filter, setFilter] = useState<string | null>(null)
+export function ParticipantsTab({
+  summary,
+  filter,
+  onFilterChange,
+}: {
+  summary: ReportSummary
+  filter: string | null
+  onFilterChange: (group: string | null) => void
+}) {
   const labels = groupLabels(summary)
   const shown = filter ? summary.participants.filter((p) => p.group === filter) : summary.participants
   const options = [
@@ -56,7 +60,7 @@ export function ParticipantsTab({ summary }: { summary: ReportSummary }) {
             size="sm"
             variant={filter === option.id ? 'secondary' : 'ghost'}
             aria-pressed={filter === option.id}
-            onClick={() => setFilter(option.id)}
+            onClick={() => onFilterChange(option.id)}
           >
             {`${option.label} (${option.count})`}
           </Button>

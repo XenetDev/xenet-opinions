@@ -16,11 +16,18 @@ export const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.
 
 export const splitTotal = (split: ReportSummary['split']) => split.positive + split.neutral + split.negative
 
-export const countedPeople = (summary: ReportSummary) =>
-  summary.participants.filter((p) => p.kind === 'person' && p.sentiment !== null && p.action !== 'n/a')
+export const ofPeople = (count: number | undefined, counted: number | undefined) =>
+  count !== undefined && counted ? `${count} of ${counted} people` : undefined
 
-export const countOf = (summary: ReportSummary, action: Action) =>
-  countedPeople(summary).filter((p) => p.action === action).length
+export const uniqueBy = <T>(items: T[], key: (item: T) => string) => {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const k = key(item)
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
 
 export const groupLabels = (summary: ReportSummary) => new Map(summary.groups.map((g) => [g.id, g.label]))
 

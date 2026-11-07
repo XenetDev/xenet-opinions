@@ -1,15 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ClassifyError,
-  classify,
-  classifySystem,
-  matchGroup,
-  NO_VIEW,
-  NOT_CLASSIFIED,
-  type Persona,
-  slug,
-  verbatim,
-} from './classify'
+import { ClassifyError, classify, classifySystem, matchGroup, type Persona, slug, verbatim } from './classify'
+import { NO_VIEW, NOT_CLASSIFIED } from './schema'
 import { agentIdsIn, mockModel } from './test-model'
 
 const entry = (agentId: string, over: Record<string, unknown> = {}) => ({

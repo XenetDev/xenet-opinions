@@ -1,7 +1,7 @@
 import type { ReportSummary } from '@xo/engine/parts'
 import type { ReactNode } from 'react'
 import { Badge } from '@/components/reui/badge'
-import { CONFIDENCE_LABELS, capitalise, countedPeople, countOf, formatSentiment, splitTotal } from './format'
+import { CONFIDENCE_LABELS, capitalise, formatSentiment, ofPeople, splitTotal, uniqueBy } from './format'
 import { SentimentBar } from './sentiment-bar'
 import { Quote, ShareValue } from './values'
 
@@ -32,7 +32,7 @@ function List({ title, items }: { title: string; items: string[] }) {
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       {items.length ? (
         <ul className="list-disc ps-4 text-sm/6 text-foreground">
-          {items.map((item) => (
+          {uniqueBy(items, (item) => item).map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ul>
@@ -45,9 +45,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 
 export function SummaryTab({ summary }: { summary: ReportSummary }) {
   const { headline, method } = summary
-  const people = countedPeople(summary).length
   const viewed = splitTotal(summary.split)
-  const peopleNote = (count: number) => (people ? `${count} of ${people} people` : undefined)
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,12 +68,12 @@ export function SummaryTab({ summary }: { summary: ReportSummary }) {
         <Tile
           label="Would go ahead"
           value={<ShareValue value={headline.actShare} />}
-          note={peopleNote(countOf(summary, 'act'))}
+          note={ofPeople(headline.actCount, headline.counted)}
         />
         <Tile
           label="Would not go ahead"
           value={<ShareValue value={headline.switchShare} />}
-          note={peopleNote(countOf(summary, 'not_act'))}
+          note={ofPeople(headline.switchCount, headline.counted)}
         />
         <Tile
           label="Top concern"
@@ -91,8 +89,9 @@ export function SummaryTab({ summary }: { summary: ReportSummary }) {
       {summary.findings.length > 0 && (
         <Section title="Key findings">
           <ol className="list-decimal space-y-3 ps-5 text-sm/6 text-foreground">
-            {summary.findings.map((finding) => (
-              <li key={finding.title} className="space-y-1.5 ps-1">
+            {summary.findings.map((finding, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: findings have no id and keep their order
+              <li key={i} className="space-y-1.5 ps-1">
                 <p>
                   <span className="font-semibold">{finding.title}</span> {finding.detail}
                 </p>

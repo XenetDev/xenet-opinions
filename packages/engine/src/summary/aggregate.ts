@@ -25,15 +25,18 @@ const average = (members: Classified[]) => {
   return scores.length ? round(scores.reduce((a, b) => a + b, 0) / scores.length, 1) : null
 }
 
-const shareOf = (members: Classified[], action: Action) => {
-  const counted = members.filter(
+const countable = (members: Classified[]) =>
+  members.filter(
     (m) =>
       m.kind === 'person' &&
       m.sentiment !== null &&
       (m.action === 'act' || m.action === 'not_act' || m.action === 'unsure'),
   )
-  return counted.length ? round(counted.filter((m) => m.action === action).length / counted.length, 2) : null
-}
+
+const countOf = (counted: Classified[], action: Action) => counted.filter((m) => m.action === action).length
+
+const shareOf = (counted: Classified[], action: Action) =>
+  counted.length ? round(countOf(counted, action) / counted.length, 2) : null
 
 const normaliseConcern = (concern: string) => concern.trim().replace(/\s+/g, ' ').toLowerCase()
 
@@ -61,19 +64,28 @@ export function aggregate(classified: Classified[]): Aggregates {
   }
   const byGroup = new Map<string, Classified[]>()
   for (const m of classified) byGroup.set(m.groupId, [...(byGroup.get(m.groupId) ?? []), m])
-  const groups = [...byGroup.entries()].map(([id, members]) => ({
-    id,
-    label: members[0]!.groupLabel,
-    people: members.length,
-    sentiment: average(members),
-    actShare: shareOf(members, 'act'),
-  }))
+  const groups = [...byGroup.entries()].map(([id, members]) => {
+    const counted = countable(members)
+    return {
+      id,
+      label: members[0]!.groupLabel,
+      people: members.length,
+      sentiment: average(members),
+      actShare: shareOf(counted, 'act'),
+      counted: counted.length,
+      actCount: countOf(counted, 'act'),
+    }
+  })
+  const counted = countable(classified)
   return {
     headline: {
       sentiment: average(classified),
-      actShare: shareOf(classified, 'act'),
-      switchShare: shareOf(classified, 'not_act'),
+      actShare: shareOf(counted, 'act'),
+      switchShare: shareOf(counted, 'not_act'),
       topConcern: topConcern(classified),
+      counted: counted.length,
+      actCount: countOf(counted, 'act'),
+      switchCount: countOf(counted, 'not_act'),
     },
     split,
     groups,
