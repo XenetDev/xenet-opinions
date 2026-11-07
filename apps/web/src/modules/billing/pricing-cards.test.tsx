@@ -18,4 +18,17 @@ describe('PricingCards', () => {
     expect(screen.getByText('Up to 25 participants')).toBeTruthy()
     expect(screen.getByText('Up to 50 participants')).toBeTruthy()
   })
+
+  it('offers Enterprise for thousands of participants with an email to Greg', () => {
+    render(<PricingCards plan="pro" subscribed />)
+    const card = screen.getByRole('region', { name: 'Enterprise' })
+    expect(card.textContent).toContain('thousands of participants per simulation')
+    const link = screen.getByRole('link', { name: 'Contact us' })
+    const href = link.getAttribute('href') ?? ''
+    expect(href.startsWith('mailto:greg@xenet.ai?')).toBe(true)
+    const params = new URLSearchParams(href.slice(href.indexOf('?') + 1))
+    expect(params.get('subject')).toBe('Xenet Opinions Enterprise enquiry')
+    expect(params.get('body')).toContain('Participants per simulation:')
+    expect(href).not.toContain('+')
+  })
 })

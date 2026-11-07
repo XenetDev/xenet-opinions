@@ -12,6 +12,13 @@ const CARDS = ['free', 'starter', 'pro'] as const
 
 const runsLine = (id: (typeof CARDS)[number]) => `${PLANS[id].runs} ${PLANS[id].runs === 1 ? 'run' : 'runs'} a month`
 
+const ENTERPRISE_MAILTO = `mailto:greg@xenet.ai?${new URLSearchParams({
+  subject: 'Xenet Opinions Enterprise enquiry',
+  body: 'Company:\nParticipants per simulation:\nSimulations per month:\nWhat you want to test:\n',
+})
+  .toString()
+  .replaceAll('+', '%20')}`
+
 export function PricingCards({ plan, subscribed }: { plan: PlanId; subscribed: boolean }) {
   const signInDialog = useSignInDialog()
   const [pending, setPending] = useState<string | null>(null)
@@ -106,6 +113,23 @@ export function PricingCards({ plan, subscribed }: { plan: PlanId; subscribed: b
           </section>
         )
       })}
+      <section
+        aria-labelledby="plan-enterprise"
+        className="flex flex-col gap-4 rounded-xl border bg-card p-5 text-card-foreground sm:col-span-3 sm:flex-row sm:items-center sm:justify-between sm:gap-8"
+      >
+        <div className="flex flex-col gap-1.5">
+          <h2 id="plan-enterprise" className="text-sm font-medium">
+            Enterprise
+          </h2>
+          <p className="text-sm text-pretty text-muted-foreground">
+            For organisations that need thousands of participants per simulation, more runs and rounds, and a plan built
+            around their research programme. Talk to us about running your focus groups at scale.
+          </p>
+        </div>
+        <Button asChild className="shrink-0 sm:self-center">
+          <a href={ENTERPRISE_MAILTO}>Contact us</a>
+        </Button>
+      </section>
     </div>
   )
 }
