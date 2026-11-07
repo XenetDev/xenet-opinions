@@ -1,6 +1,7 @@
 import { MiroFishError } from '@xo/mirofish'
 import { describe, expect, it, vi } from 'vitest'
 import type { DebriefData } from '../parts'
+import { FenceError } from '../store/types'
 import { DEBRIEF_QUESTION, runDebrief } from './debrief'
 import { setupRun } from './test-helpers'
 
@@ -61,6 +62,32 @@ describe('runDebrief', () => {
       ...Array(3).fill('done'),
     ])
     expect(answers()[10]).toEqual({ agentId: '10', name: 'Agent 10', status: 'failed' })
+  })
+
+  it('stops sending batches once the run is cancelled', async () => {
+    const ctx = await withAgents(23)
+    const { deps, run, store } = ctx
+    const real = deps.mirofish.simulation.interviewBatch
+    const interviewBatch = vi.fn(async (...args: Parameters<typeof real>) => {
+      const result = await real(...args)
+      await store.update(run.id, { status: 'cancelled' })
+      return result
+    })
+    await expect(
+      runDebrief(run, {
+        ...deps,
+        mirofish: { ...deps.mirofish, simulation: { ...deps.mirofish.simulation, interviewBatch } },
+      }),
+    ).rejects.toBeInstanceOf(FenceError)
+    expect(interviewBatch).toHaveBeenCalledTimes(1)
+    expect(ctx.debriefs()).toEqual([])
+  })
+
+  it('throws instead of marking agents failed when the simulation id is missing', async () => {
+    const { deps, run, store } = await withAgents(2)
+    const broken = await store.update(run.id, { ids: {} })
+    await expect(runDebrief({ ...broken, ids: {} }, deps)).rejects.toThrow('Missing simulationId')
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
   })
 
   it('marks agents missing from the batch result as failed', async () => {

@@ -414,6 +414,33 @@ describe('tick', () => {
     ])
   })
 
+  it('re-reads the status after a debrief and skips the close when the runner already exited', async () => {
+    const roundsDone = {
+      runner_status: 'running' as const,
+      current_round: 9,
+      total_rounds: 1,
+      twitter_completed: true,
+      reddit_completed: true,
+    }
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi
+            .fn()
+            .mockResolvedValueOnce(roundsDone)
+            .mockResolvedValue({ ...roundsDone, runner_status: 'completed' }),
+          posts: vi.fn(async () => ({ posts: [] })),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, startAcked: true } },
+    )
+    const next = await tick(run, deps)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
+    expect(next.cursors.debriefDone).toBe(true)
+    expect(next.stage).toBe('report')
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+  })
+
   it('does not debrief while the rounds are still running', async () => {
     const { deps, run } = await setup(
       {
@@ -1058,20 +1085,27 @@ describe('interview window', () => {
             twitter_completed: true,
             reddit_completed: true,
           })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({ runner_status: 'running' })
           .mockResolvedValue({ runner_status: 'stopped' }),
       },
     })
     setClock(29_000)
     let current = await tick(run, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
     setClock(30_000)
     current = await tick(current, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(4)
     expect(current.cursors.envCheckedAt).toBe(new Date(NOW.getTime() + 30_000).toISOString())
     setClock(59_000)
     current = await tick(current, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(4)
     await ask(['0'])
     vi.spyOn(store, 'listPendingInterviews').mockResolvedValueOnce([])
     setClock(60_000)
@@ -1090,6 +1124,13 @@ describe('interview window', () => {
         runStatus: vi
           .fn()
           .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({
             runner_status: 'running',
             current_round: 10,
@@ -1125,6 +1166,13 @@ describe('interview window', () => {
             twitter_completed: true,
             reddit_completed: true,
           })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockRejectedValue(err),
       },
     })
@@ -1141,6 +1189,13 @@ describe('interview window', () => {
         runStatus: vi
           .fn()
           .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({
             runner_status: 'running',
             current_round: 10,

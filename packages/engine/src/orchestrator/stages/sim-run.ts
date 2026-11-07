@@ -1,5 +1,5 @@
 import type { Run } from '@xo/db'
-import { MiroFishError, type Platform } from '@xo/mirofish'
+import { MiroFishError, type Platform, type RunStatus } from '@xo/mirofish'
 import { FenceError } from '../../store/types'
 import { runDebrief } from '../debrief'
 import { advance, emit, need, remoteFailure, running } from '../emit'
@@ -95,6 +95,18 @@ const onIdle = async (run: Run, deps: Deps) => {
   )
 }
 
+const readStatus = async (deps: Deps, simulationId: string) => {
+  const status = await deps.mirofish.simulation.runStatus(simulationId)
+  if (status.runner_status === 'failed') {
+    throw remoteFailure(status.error, 'Simulation failed', `/api/simulation/${simulationId}/run-status`)
+  }
+  return status
+}
+
+// After the last round MiroFish stays 'running' (env waiting for commands) and refuses reports until it exits.
+const isWaiting = (status: RunStatus) =>
+  status.twitter_completed === true && status.reddit_completed === true && status.runner_status === 'running'
+
 export const simRun: StageHandler = {
   stage: 'sim_run',
   hasEntered: (run) => run.cursors.simStarted === true,
@@ -114,17 +126,14 @@ export const simRun: StageHandler = {
   },
   async poll(polled, deps) {
     const simulationId = need(polled.ids.simulationId, 'simulationId')
-    const status = await deps.mirofish.simulation.runStatus(simulationId)
-    if (status.runner_status === 'idle') return onIdle(polled, deps)
-    if (status.runner_status === 'failed') {
-      throw remoteFailure(status.error, 'Simulation failed', `/api/simulation/${simulationId}/run-status`)
-    }
-    const finished = status.runner_status === 'completed' || status.runner_status === 'stopped'
-    // After the last round MiroFish stays 'running' (env waiting for commands) and refuses reports until it exits.
-    const roundsDone = status.twitter_completed === true && status.reddit_completed === true
-    const waiting = roundsDone && status.runner_status === 'running'
-    const debrief = waiting && !polled.cursors.debriefDone && !polled.cursors.envCloseRequested
+    const before = await readStatus(deps, simulationId)
+    if (before.runner_status === 'idle') return onIdle(polled, deps)
+    const debrief = isWaiting(before) && !polled.cursors.debriefDone && !polled.cursors.envCloseRequested
     const run = debrief ? await runDebrief(polled, deps) : polled
+    const status = debrief ? await readStatus(deps, simulationId) : before
+    if (status.runner_status === 'idle') return onIdle(run, deps)
+    const finished = status.runner_status === 'completed' || status.runner_status === 'stopped'
+    const waiting = isWaiting(status)
     const pause = waiting && run.config.pauseForInterviews === true && !run.cursors.envCloseRequested
     if (!finished && !pause && (waiting || run.cursors.envCloseRequested)) await closeEnvAndWait(run, deps, status)
     const backlog = finished || pause

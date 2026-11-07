@@ -26,6 +26,15 @@ const post = (platform: 'twitter' | 'reddit', round: number) => ({
   platform,
 })
 
+const ROUNDS_DONE = {
+  runner_status: 'running',
+  current_round: 10,
+  total_rounds: 2,
+  progress_percent: 100,
+  twitter_completed: true,
+  reddit_completed: true,
+}
+
 export const fakeClient = (o: Overrides = {}): MiroFishClient =>
   ({
     graph: {
@@ -74,14 +83,8 @@ export const fakeClient = (o: Overrides = {}): MiroFishClient =>
       runStatus: vi
         .fn()
         .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2, progress_percent: 50 })
-        .mockResolvedValueOnce({
-          runner_status: 'running',
-          current_round: 10,
-          total_rounds: 2,
-          progress_percent: 100,
-          twitter_completed: true,
-          reddit_completed: true,
-        })
+        .mockResolvedValueOnce(ROUNDS_DONE)
+        .mockResolvedValueOnce(ROUNDS_DONE)
         .mockResolvedValue({ runner_status: 'completed', current_round: 10, total_rounds: 2, progress_percent: 100 }),
       posts: vi.fn(async (_id: string, q: { platform: 'twitter' | 'reddit'; offset?: number }) =>
         q.offset ? { posts: q.offset === 1 ? [post(q.platform, 2)] : [] } : { posts: [post(q.platform, 1)] },
