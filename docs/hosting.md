@@ -85,7 +85,7 @@ All values live in `.env.selfhost` (see `.env.selfhost.example`). Compose derive
 | `MINIO_ROOT_PASSWORD` | blank | Required. `openssl rand -hex 24` (MinIO needs at least 8 characters). Also the S3 secret key |
 | `LLM_API_KEY` | blank | Required by `up.sh`. Any OpenAI-compatible key |
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | Real MiroFish |
-| `LLM_MODEL_NAME` | `gpt-4o-mini` | Real MiroFish |
+| `LLM_MODEL_NAME` | `gpt-4.1` | Real MiroFish |
 | `ZEP_API_KEY` | blank | Required by `up.sh`. Zep Cloud key |
 | `MOCK_SPEED` | `5` | Mock MiroFish |
 | `DEMO_MODE` | `0` | `1` enables per-user quotas and the rounds cap |
@@ -219,7 +219,7 @@ web + worker ──► S3-compatible bucket (R2 or S3)
 | --- | --- |
 | `LLM_API_KEY` | Any OpenAI-compatible key. Required |
 | `LLM_BASE_URL` | Provider endpoint, default `https://api.openai.com/v1` |
-| `LLM_MODEL_NAME` | Model, default `gpt-4o-mini` |
+| `LLM_MODEL_NAME` | Model, default `gpt-4.1` |
 | `ZEP_API_KEY` | Zep Cloud key. Required |
 
 Never set `ZEP_API_URL` (MiroFish refuses to start) and never mount a `.env` file into the container. Mount a persistent volume at `/app/backend/uploads`, run one replica, and publish no port. Optional tuning variables are in [infra/mirofish/README.md](../infra/mirofish/README.md#mirofish-environment).
@@ -248,7 +248,7 @@ It listens on `:8080` (plain HTTP); the platform terminates TLS on its public UR
 | `ENV_SWEEP_INTERVAL_MS` | `60000` |
 | `WORKER_POLL_MS` | Optional, default `2000` |
 | `WORKER_ID` | Optional lease owner name, default host and pid; leave unset rather than blank |
-| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as Vercel's. They write the structured report summary after MiroFish's report. Without `LLM_API_KEY` the run still finishes with MiroFish's report and the summary is marked as not configured; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as Vercel's. They write the structured report summary after MiroFish's report. Without `LLM_API_KEY` the run still finishes with MiroFish's report and the summary is marked as not configured; the defaults are `https://api.openai.com/v1` and `gpt-4.1` |
 
 Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABASE_URL}}`) are in [infra/railway/README.md](../infra/railway/README.md).
 
