@@ -21,7 +21,7 @@ const RETRY_FAILED = 'The summary could not be built. Try again.'
 const exportFailed = (kind: ExportKind) =>
   `The ${EXPORTS.find((e) => e.kind === kind)?.label} file could not be created. Try again.`
 
-function useReportExport(summary: ReportSummary, title?: string, finishedAt?: string) {
+export function useReportExport(summary: ReportSummary, title?: string, finishedAt?: string) {
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const onExport = async (kind: ExportKind) => {
     setExporting(kind)
@@ -43,11 +43,13 @@ function useReportExport(summary: ReportSummary, title?: string, finishedAt?: st
 export function ReportBlock({
   summary,
   chatId,
+  messageId,
   title,
   finishedAt,
 }: {
   summary: ReportSummary
   chatId?: string
+  messageId?: string
   title?: string
   finishedAt?: string
 }) {
@@ -57,7 +59,15 @@ export function ReportBlock({
     <>
       <ReportCard summary={summary} onOpen={() => setOpen(true)} {...exports} exports={chatId ? undefined : ['pdf']} />
       {chatId ? (
-        <ReportSheet summary={summary} open={open} onOpenChange={setOpen} chatId={chatId} title={title} {...exports} />
+        <ReportSheet
+          summary={summary}
+          open={open}
+          onOpenChange={setOpen}
+          chatId={chatId}
+          messageId={messageId}
+          title={title}
+          {...exports}
+        />
       ) : (
         <ReportSheet summary={summary} open={open} onOpenChange={setOpen} readOnly title={title} {...exports} />
       )}
@@ -105,6 +115,7 @@ export function ReportSection({
   summary,
   failed,
   chatId,
+  messageId,
   title,
   finishedAt,
   children,
@@ -112,6 +123,7 @@ export function ReportSection({
   summary?: ReportSummary
   failed: boolean
   chatId?: string
+  messageId?: string
   title?: string
   finishedAt?: string
   children: ReactNode
@@ -121,7 +133,7 @@ export function ReportSection({
   if (current)
     return (
       <div data-part="report">
-        <ReportBlock summary={current} chatId={chatId} title={title} finishedAt={finishedAt} />
+        <ReportBlock summary={current} chatId={chatId} messageId={messageId} title={title} finishedAt={finishedAt} />
       </div>
     )
   return (

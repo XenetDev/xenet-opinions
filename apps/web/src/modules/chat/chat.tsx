@@ -484,6 +484,7 @@ export function Chat({
                   <MessageParts
                     parts={message.parts}
                     chatId={chatId}
+                    messageId={message.id}
                     title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
                     question={asked || undefined}
                     finishedAt={runFinishedAt?.[message.id]}

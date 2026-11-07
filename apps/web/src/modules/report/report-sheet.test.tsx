@@ -142,16 +142,12 @@ describe('ReportSheet', () => {
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
   })
 
-  it('calls export and share handlers; read-only offers only PDF', () => {
+  it('calls the export handler; read-only offers only PDF and no Share', () => {
     const onExport = vi.fn()
-    const onShare = vi.fn()
-    const view = render(
-      <ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" onExport={onExport} onShare={onShare} />,
-    )
+    const view = render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" onExport={onExport} />)
     fireEvent.click(screen.getByRole('button', { name: 'Word' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
     expect(onExport).toHaveBeenCalledWith('docx')
-    expect(onShare).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
     view.rerender(<ReportSheet summary={summary} open onOpenChange={() => {}} readOnly onExport={onExport} />)
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
     expect(screen.getByRole('button', { name: 'PDF' })).toBeTruthy()

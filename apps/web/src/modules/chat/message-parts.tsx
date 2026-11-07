@@ -47,6 +47,7 @@ export function MessageParts({
   onRetry,
   onAddActors,
   chatId,
+  messageId,
   title,
   question,
   finishedAt,
@@ -59,6 +60,7 @@ export function MessageParts({
   onRetry?: () => void
   onAddActors?: () => void
   chatId?: string
+  messageId?: string
   title?: string
   question?: string
   finishedAt?: string
@@ -145,6 +147,7 @@ export function MessageParts({
         summary={summary}
         failed={summaryFailed}
         chatId={chatId}
+        messageId={messageId}
         title={question ?? title}
         finishedAt={finishedAt}
       >

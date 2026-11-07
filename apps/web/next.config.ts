@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { loadEnvConfig } from '@next/env'
 import type { NextConfig } from 'next'
+import { sharedReportHeaders } from './src/lib/shared-report-headers'
 
 function findRepoRoot(start: string): string {
   let dir = start
@@ -21,6 +22,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
   transpilePackages: ['@xo/db', '@xo/engine', '@xo/mirofish', '@xo/storage'],
+  headers: async () => sharedReportHeaders,
 }
 
 export default nextConfig

@@ -1,17 +1,11 @@
 'use client'
 
 import type { ReportSummary } from '@xo/engine/parts'
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ExportButtons } from './export-buttons'
 import { type ExportKind, reportMetaLine } from './format'
-import { GroupsTab } from './groups-tab'
-import { ParticipantsTab } from './participants-tab'
-import { SourcesTab } from './sources-tab'
-import { SummaryTab } from './summary-tab'
-import { WriteupTab } from './writeup-tab'
+import { ReportView } from './report-view'
+import { SharePopover } from './share-popover'
 
 type SheetProps = {
   summary: ReportSummary
@@ -20,26 +14,9 @@ type SheetProps = {
   title?: string
   onExport?: (kind: ExportKind) => void
   exporting?: ExportKind | null
-} & ({ readOnly: true; chatId?: string; onShare?: never } | { readOnly?: false; chatId: string; onShare?: () => void })
-
-const CONTENT = 'min-h-0 overflow-y-auto px-4 pt-4 pb-8 sm:px-6'
+} & ({ readOnly: true; chatId?: string; messageId?: never } | { readOnly?: false; chatId: string; messageId?: string })
 
 export function ReportSheet({ summary, open, onOpenChange, title, onExport, exporting, ...rest }: SheetProps) {
-  const { method } = summary
-  const onShare = rest.readOnly ? undefined : rest.onShare
-  const [group, setGroup] = useState<string | null>(null)
-  const tabs = [
-    { value: 'summary', label: 'Summary', body: <SummaryTab summary={summary} /> },
-    { value: 'groups', label: `Groups (${summary.groups.length})`, body: <GroupsTab summary={summary} /> },
-    {
-      value: 'participants',
-      label: `Participants (${summary.participants.length})`,
-      body: <ParticipantsTab summary={summary} filter={group} onFilterChange={setGroup} />,
-    },
-    { value: 'sources', label: `Sources (${summary.sources.length})`, body: <SourcesTab summary={summary} /> },
-    { value: 'writeup', label: 'Full write-up', body: <WriteupTab summary={summary} /> },
-  ]
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -49,33 +26,19 @@ export function ReportSheet({ summary, open, onOpenChange, title, onExport, expo
         <SheetHeader className="gap-3 border-b px-4 pt-4 pb-3 pr-12 sm:px-6 sm:pr-14">
           <div className="flex flex-col gap-0.5">
             <SheetTitle className="text-base font-semibold text-pretty">{title ?? 'Focus group report'}</SheetTitle>
-            <SheetDescription className="text-xs">{reportMetaLine(method)}</SheetDescription>
+            <SheetDescription className="text-xs">{reportMetaLine(summary.method)}</SheetDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <ExportButtons onExport={onExport} exporting={exporting} only={rest.readOnly ? ['pdf'] : undefined} />
-            {!rest.readOnly && (
-              <Button size="sm" variant="outline" disabled={!onShare} onClick={onShare}>
-                Share
-              </Button>
-            )}
+            {!rest.readOnly && <SharePopover chatId={rest.chatId} messageId={rest.messageId} />}
           </div>
         </SheetHeader>
-        <Tabs defaultValue="summary" className="min-h-0 flex-1 gap-0">
-          <div className="overflow-x-auto border-b px-4 sm:px-6">
-            <TabsList variant="line" className="h-10">
-              {tabs.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value} className="flex-none px-2">
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
-          {tabs.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value} className={CONTENT}>
-              {tab.body}
-            </TabsContent>
-          ))}
-        </Tabs>
+        <ReportView
+          summary={summary}
+          className="min-h-0 flex-1"
+          listClassName="px-4 sm:px-6"
+          contentClassName="min-h-0 overflow-y-auto px-4 pt-4 pb-8 sm:px-6"
+        />
       </SheetContent>
     </Sheet>
   )

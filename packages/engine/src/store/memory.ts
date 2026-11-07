@@ -91,6 +91,7 @@ export function createMemoryStore(): RunStore & {
         queuedAt: new Date(),
         startedAt: null,
         finishedAt: null,
+        shareToken: null,
       }
       order.set(run.id, counter++)
       runs.set(run.id, run)

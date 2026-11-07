@@ -119,6 +119,7 @@ export const runs = pgTable(
     queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
+    shareToken: text('share_token').unique('runs_share_token_unique'),
   },
   (t) => [
     index('runs_status_queued_at_idx').on(t.status, t.queuedAt),
