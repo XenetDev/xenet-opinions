@@ -92,6 +92,6 @@ export function buildSeedDocument(input: {
 }
 
 export const CAST_GUIDANCE =
-  'Who to simulate: the people and organisations whose reactions answer this question, such as customers, investors, staff, partners, competitors, regulators, journalists and online communities. Create personas only for individual people and real, named organisations. Do not create personas for products, projects, documents, places, technologies, markets or abstract groups.'
+  'Who to simulate: the people and organisations whose reactions answer this question, such as customers, investors, staff, partners, competitors, regulators, journalists and online communities. Create personas only for individual people and real, named organisations. Do not create personas for products, projects, documents, places, technologies, markets or abstract groups. Entity types for people must use only these names: Person, Expert, Official, Journalist, PublicFigure, Activist, Professor, Student. Put every customer, owner, buyer, employee, dealer, salesperson, investor, staff member of a competitor and community member under Person (or Expert, Official or Journalist where that fits), and describe their role in their attributes, never as a new type such as Customer, Dealer or Loyalist. Entity types for organisations must use only these names: Company, Organization, MediaOutlet, GovernmentAgency, Institution, NGO, Community, University.'
 
 export const ontologyRequirement = (question: string) => `${question.trim()}\n\n${CAST_GUIDANCE}`

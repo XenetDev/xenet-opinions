@@ -6,7 +6,15 @@ import type {
   ProfilesRealtime,
   RunStatus,
 } from '@xo/mirofish'
-import type { AgentsData, GraphData, OntologyData, ReportEventData, ReportOutlineData, SimFeedData } from '../parts'
+import {
+  type AgentsData,
+  type GraphData,
+  normaliseTopics,
+  type OntologyData,
+  type ReportEventData,
+  type ReportOutlineData,
+  type SimFeedData,
+} from '../parts'
 
 type Rec = Record<string, unknown>
 type FeedPost = SimFeedData['posts'][number]
@@ -93,7 +101,7 @@ export const profilesToPart = (realtime: ProfilesRealtime): AgentsData => {
       ...(handle ? { handle } : {}),
       ...(role ? { role } : {}),
       ...(bio ? { bio } : {}),
-      topics: list(p.topics ?? p.interested_topics).filter((t): t is string => typeof t === 'string'),
+      topics: normaliseTopics(p.topics ?? p.interested_topics),
     }
   })
   const expected = num(realtime.total_expected)

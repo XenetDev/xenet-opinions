@@ -65,6 +65,8 @@ describe('ontologyRequirement', () => {
     expect(requirement.startsWith('Is this a good investment?\n\n')).toBe(true)
     expect(requirement).toContain(CAST_GUIDANCE)
     expect(CAST_GUIDANCE).toContain('Do not create personas for products, projects, documents')
+    expect(CAST_GUIDANCE).toContain('Entity types for people must use only these names: Person,')
+    expect(CAST_GUIDANCE).toContain('never as a new type such as Customer, Dealer or Loyalist')
   })
 })
 

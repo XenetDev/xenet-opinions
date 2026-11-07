@@ -85,6 +85,23 @@ describe('profilesToPart', () => {
     expect(part.profiles[1]).toMatchObject({ id: '1', name: 'Agent 2', topics: [] })
   })
 
+  it('unpacks topics that arrive as a JSON-encoded list', () => {
+    const part = profilesToPart({
+      profiles: [
+        { agent_id: 0, name: 'A', topics: ['["Toyota vehicles","Customer loyalty"]'] },
+        { agent_id: 1, name: 'B', interested_topics: '["Hybrids", "Pricing"]' },
+        { agent_id: 2, name: 'C', topics: 'Hybrids, Pricing' },
+        { agent_id: 3, name: 'D', topics: ['Pricing', 'Pricing', ' '] },
+      ],
+    } as never)
+    expect(part.profiles.map((p) => p.topics)).toEqual([
+      ['Toyota vehicles', 'Customer loyalty'],
+      ['Hybrids', 'Pricing'],
+      ['Hybrids', 'Pricing'],
+      ['Pricing'],
+    ])
+  })
+
   it('shows the full persona rather than the bio MiroFish cuts at 200 characters', () => {
     const persona = `${'Greg advises family offices on technology partnerships. '.repeat(5)}He distrusts hype.`
     const part = profilesToPart({ profiles: [{ name: 'Greg', bio: persona.slice(0, 200), persona }] })

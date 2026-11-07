@@ -1,6 +1,6 @@
 'use client'
 
-import type { AgentsData } from '@xo/engine/parts'
+import { type AgentsData, normaliseTopics } from '@xo/engine/parts'
 import { InfoIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Frame, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
@@ -27,6 +27,7 @@ export function initials(name: string): string {
 
 export function AgentRoster({ data }: { data: AgentsData }) {
   const [selected, setSelected] = useState<Profile | null>(null)
+  const topics = normaliseTopics(selected?.topics)
   const [fullHint, setFullHint] = useState(false)
   const selection = useInterviewSelection()
   const selectable = selection?.enabled === true
@@ -100,9 +101,9 @@ export function AgentRoster({ data }: { data: AgentsData }) {
           </SheetHeader>
           <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 pb-4">
             {selected?.bio && <p className="text-sm whitespace-pre-line">{selected.bio}</p>}
-            {selected && selected.topics.length > 0 && (
+            {topics.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {selected.topics.map((topic) => (
+                {topics.map((topic) => (
                   <Badge key={topic} variant="secondary">
                     {topic}
                   </Badge>
