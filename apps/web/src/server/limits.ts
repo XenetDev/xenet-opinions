@@ -1,4 +1,4 @@
-import type { PlanId } from '@xo/engine/policy'
+import { PANEL_MAX_PARTICIPANTS, type PlanId } from '@xo/engine/policy'
 import { env } from '@/env'
 
 export type Limits = {
@@ -8,6 +8,7 @@ export type Limits = {
   signedInMaxRunsPerDay: number
   anonymous: boolean
   maxRounds: number
+  maxParticipants: number
   allowPause: boolean
   plan?: PlanId
   resetAt?: string | null
@@ -32,6 +33,7 @@ export function limitsFromEnv(source: LimitsEnv, user: { isAnonymous: boolean })
     signedInMaxRunsPerDay: source.MAX_RUNS_PER_DAY,
     anonymous: user.isAnonymous,
     maxRounds: demoMode ? source.DEMO_MAX_ROUNDS : 40,
+    maxParticipants: PANEL_MAX_PARTICIPANTS,
     allowPause: source.DEMO_ALLOW_PAUSE === '1',
   }
 }

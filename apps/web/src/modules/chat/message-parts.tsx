@@ -1,6 +1,7 @@
 import type { InterviewData, OpinionsDataParts, OpinionsUIMessage } from '@xo/engine/parts'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent } from '@/components/ui/message'
+import { ReportSection } from '@/modules/report/report-section'
 import { RunConsole } from './console/run-console'
 import { Markdown } from './markdown'
 import { AgentRoster } from './parts/agent-roster'
@@ -46,7 +47,11 @@ export function MessageParts({
   onRetry,
   onAddActors,
   chatId,
+  messageId,
+  shareUrl,
   title,
+  question,
+  finishedAt,
   windowUntil,
   reportRequested,
   windowLive,
@@ -56,7 +61,11 @@ export function MessageParts({
   onRetry?: () => void
   onAddActors?: () => void
   chatId?: string
+  messageId?: string
+  shareUrl?: string
   title?: string
+  question?: string
+  finishedAt?: string
   windowUntil?: string | null
   reportRequested?: boolean
   windowLive?: boolean
@@ -67,6 +76,8 @@ export function MessageParts({
   const graph = lastData(parts, 'graph')
   const agents = lastData(parts, 'agents')
   const feed = lastData(parts, 'sim_feed')
+  const summary = lastData(parts, 'report_summary')
+  const summaryFailed = parts.some((part) => part.type === 'data-report_summary_failed')
   const texts = parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
   const interviewGroups = groupInterviews(parts)
   const showConsole = (queue !== undefined && queue.position >= 1) || parts.some((part) => CONSOLE_PARTS.has(part.type))
@@ -134,12 +145,23 @@ export function MessageParts({
           ))}
         </div>
       )}
-      {texts.map((text, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
-        <div key={i} data-part="text">
-          <Markdown>{text}</Markdown>
-        </div>
-      ))}
+      <ReportSection
+        summary={summary}
+        failed={summaryFailed}
+        writing={!!windowLive && texts.length > 0 && !summary && !summaryFailed}
+        chatId={chatId}
+        messageId={messageId}
+        shareUrl={shareUrl}
+        title={question ?? title}
+        finishedAt={finishedAt}
+      >
+        {texts.map((text, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: text parts have no id and keep their order
+          <div key={i} data-part="text">
+            <Markdown>{text}</Markdown>
+          </div>
+        ))}
+      </ReportSection>
     </>
   )
 }

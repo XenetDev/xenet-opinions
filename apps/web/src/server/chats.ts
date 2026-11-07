@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { storage } from '@/lib/storage'
 import { cancelActiveRun, RunNotActiveError, RunNotFoundError } from './runs'
 
-const { chats, messages, uploads } = schema
+const { chats, messages, runs, uploads } = schema
 
 export async function createChat(userId: string): Promise<Chat> {
   const [chat] = await db.insert(chats).values({ id: generateId(), userId, title: '' }).returning()
@@ -53,6 +53,14 @@ export async function getMessage(id: string): Promise<Message | null> {
 
 export async function listMessages(chatId: string): Promise<Message[]> {
   return db.select().from(messages).where(eq(messages.chatId, chatId)).orderBy(asc(messages.createdAt))
+}
+
+export async function listRunFinishes(chatId: string): Promise<Record<string, string>> {
+  const rows = await db
+    .select({ messageId: runs.assistantMessageId, finishedAt: runs.finishedAt })
+    .from(runs)
+    .where(eq(runs.chatId, chatId))
+  return Object.fromEntries(rows.flatMap((r) => (r.finishedAt ? [[r.messageId, r.finishedAt.toISOString()]] : [])))
 }
 
 export type ChatSummary = {

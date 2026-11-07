@@ -26,7 +26,20 @@ export const RUN_STAGES = [
   'finished',
 ] as const satisfies readonly Stage[]
 
-export type RunConfig = { requirement: string; maxRounds: number; uploadIds: string[]; pauseForInterviews?: boolean }
+export type RunConfig = {
+  requirement: string
+  maxRounds: number
+  uploadIds: string[]
+  pauseForInterviews?: boolean
+  panel?: {
+    participants: number
+    audience?: string
+    groups: string[]
+    webResearch: boolean
+    castGroups?: string[]
+  }
+  researchId?: string
+}
 
 export type RunIds = Partial<{
   projectId: string
@@ -60,6 +73,7 @@ export type RunCursors = Partial<{
   envCheckedAt: string
   closeWaitStartedAt: string
   agentsPlatform: 'twitter' | 'reddit'
+  debriefDone: boolean
 }>
 
 export type RunFeedCursor = {
@@ -111,6 +125,7 @@ export const runs = pgTable(
     queuedAt: timestamp('queued_at', { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
+    shareToken: text('share_token').unique('runs_share_token_unique'),
   },
   (t) => [
     index('runs_status_queued_at_idx').on(t.status, t.queuedAt),

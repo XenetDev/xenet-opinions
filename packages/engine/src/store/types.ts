@@ -1,4 +1,4 @@
-import type { Interview, NewInterview, Run, RunConfig, RunEvent, Upload } from '@xo/db'
+import type { Interview, NewInterview, Research, Run, RunConfig, RunEvent, Upload } from '@xo/db'
 import type { RunEventInput } from '../events'
 
 export type RunPatch = Partial<
@@ -62,4 +62,5 @@ export type RunStore = {
   listPendingInterviews(runId: string): Promise<InterviewRow[]>
   updateInterview(id: string, patch: InterviewPatch): Promise<void>
   createInterviews(rows: NewInterview[]): Promise<InterviewRow[]>
+  getResearch(id: string): Promise<Research | null>
 }

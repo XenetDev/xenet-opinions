@@ -45,7 +45,8 @@ export const envSchema = z
     DEMO_MAX_ROUNDS: z.coerce.number().int().min(1).max(40).default(3),
     LLM_API_KEY: optionalString,
     LLM_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().default('https://api.openai.com/v1')),
-    LLM_MODEL_NAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('gpt-4o-mini')),
+    LLM_MODEL_NAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('gpt-4.1')),
+    EXA_API_KEY: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) {

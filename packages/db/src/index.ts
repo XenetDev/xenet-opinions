@@ -3,6 +3,7 @@ export * as schema from './schema'
 export type { Subscription } from './schema/billing'
 export type { Chat, Message, NewChat, NewMessage } from './schema/chats'
 export type { Interview, NewInterview } from './schema/interviews'
+export type { NewResearchRow, Research, ResearchRow, ResearchSource } from './schema/research'
 export type {
   NewRun,
   NewRunEvent,

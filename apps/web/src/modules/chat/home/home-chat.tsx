@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Limits } from '@/server/limits'
 import { Chat } from '../chat'
 
-export function HomeChat({ limits }: { limits: Limits }) {
+export function HomeChat({ limits, webResearchAvailable }: { limits: Limits; webResearchAvailable?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const [chatId, setChatId] = useState(generateId)
@@ -32,6 +32,7 @@ export function HomeChat({ limits }: { limits: Limits }) {
       activeRun={null}
       latestRun={null}
       limits={limits}
+      webResearchAvailable={webResearchAvailable}
     />
   )
 }

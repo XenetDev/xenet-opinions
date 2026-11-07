@@ -25,6 +25,7 @@ describe('limitsFromEnv', () => {
       signedInMaxRunsPerDay: 3,
       anonymous: false,
       maxRounds: 40,
+      maxParticipants: 50,
       allowPause: true,
     })
   })
@@ -37,6 +38,7 @@ describe('limitsFromEnv', () => {
       signedInMaxRunsPerDay: 3,
       anonymous: false,
       maxRounds: 5,
+      maxParticipants: 50,
       allowPause: true,
     })
   })

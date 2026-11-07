@@ -425,3 +425,11 @@ it('transition with expect guards on the locked row and can patch from it', asyn
   expect(next.cursors.lastAgentCount).toBe(7)
   expect(await store.lastSeq(run.id)).toBe(1)
 })
+
+it('reads research by id', async () => {
+  const store = createMemoryStore()
+  const research = { query: 'q', digest: 'd', sources: [{ title: 'T', url: 'https://x.test', excerpt: 'e' }] }
+  store.research.set('res_1', research)
+  expect(await store.getResearch('res_1')).toEqual(research)
+  expect(await store.getResearch('missing')).toBeNull()
+})

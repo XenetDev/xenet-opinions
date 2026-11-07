@@ -127,6 +127,19 @@ describe('Thread', () => {
     )
   })
 
+  it('leaves the product name off the pending placeholder', () => {
+    render(
+      <Thread
+        messages={[]}
+        renderAssistant={() => null}
+        pending={{ text: 'Will they pay?', card: <p>Building your panel…</p> }}
+      />,
+    )
+    const turn = screen.getByRole('group', { name: 'Xenet Opinions' })
+    expect(within(turn).getByText('Building your panel…')).toBeTruthy()
+    expect(within(turn).queryByText('Xenet Opinions')).toBeNull()
+  })
+
   it('sets user turn copy at 14px on mobile and 15px from sm', () => {
     renderThread()
     const bubble = screen.getByText('How will customers react?').closest('[data-slot="bubble-content"]')

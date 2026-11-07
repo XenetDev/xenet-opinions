@@ -1,7 +1,8 @@
 import { materialiseRun } from '@xo/engine'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
-import { listMessages } from '@/server/chats'
+import { listMessages, listRunFinishes } from '@/server/chats'
 import { runStore } from '@/server/runs'
+import { listShareTokens } from '@/server/share'
 import { toUIMessages } from '@/server/ui-message'
 
 export type ActiveRun = {
@@ -25,8 +26,19 @@ const TERMINAL = new Set(['done', 'failed', 'cancelled'])
 export async function loadChatPage(
   chatId: string,
   _userId: string,
-): Promise<{ initialMessages: OpinionsUIMessage[]; activeRun: ActiveRun | null; latestRun: LatestRun | null }> {
-  const [rows, latest] = await Promise.all([listMessages(chatId), runStore.getLatestByChat(chatId)])
+): Promise<{
+  initialMessages: OpinionsUIMessage[]
+  activeRun: ActiveRun | null
+  latestRun: LatestRun | null
+  runFinishedAt: Record<string, string>
+  runShareTokens: Record<string, string>
+}> {
+  const [rows, latest, runFinishedAt, runShareTokens] = await Promise.all([
+    listMessages(chatId),
+    runStore.getLatestByChat(chatId),
+    listRunFinishes(chatId),
+    listShareTokens(chatId),
+  ])
   const messages = toUIMessages(rows)
   const active = latest && (latest.status === 'queued' || latest.status === 'running') ? latest : null
   const latestRun: LatestRun | null = latest
@@ -49,6 +61,8 @@ export async function loadChatPage(
         envKeepaliveUntil: active.envKeepaliveUntil?.toISOString() ?? null,
       },
       latestRun,
+      runFinishedAt,
+      runShareTokens,
     }
   }
 
@@ -60,8 +74,10 @@ export async function loadChatPage(
         initialMessages: messages.map((message) => (message === target ? { ...message, parts } : message)),
         activeRun: null,
         latestRun,
+        runFinishedAt,
+        runShareTokens,
       }
     }
   }
-  return { initialMessages: messages, activeRun: null, latestRun }
+  return { initialMessages: messages, activeRun: null, latestRun, runFinishedAt, runShareTokens }
 }

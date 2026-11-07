@@ -1,6 +1,7 @@
 import type { Message } from '@xo/db'
 import {
   AgentsDataSchema,
+  DebriefDataSchema,
   ErrorDataSchema,
   GraphDataSchema,
   InterviewDataSchema,
@@ -10,6 +11,8 @@ import {
   QueueDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
+  ReportSummaryFailedSchema,
+  ReportSummarySchema,
   SimFeedDataSchema,
   SourcesDataSchema,
   StageDataSchema,
@@ -36,6 +39,9 @@ const dataSchemas: Record<string, z.ZodType> = {
   'data-error': ErrorDataSchema,
   'data-interview': InterviewDataSchema,
   'data-interview_window': InterviewWindowDataSchema,
+  'data-debrief': DebriefDataSchema,
+  'data-report_summary': ReportSummarySchema,
+  'data-report_summary_failed': ReportSummaryFailedSchema,
   'data-queue': QueueDataSchema,
 }
 

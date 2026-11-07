@@ -1,5 +1,6 @@
 import type { Run } from '@xo/db'
 import { MiroFishError } from '@xo/mirofish'
+import { SUMMARY_BUDGET_MS, summaryEvent } from '../../summary/run'
 import { advance, emit, need, remoteFailure, running } from '../emit'
 import { agentLogToEvents } from '../mirofish-map'
 import type { Deps, StageHandler } from '../types'
@@ -66,6 +67,14 @@ export const report: StageHandler = {
     const final = await drain(drained.run, deps, reportId, true)
     if (!final.exhausted) return final.run
     await emit(deps, final.run, 'report_text', { markdown: result.markdown_content ?? '' })
+    const events = await deps.store.listEvents(final.run.id, 0)
+    if (!events.some((e) => e.kind === 'report_summary' || e.kind === 'report_summary_failed')) {
+      const summary = await summaryEvent(final.run, deps, {
+        signal: AbortSignal.timeout(SUMMARY_BUDGET_MS),
+        requireRunning: true,
+      })
+      await deps.store.appendEvent(final.run.id, summary, deps.fence)
+    }
     return advance(deps, final.run, 'report', 'finished')
   },
 }

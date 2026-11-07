@@ -11,7 +11,7 @@ import { checkRunGate } from './run-gate'
 
 const user = { id: 'u', isAnonymous: false, email: '', name: '', image: null }
 const plan = (used: number, paused = false) => ({
-  limits: { paused, maxRounds: 5 },
+  limits: { paused, maxRounds: 5, maxParticipants: 25 },
   allowance: { used, max: 4, resetAt: '2026-12-03T00:00:00.000Z' },
 })
 
@@ -44,6 +44,19 @@ describe('checkRunGate with plans', () => {
     if (gate.ok) throw new Error('expected refusal')
     expect(gate.response.status).toBe(400)
     expect(await gate.response.json()).toEqual({ error: 'rounds_exceeded', max: 5 })
+  })
+
+  it('refuses participants above the plan', async () => {
+    resolveLimits.mockResolvedValue(plan(0))
+    const gate = await checkRunGate(user, { requestedParticipants: 26 })
+    if (gate.ok) throw new Error('expected refusal')
+    expect(gate.response.status).toBe(400)
+    expect(await gate.response.json()).toEqual({ error: 'participants_exceeded', max: 25 })
+  })
+
+  it('allows participants at the plan cap', async () => {
+    resolveLimits.mockResolvedValue(plan(0))
+    expect((await checkRunGate(user, { requestedParticipants: 25 })).ok).toBe(true)
   })
 
   it('stays closed while paused, even for retries', async () => {

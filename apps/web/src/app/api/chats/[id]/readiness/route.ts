@@ -1,26 +1,35 @@
 import { NO_ACTORS_CODE } from '@xo/engine'
+import type { Panel } from '@xo/engine/policy'
 import { z } from 'zod'
+import { env } from '@/env'
 import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
 import { storage } from '@/lib/storage'
 import { getOwnedChat } from '@/server/chats'
+import { panelSchema } from '@/server/message-body'
 import { checkReadiness } from '@/server/readiness/check'
 import { documentText } from '@/server/readiness/document-text'
 import { fallbackReadiness } from '@/server/readiness/fallback'
 import { allowCheck } from '@/server/readiness/rate-limit'
+import { type Research, researchQuestion } from '@/server/research/exa'
+import { saveResearch } from '@/server/research/store'
 import { checkRunGate } from '@/server/run-gate'
 import { runStore } from '@/server/runs'
 import { MAX_FILES } from '@/server/upload-rules'
 import { readOwnedUploads } from '@/server/uploads'
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
+export const maxDuration = 75
 
 const LOAD_MS = 6000
 
 const bodySchema = z.union([
   z.object({ retry: z.literal(true) }),
-  z.object({ text: z.string().max(20_000), uploadIds: z.array(z.string()).max(MAX_FILES) }),
+  z.object({
+    text: z.string().max(20_000),
+    uploadIds: z.array(z.string()).max(MAX_FILES),
+    panel: panelSchema.optional(),
+  }),
 ])
 
 async function loadDocuments(uploads: Array<{ filename: string; mediaType: string; storageKey: string }>) {
@@ -38,6 +47,19 @@ async function loadDocuments(uploads: Array<{ filename: string; mediaType: strin
   await Promise.race([loading, new Promise((resolve) => (timer = setTimeout(resolve, LOAD_MS)))])
   clearTimeout(timer)
   return uploads.map((upload, index) => ({ filename: upload.filename, text: texts[index] ?? '' }))
+}
+
+function capped(panel: Panel, maxParticipants: number) {
+  return { panel: { ...panel, participants: Math.min(panel.participants, maxParticipants) }, maxParticipants }
+}
+
+async function saveOwnedResearch(input: { userId: string; chatId: string; research: Research }) {
+  try {
+    return await saveResearch(input)
+  } catch (error) {
+    console.error('research save failed', { error })
+    return null
+  }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -64,14 +86,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const documents = await loadDocuments(
       rows.filter((row) => !(row.filename === 'seed.md' && row.mediaType === 'text/markdown')),
     )
-    return Response.json(await checkReadiness({ text: latest.config.requirement, documents, force: true }))
+    const panel = panelSchema.safeParse(latest.config.panel)
+    return Response.json(
+      await checkReadiness({
+        text: latest.config.requirement,
+        documents,
+        force: true,
+        ...(panel.success && capped(panel.data, gate.limits.maxParticipants)),
+      }),
+    )
   }
 
   const { text } = body.data
+  const sized = body.data.panel && capped(body.data.panel, gate.limits.maxParticipants)
   const uploadIds = [...new Set(body.data.uploadIds)]
   const rows = await readOwnedUploads({ chatId, userId: user.id, uploadIds })
   if (rows.length !== uploadIds.length) return Response.json({ error: 'invalid_body' }, { status: 400 })
   if (!allowCheck(user.id)) return Response.json(fallbackReadiness(text, rows.length))
-  const documents = await loadDocuments(rows)
-  return Response.json(await checkReadiness({ text, documents }))
+  const researching = sized?.panel.webResearch && env.EXA_API_KEY ? researchQuestion(text) : Promise.resolve(null)
+  const [documents, research] = await Promise.all([loadDocuments(rows), researching])
+  const readiness = await checkReadiness({ text, documents, ...sized, ...(research && { research }) })
+  const researchId = research && (await saveOwnedResearch({ userId: user.id, chatId, research }))
+  return Response.json(researchId ? { ...readiness, researchId } : readiness)
 }

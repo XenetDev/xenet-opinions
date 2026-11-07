@@ -107,4 +107,34 @@ describe('materialiseRun', () => {
     })
     expect(count(parts, 'text')).toBe(0)
   })
+
+  it('includes a summary added after the run finished and drops the earlier failure', async () => {
+    const summary = {
+      verdict: 'V',
+      confidence: { level: 'low' as const, reason: 'R' },
+      headline: { sentiment: null, actShare: null, switchShare: null, topConcern: null },
+      split: { positive: 0, neutral: 0, negative: 0 },
+      groups: [],
+      findings: [],
+      risks: [],
+      opportunities: [],
+      participants: [],
+      sources: [],
+      method: { participants: 0, groups: 0, rounds: 1, webResearch: false },
+      writeup: '',
+    }
+    const { store, run } = await setup([
+      ...(await drivenEvents()),
+      event('report_summary', summary),
+      event('stage', { stage: 'report', status: 'running' }),
+    ])
+    const parts = await materialiseRun(store, run.id)
+    expect(parts.filter((p) => p.type === 'data-report_summary')).toEqual([
+      { type: 'data-report_summary', id: 'report_summary', data: summary },
+    ])
+    expect(count(parts, 'data-report_summary_failed')).toBe(0)
+    expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:report')).toMatchObject({
+      data: { status: 'done' },
+    })
+  })
 })

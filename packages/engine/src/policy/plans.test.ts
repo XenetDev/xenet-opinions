@@ -3,10 +3,10 @@ import { isPaidPlan, PLANS, planFromLookupKey, startOfNextUtcMonth, startOfUtcMo
 
 describe('plans', () => {
   it('holds the approved allowances', () => {
-    expect(PLANS.guest).toMatchObject({ runs: 1, maxRounds: 3, period: 'lifetime' })
-    expect(PLANS.free).toMatchObject({ runs: 2, maxRounds: 3, period: 'month' })
-    expect(PLANS.starter).toMatchObject({ runs: 4, maxRounds: 5, period: 'billing', priceUsd: 10 })
-    expect(PLANS.pro).toMatchObject({ runs: 6, maxRounds: 10, period: 'billing', priceUsd: 20 })
+    expect(PLANS.guest).toMatchObject({ runs: 1, maxRounds: 3, maxParticipants: 10, period: 'lifetime' })
+    expect(PLANS.free).toMatchObject({ runs: 1, maxRounds: 3, maxParticipants: 10, period: 'month' })
+    expect(PLANS.starter).toMatchObject({ runs: 2, maxRounds: 5, maxParticipants: 25, period: 'billing', priceUsd: 10 })
+    expect(PLANS.pro).toMatchObject({ runs: 2, maxRounds: 10, maxParticipants: 50, period: 'billing', priceUsd: 20 })
   })
 
   it('maps lookup keys to paid plans only', () => {

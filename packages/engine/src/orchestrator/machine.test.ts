@@ -1,9 +1,11 @@
 import { MiroFishError } from '@xo/mirofish'
 import { StorageError } from '@xo/storage'
 import { describe, expect, it, vi } from 'vitest'
-import type { StageData } from '../parts'
+import type { ReportSummary, StageData } from '../parts'
 import { ontologyRequirement } from '../policy/seed'
 import { FenceError } from '../store/types'
+import { classifySystem } from '../summary/classify'
+import { agentIdsIn, mockModel } from '../summary/test-model'
 import { fail } from './fail'
 import { tick } from './machine'
 import { drive, driveUntil, LOGS, NOW, setupRun as setup } from './test-helpers'
@@ -62,6 +64,7 @@ describe('tick', () => {
       'stage:sim_run:running',
       'sim_feed',
       'stage:sim_run:running',
+      'debrief',
       'sim_feed',
       'stage:sim_run:running',
       'stage:sim_run:done',
@@ -74,6 +77,7 @@ describe('tick', () => {
       'report_event:3',
       'report_event:4',
       'report_text',
+      'report_summary_failed',
       'stage:report:done',
       'stage:finished:done',
       'done',
@@ -83,9 +87,11 @@ describe('tick', () => {
       { files: [{ id: 'up_1', filename: 'brief.md', mediaType: 'text/markdown', sizeBytes: 12 }] },
     ])
     expect(payloadOf('report_text')).toEqual([{ markdown: '# Report' }])
+    expect(payloadOf('report_summary_failed')).toEqual([{ message: 'Summary model not configured' }])
     expect(payloadOf('agents').at(-1)).toMatchObject({ count: 2, platform: 'reddit' })
     expect(events.some((e) => e.kind === 'interview_window' || e.partId === 'stage:interviews')).toBe(false)
-    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
+    expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(1)
+    expect(payloadOf('debrief')).toHaveLength(1)
     expect(payloadOf('sim_feed').at(-1)).toMatchObject({ round: 2, totalRounds: 2, twitterActs: 2, redditActs: 2 })
     expect(events.find((e) => e.kind === 'stage' && (e.payload as StageData).message === 'Round 1/2')).toBeDefined()
     expect(deps.storage.get).toHaveBeenCalledWith('k/brief.md')
@@ -140,6 +146,152 @@ describe('tick', () => {
     expect(sources?.payload).toMatchObject({ files: [{ filename: 'my brief (v2)' }] })
   })
 
+  it('emits report_summary_failed and still finishes when the summary model errors', async () => {
+    const { store, deps, run } = await setup()
+    deps.summaryModel = mockModel(() => {
+      throw new Error('model down')
+    })
+    const done = await drive(run, deps)
+    expect(done.status).toBe('done')
+    const labels = (store.events.get(run.id) ?? []).map(label)
+    expect(labels.slice(-5)).toEqual([
+      'report_text',
+      'report_summary_failed',
+      'stage:report:done',
+      'stage:finished:done',
+      'done',
+    ])
+    const failed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'report_summary_failed')
+    expect(failed?.payload).toEqual({ message: 'The summary could not be written' })
+  })
+
+  it('emits report_summary after the report text when the summary model answers', async () => {
+    const { store, deps, run } = await setup()
+    deps.summaryModel = mockModel(({ system, prompt }) =>
+      system === classifySystem
+        ? {
+            participants: agentIdsIn(prompt).map((agentId) => ({
+              agentId,
+              group: 'Customers',
+              kind: 'person',
+              age: null,
+              role: null,
+              location: null,
+              sentiment: 2,
+              action: 'act',
+              concern: 'price',
+              opinion: 'Likes it.',
+              quote: null,
+            })),
+          }
+        : {
+            verdict: 'Positive.',
+            confidence: { level: 'low', reason: 'Small panel.' },
+            groups: [],
+            findings: [],
+            risks: [],
+            opportunities: [],
+          },
+    )
+    const done = await drive(run, deps)
+    expect(done.status).toBe('done')
+    const events = store.events.get(run.id) ?? []
+    expect(events.map(label).slice(-5)).toEqual([
+      'report_text',
+      'report_summary',
+      'stage:report:done',
+      'stage:finished:done',
+      'done',
+    ])
+    const summary = events.find((e) => e.kind === 'report_summary')?.payload as ReportSummary
+    expect(summary.participants.map((p) => [p.name, p.sentiment])).toEqual([
+      ['Maya', 2],
+      ['Liam', 2],
+    ])
+    expect(summary.headline).toMatchObject({ sentiment: 2, actShare: 1 })
+  })
+
+  it('stops the summary with a lost fence when the run is cancelled mid-summary', async () => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    await store.appendEvent(run.id, {
+      kind: 'agents',
+      partId: 'agents',
+      payload: { count: 1, profiles: [{ id: '0', name: 'Maya', topics: [] }] },
+    })
+    const generate = vi.fn()
+    deps.summaryModel = mockModel(({ prompt }) => {
+      generate()
+      store.runs.set(run.id, { ...store.runs.get(run.id)!, status: 'cancelled' })
+      return { participants: agentIdsIn(prompt).map((agentId) => ({ agentId, sentiment: 1 })) }
+    })
+    await expect(tick(run, deps)).rejects.toBeInstanceOf(FenceError)
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect((store.events.get(run.id) ?? []).some((e) => e.kind.startsWith('report_summary'))).toBe(false)
+  })
+
+  const priorSummary = {
+    verdict: 'V',
+    confidence: { level: 'low' as const, reason: 'R' },
+    headline: { sentiment: null, actShare: null, switchShare: null, topConcern: null },
+    split: { positive: 0, neutral: 0, negative: 0 },
+    groups: [],
+    findings: [],
+    risks: [],
+    opportunities: [],
+    participants: [],
+    sources: [],
+    method: { participants: 0, groups: 0, rounds: 1, webResearch: false },
+    writeup: '',
+  }
+
+  it.each([
+    ['report_summary' as const, priorSummary],
+    ['report_summary_failed' as const, { message: 'earlier' }],
+  ])('does not rerun the summary after a restart when %s already exists', async (kind, payload) => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    await store.appendEvent(run.id, { kind, partId: kind, payload })
+    const generate = vi.fn(() => ({}))
+    deps.summaryModel = mockModel(generate)
+    const next = await tick(run, deps)
+    expect(next.stage).toBe('finished')
+    expect(generate).not.toHaveBeenCalled()
+    expect((store.events.get(run.id) ?? []).filter((e) => e.kind.startsWith('report_summary'))).toHaveLength(1)
+  })
+
+  it('lets a lost fence escape the summary step', async () => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    const append = store.appendEvent.bind(store)
+    vi.spyOn(store, 'appendEvent').mockImplementation(async (id, e, fence) => {
+      if (e.kind === 'report_summary_failed') throw new FenceError(id)
+      return append(id, e, fence)
+    })
+    await expect(tick(run, deps)).rejects.toBeInstanceOf(FenceError)
+  })
+
   it('drains the agent log once more after report completion before emitting the text', async () => {
     const { store, deps, run } = await setup(
       {
@@ -162,7 +314,7 @@ describe('tick', () => {
     const next = await tick(run, deps)
     expect(next.stage).toBe('finished')
     const labels = (store.events.get(run.id) ?? []).map(label)
-    expect(labels.slice(-3)).toEqual(['report_event:4', 'report_text', 'stage:report:done'])
+    expect(labels.slice(-4)).toEqual(['report_event:4', 'report_text', 'report_summary_failed', 'stage:report:done'])
     expect(next.cursors.agentLogLine).toBe(6)
   })
 
@@ -367,6 +519,90 @@ describe('tick', () => {
     }
     expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledTimes(1)
     expect(deps.mirofish.simulation.closeEnv).toHaveBeenCalledWith('sim_1')
+  })
+
+  it('debriefs every persona once before closing the env', async () => {
+    const roundsDone = {
+      runner_status: 'running' as const,
+      current_round: 9,
+      total_rounds: 1,
+      twitter_completed: true,
+      reddit_completed: true,
+    }
+    const { store, deps, run } = await setup(
+      { simulation: { runStatus: vi.fn(async () => roundsDone), posts: vi.fn(async () => ({ posts: [] })) } },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, startAcked: true } },
+    )
+    await store.appendEvent(run.id, {
+      kind: 'agents',
+      partId: 'agents',
+      payload: {
+        count: 2,
+        profiles: [
+          { id: '0', name: 'Maya', topics: [] },
+          { id: '1', name: 'Liam', topics: [] },
+        ],
+      },
+    })
+    let current = run
+    for (let i = 0; i < 3; i++) current = await tick(current, deps)
+    const sim = deps.mirofish.simulation
+    expect(sim.interviewBatch).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(sim.interviewBatch).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sim.closeEnv).mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(sim.closeEnv).toHaveBeenCalledTimes(1)
+    expect(current.cursors.debriefDone).toBe(true)
+    const debriefs = (store.events.get(run.id) ?? []).filter((e) => e.kind === 'debrief')
+    expect(debriefs.map((e) => e.payload)).toEqual([
+      {
+        answers: [
+          { agentId: '0', name: 'Maya', answer: 'Answer from 0', status: 'done' },
+          { agentId: '1', name: 'Liam', answer: 'Answer from 1', status: 'done' },
+        ],
+      },
+    ])
+  })
+
+  it('re-reads the status after a debrief and skips the close when the runner already exited', async () => {
+    const roundsDone = {
+      runner_status: 'running' as const,
+      current_round: 9,
+      total_rounds: 1,
+      twitter_completed: true,
+      reddit_completed: true,
+    }
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi
+            .fn()
+            .mockResolvedValueOnce(roundsDone)
+            .mockResolvedValue({ ...roundsDone, runner_status: 'completed' }),
+          posts: vi.fn(async () => ({ posts: [] })),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, startAcked: true } },
+    )
+    const next = await tick(run, deps)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
+    expect(next.cursors.debriefDone).toBe(true)
+    expect(next.stage).toBe('report')
+    expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+  })
+
+  it('does not debrief while the rounds are still running', async () => {
+    const { deps, run } = await setup(
+      {
+        simulation: {
+          runStatus: vi.fn(async () => ({ runner_status: 'running' as const, current_round: 1, total_rounds: 2 })),
+        },
+      },
+      { stage: 'sim_run', ids, cursors: { simStarted: true, startAcked: true } },
+    )
+    const next = await tick(run, deps)
+    expect(deps.mirofish.simulation.interviewBatch).not.toHaveBeenCalled()
+    expect(next.cursors.debriefDone).toBeUndefined()
   })
 
   it('waits while report generation is refused for pending ingestion, then enters', async () => {
@@ -814,6 +1050,7 @@ describe('interview window', () => {
     let clock = NOW
     ctx.deps.now = () => clock
     const run = await driveUntil(ctx.run, ctx.deps, entered)
+    vi.mocked(ctx.deps.mirofish.simulation.interviewBatch).mockClear()
     const ask = (agentIds: string[], question = 'Q?', questionId = 'q1') =>
       ctx.store.createInterviews(
         agentIds.map((agentId, i) => ({
@@ -840,11 +1077,12 @@ describe('interview window', () => {
   }
 
   it('pauses after the rounds with personas online and the env open', async () => {
-    const { deps, run, events } = await paused()
+    const { deps, run, events, payloads } = await paused()
     expect(run).toMatchObject({ status: 'running', stage: 'interviews', envState: 'open' })
     expect(run.envKeepaliveUntil).toEqual(new Date(NOW.getTime() + 20 * MIN))
     expect(run.cursors.interviewsStartedAt).toBe(NOW.toISOString())
-    expect(events().map(label).slice(-4)).toEqual([
+    expect(events().map(label).slice(-5)).toEqual([
+      'debrief',
       'sim_feed',
       'stage:sim_run:done',
       'stage:interviews:running',
@@ -855,6 +1093,8 @@ describe('interview window', () => {
       payload: { until: new Date(NOW.getTime() + 20 * MIN).toISOString(), personaCount: 2, closed: false },
     })
     expect(deps.mirofish.simulation.closeEnv).not.toHaveBeenCalled()
+    expect(payloads('debrief')).toHaveLength(1)
+    expect(run.cursors.debriefDone).toBe(true)
     const statusCalls = vi.mocked(deps.mirofish.simulation.runStatus).mock.calls.length
     const idle = await tick(run, deps)
     expect(idle.stage).toBe('interviews')
@@ -995,20 +1235,27 @@ describe('interview window', () => {
             twitter_completed: true,
             reddit_completed: true,
           })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({ runner_status: 'running' })
           .mockResolvedValue({ runner_status: 'stopped' }),
       },
     })
     setClock(29_000)
     let current = await tick(run, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(2)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
     setClock(30_000)
     current = await tick(current, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(4)
     expect(current.cursors.envCheckedAt).toBe(new Date(NOW.getTime() + 30_000).toISOString())
     setClock(59_000)
     current = await tick(current, deps)
-    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(3)
+    expect(deps.mirofish.simulation.runStatus).toHaveBeenCalledTimes(4)
     await ask(['0'])
     vi.spyOn(store, 'listPendingInterviews').mockResolvedValueOnce([])
     setClock(60_000)
@@ -1027,6 +1274,13 @@ describe('interview window', () => {
         runStatus: vi
           .fn()
           .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({
             runner_status: 'running',
             current_round: 10,
@@ -1062,6 +1316,13 @@ describe('interview window', () => {
             twitter_completed: true,
             reddit_completed: true,
           })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockRejectedValue(err),
       },
     })
@@ -1078,6 +1339,13 @@ describe('interview window', () => {
         runStatus: vi
           .fn()
           .mockResolvedValueOnce({ runner_status: 'running', current_round: 9, total_rounds: 2 })
+          .mockResolvedValueOnce({
+            runner_status: 'running',
+            current_round: 10,
+            total_rounds: 2,
+            twitter_completed: true,
+            reddit_completed: true,
+          })
           .mockResolvedValueOnce({
             runner_status: 'running',
             current_round: 10,

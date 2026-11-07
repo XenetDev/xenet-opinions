@@ -3,7 +3,7 @@
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const nav = vi.hoisted(() => ({ refresh: vi.fn() }))
+const nav = vi.hoisted(() => ({ refresh: vi.fn(), pathname: '/' }))
 const auth = vi.hoisted(() => ({
   session: { data: null, isPending: false } as { data: unknown; isPending: boolean },
   signedIn: false,
@@ -11,7 +11,7 @@ const auth = vi.hoisted(() => ({
   anonymous: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh }) }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh }), usePathname: () => nav.pathname }))
 vi.mock('@/lib/auth-client', () => ({
   authClient: {
     useSession: () => auth.session,
@@ -49,6 +49,7 @@ beforeEach(() => {
     return { data: {}, error: null }
   })
   nav.refresh.mockReset()
+  nav.pathname = '/'
 })
 
 afterEach(() => {
@@ -86,6 +87,14 @@ describe('AnonymousSession', () => {
     rerender(<AnonymousSession>a</AnonymousSession>)
     await waitFor(() => expect(auth.anonymous).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not create a session for visitors of a shared report', async () => {
+    nav.pathname = '/r/abcdefghijklmnopqrstuvwxyz012345'
+    render(<AnonymousSession>a</AnonymousSession>)
+    await Promise.resolve()
+    expect(auth.anonymous).not.toHaveBeenCalled()
+    expect(auth.getSession).not.toHaveBeenCalled()
   })
 
   it('does not refresh when the sign-in fails', async () => {

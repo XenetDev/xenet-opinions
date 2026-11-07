@@ -53,7 +53,7 @@ function PlanUsageCard() {
           className="cursor-pointer self-start text-muted-foreground underline-offset-2 hover:underline"
           onClick={signInDialog.open}
         >
-          Sign in for {signIn.max} runs a month
+          Sign in for {signIn.max} {signIn.max === 1 ? 'run' : 'runs'} a month
         </button>
       ) : (
         plan !== 'pro' && (

@@ -89,4 +89,31 @@ describe('requestReadiness', () => {
       code: 'readiness_failed',
     })
   })
+
+  describe('with a panel', () => {
+    const panel = { participants: 25, groups: ['customers' as const], webResearch: true }
+
+    it('sends the panel, waits 70 seconds and keeps the research id', async () => {
+      const timeout = vi.spyOn(AbortSignal, 'timeout')
+      const fetchImpl = vi.fn(async () => Response.json({ ready: true, seed: draft, researchId: 'res1' }))
+      expect(await requestReadiness('c1', { text: 'why?', uploadIds: [], panel }, fetchImpl)).toEqual({
+        ok: true,
+        readiness: { ready: true, seed: draft, researchId: 'res1' },
+      })
+      expect(timeout).toHaveBeenCalledWith(70_000)
+      expect(fetchImpl.mock.calls[0]).toMatchObject([
+        '/api/chats/c1/readiness',
+        { body: JSON.stringify({ text: 'why?', uploadIds: [], panel }) },
+      ])
+      timeout.mockRestore()
+    })
+
+    it('keeps the research id on a draft', async () => {
+      const fetchImpl = vi.fn(async () => Response.json({ ready: false, draft, researchId: 'res1' }))
+      expect(await requestReadiness('c1', { text: 'why?', uploadIds: ['u1'], panel }, fetchImpl)).toEqual({
+        ok: true,
+        readiness: { ready: false, draft, researchId: 'res1' },
+      })
+    })
+  })
 })

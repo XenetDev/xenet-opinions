@@ -35,6 +35,7 @@ vi.mock('@/server/interview-window', () => {
 })
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
 vi.mock('@/server/uploads', () => ({ createSeedUpload: vi.fn() }))
+vi.mock('@/server/research/store', () => ({ readOwnedResearch: vi.fn() }))
 vi.mock('@xo/engine', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@xo/engine')>()
   return { ...actual, checkRunPolicy: vi.fn(actual.checkRunPolicy), tailRunAsUIMessageStream: vi.fn() }
@@ -46,6 +47,7 @@ import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { getLimits } from '@/server/limits'
+import { readOwnedResearch } from '@/server/research/store'
 import { countOwnedUploads, RunActiveError, runStore, runsStartedSince, startRun } from '@/server/runs'
 import { createSeedUpload } from '@/server/uploads'
 import { sessionUser } from '@/test/session-user'
@@ -82,6 +84,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 3,
     anonymous: false,
     maxRounds: 40,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })
@@ -341,6 +344,117 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).toHaveBeenCalledWith(
         expect.objectContaining({ uploadIds: ['seed1'], text: 'Should we raise prices?' }),
       )
+    })
+
+    it('stores the panel and an owned researchId on the run', async () => {
+      authed()
+      start()
+      vi.mocked(readOwnedResearch).mockResolvedValue({ queries: [], results: [] } as never)
+      const panel = { participants: 20, audience: 'Renters', groups: ['customers'], webResearch: false }
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds: [], panel, researchId: 'res1' })
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ panel, researchId: 'res1' }))
+      expect(readOwnedResearch).toHaveBeenCalledWith('res1', 'user1')
+    })
+
+    it('drops a researchId the user does not own and still starts the run', async () => {
+      authed()
+      start()
+      vi.mocked(readOwnedResearch).mockResolvedValue(null)
+      const panel = { participants: 20, groups: [], webResearch: true }
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds: [], panel, researchId: 'theirs' })
+      expect(res.status).toBe(200)
+      await res.body?.cancel()
+      expect(readOwnedResearch).toHaveBeenCalledWith('theirs', 'user1')
+      expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ panel }))
+      expect(vi.mocked(startRun).mock.calls[0]?.[0]).not.toHaveProperty('researchId')
+    })
+
+    it('does not look up research when none is sent', async () => {
+      authed()
+      start()
+      const res = await call(userMessage('Should we raise prices?'), { uploadIds: [] })
+      await res.body?.cancel()
+      expect(readOwnedResearch).not.toHaveBeenCalled()
+    })
+
+    it('refuses participants above the cap', async () => {
+      authed()
+      limits({ maxParticipants: 10 })
+      const panel = { participants: 20, groups: [], webResearch: false }
+      const res = await call(userMessage('Should we raise prices?'), { panel })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+      expect(startRun).not.toHaveBeenCalled()
+    })
+
+    describe('the seed cast', () => {
+      const person = (i: number) => `- Person ${i}, 30, owner, Leeds: fine`
+      const cast = (people: number) => {
+        const half = Math.ceil(people / 2)
+        return [
+          'Customers:',
+          ...Array.from({ length: half }, (_, i) => person(i)),
+          'Media:',
+          ...Array.from({ length: people - half }, (_, i) => person(half + i)),
+        ].join('\n')
+      }
+      const guestPanel = { participants: 10, groups: [], webResearch: false }
+
+      it('refuses a guest cast of 30 people', async () => {
+        authed()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: guestPanel,
+          seed: { actors: cast(30) },
+        })
+        expect(res.status).toBe(400)
+        expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+        expect(createSeedUpload).not.toHaveBeenCalled()
+        expect(startRun).not.toHaveBeenCalled()
+      })
+
+      it('allows a guest cast of 11 people and stores its groups on the panel', async () => {
+        authed()
+        start()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: { ...guestPanel, castGroups: ['Injected'] },
+          seed: { actors: cast(11) },
+        })
+        expect(res.status).toBe(200)
+        await res.body?.cancel()
+        expect(startRun).toHaveBeenCalledWith(
+          expect.objectContaining({ panel: { ...guestPanel, castGroups: ['Customers', 'Media'] } }),
+        )
+      })
+
+      it('drops client castGroups when the cast has no group headings', async () => {
+        authed()
+        start()
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: { ...guestPanel, castGroups: ['Injected'] },
+          seed: { actors: '- Maria Lopez, 34, owner, Austin: fine' },
+        })
+        await res.body?.cancel()
+        expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ panel: guestPanel }))
+      })
+
+      it.each([
+        ['too many people', cast(13)],
+        ['too long', `Customers:\n- ${'x'.repeat(3000)}`],
+      ])('refuses a cast that is %s even without a panel', async (_, actors) => {
+        authed()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), { uploadIds: [], seed: { actors } })
+        expect(res.status).toBe(400)
+        expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+        expect(startRun).not.toHaveBeenCalled()
+      })
     })
 
     it('writes the seed fields into the document', async () => {
@@ -624,6 +738,7 @@ describe('POST /api/chats/[id]/messages', () => {
         signedInMaxRunsPerDay: 3,
         anonymous: user.isAnonymous,
         maxRounds: 3,
+        maxParticipants: 50,
         allowPause: false,
       }))
     const startable = () => {

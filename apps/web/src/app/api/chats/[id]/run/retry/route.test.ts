@@ -9,12 +9,14 @@ vi.mock('@/server/runs', () => ({
 }))
 vi.mock('@/server/retry', () => ({ retryRun: vi.fn() }))
 vi.mock('@/server/limits', () => ({ getLimits: vi.fn() }))
+vi.mock('@/server/run-gate', () => ({ checkRunGate: vi.fn() }))
 vi.mock('@/server/uploads', () => ({ createSeedUpload: vi.fn(), readOwnedUploads: vi.fn() }))
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { getLimits } from '@/server/limits'
 import { retryRun } from '@/server/retry'
+import { checkRunGate } from '@/server/run-gate'
 import { runStore } from '@/server/runs'
 import { createSeedUpload, readOwnedUploads } from '@/server/uploads'
 import { sessionUser } from '@/test/session-user'
@@ -42,6 +44,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 3,
     anonymous: false,
     maxRounds: 40,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })
@@ -110,6 +113,7 @@ describe('POST /api/chats/[id]/run/retry', () => {
 
     beforeEach(() => {
       owned()
+      vi.mocked(checkRunGate).mockResolvedValue({ ok: true, limits: { maxParticipants: 50 } } as never)
       vi.mocked(runStore.getActiveByChat).mockResolvedValue(null)
       vi.mocked(retryRun).mockResolvedValue({ run: { id: 'r2' } as never, assistantMessageId: 'a2' })
       vi.mocked(readOwnedUploads).mockResolvedValue([
@@ -156,6 +160,18 @@ describe('POST /api/chats/[id]/run/retry', () => {
       expect(retryRun).toHaveBeenCalledWith(
         expect.objectContaining({ restart: { uploadIds: ['up1', 'up2', 'seed2'] } }),
       )
+    })
+
+    it('refuses a cast above the plan participants', async () => {
+      failed('no_actors')
+      vi.mocked(checkRunGate).mockResolvedValue({ ok: true, limits: { maxParticipants: 10 } } as never)
+      const actors = ['Customers:', ...Array.from({ length: 13 }, (_, i) => `- Person ${i}, 30, owner`)].join('\n')
+      const res = await call({ seed: { actors } })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+      expect(checkRunGate).toHaveBeenCalledWith(expect.objectContaining({ id: 'user1' }), { spendsQuota: false })
+      expect(createSeedUpload).not.toHaveBeenCalled()
+      expect(retryRun).not.toHaveBeenCalled()
     })
 
     it('returns 409 run_not_failed for any other failure', async () => {

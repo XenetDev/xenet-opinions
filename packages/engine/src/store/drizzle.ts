@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, lt, lte, or, sql } from 'dr
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
-const { runs, runEvents, messages, uploads, interviews } = schema
+const { runs, runEvents, messages, uploads, interviews, research } = schema
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0]
 
@@ -224,6 +224,10 @@ export function createDrizzleStore(db: Db): RunStore {
     async createInterviews(rows) {
       if (rows.length === 0) return []
       return db.insert(interviews).values(rows).returning()
+    },
+    async getResearch(id) {
+      const [row] = await db.select({ payload: research.payload }).from(research).where(eq(research.id, id))
+      return row?.payload ?? null
     },
   }
 }

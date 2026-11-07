@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { sendNotices, UPLOAD_FAILED, uploadNotice } from './send-notices'
 
-const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3 }
+const limits = { maxRunsPerDay: 1, maxRounds: 3, anonymous: true, signedInMaxRunsPerDay: 3, maxParticipants: 10 }
 
 describe('sendNotices quota_exceeded', () => {
   it('upsells sign-in to anonymous users', () => {
@@ -59,15 +59,16 @@ describe('uploadNotice', () => {
 
 describe('sendNotices with plans', () => {
   const base = {
-    maxRunsPerDay: 4,
+    maxRunsPerDay: 1,
     maxRounds: 5,
+    maxParticipants: 25,
     anonymous: false,
-    signedInMaxRunsPerDay: 2,
+    signedInMaxRunsPerDay: 1,
     resetAt: '2026-12-03T07:00:00.000Z',
   }
 
   it.each([
-    ['free', "You've used your free runs this month. Upgrade for more."],
+    ['free', "You've used your free run this month. Upgrade for more."],
     ['starter', "You've used your Starter runs. Upgrade to Pro for more."],
     ['pro', "You've used your Pro runs."],
   ] as const)('names the %s plan and the reset date', (plan, text) => {
@@ -78,11 +79,31 @@ describe('sendNotices with plans', () => {
 
   it('points a guest to sign in only when sign-in exists', () => {
     const guest = { ...base, plan: 'guest', resetAt: null, anonymous: true } as const
-    expect(sendNotices(guest, true).quota_exceeded).toBe("You've used your free run. Sign in for 2 free runs a month.")
+    expect(sendNotices(guest, true).quota_exceeded).toBe("You've used your free run. Sign in for 1 free run a month.")
+    expect(sendNotices({ ...guest, signedInMaxRunsPerDay: 3 }, true).quota_exceeded).toBe(
+      "You've used your free run. Sign in for 3 free runs a month.",
+    )
     expect(sendNotices(guest, false).quota_exceeded).toBe("You've used your free run.")
+  })
+
+  it('pluralises free runs when more than one', () => {
+    expect(sendNotices({ ...base, maxRunsPerDay: 2, plan: 'free' }, true).quota_exceeded).toContain(
+      "You've used your free runs this month.",
+    )
   })
 
   it('says the plan caps rounds, not the demo', () => {
     expect(sendNotices({ ...base, plan: 'starter' }, true).rounds_exceeded).toBe('Your plan allows up to 5 rounds.')
+  })
+})
+
+describe('sendNotices participants_exceeded', () => {
+  it('names the plan cap', () => {
+    expect(sendNotices({ ...limits, maxParticipants: 25, plan: 'starter' }, true).participants_exceeded).toBe(
+      'Your plan allows up to 25 participants.',
+    )
+    expect(sendNotices({ ...limits, maxParticipants: 10 }, true).participants_exceeded).toBe(
+      'The demo allows up to 10 participants.',
+    )
   })
 })

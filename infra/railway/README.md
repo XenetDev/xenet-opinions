@@ -43,6 +43,7 @@ Never set `ZEP_API_URL`, and never mount a `.env` file.
 | `ENV_KEEPALIVE_MS` | `1200000` |
 | `ENV_SWEEP_INTERVAL_MS` | `60000` |
 | `MAX_CONCURRENT_RUNS` | `1` |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | optional; the same values as MiroFish's, for the report summary |
 | `RAILWAY_DOCKERFILE_PATH` | `infra/docker/Dockerfile.worker` |
 
 ## Private-network hostnames

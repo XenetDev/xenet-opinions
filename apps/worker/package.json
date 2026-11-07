@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.71",
     "@xo/config": "workspace:*",
     "@xo/db": "workspace:*",
     "@xo/engine": "workspace:*",

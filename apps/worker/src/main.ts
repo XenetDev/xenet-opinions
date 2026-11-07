@@ -9,6 +9,7 @@ import { createStorageFromEnv } from '@xo/storage'
 import { parseWorkerEnv } from './env'
 import { log } from './log'
 import { runWorkerLoop } from './loop'
+import { summaryModelFromEnv } from './summary-model'
 
 const LEASE_MS = 60_000
 
@@ -62,6 +63,7 @@ async function main() {
       now: () => new Date(),
       envKeepaliveMs: env.ENV_KEEPALIVE_MS,
       locale: env.MIROFISH_LOCALE,
+      summaryModel: summaryModelFromEnv(env),
       sleep,
       log,
       owner: env.WORKER_ID,

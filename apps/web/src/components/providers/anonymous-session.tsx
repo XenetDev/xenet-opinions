@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { authClient } from '@/lib/auth-client'
 
@@ -13,11 +13,12 @@ async function signInOnce(): Promise<boolean> {
 
 export function AnonymousSession({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const shared = usePathname()?.startsWith('/r/') ?? false
   const { data, isPending } = authClient.useSession()
   const inFlight = useRef(false)
 
   useEffect(() => {
-    if (isPending || data || inFlight.current) return
+    if (shared || isPending || data || inFlight.current) return
     inFlight.current = true
     const run = navigator.locks
       ? navigator.locks.request('xo-anonymous-session', signInOnce)
@@ -30,7 +31,7 @@ export function AnonymousSession({ children }: { children: ReactNode }) {
       .finally(() => {
         inFlight.current = false
       })
-  }, [data, isPending, router])
+  }, [data, isPending, router, shared])
 
   return <>{children}</>
 }

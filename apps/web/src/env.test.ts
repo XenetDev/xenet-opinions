@@ -98,8 +98,12 @@ describe('parseEnv', () => {
     expect([env.LLM_API_KEY, env.LLM_BASE_URL, env.LLM_MODEL_NAME]).toEqual([
       undefined,
       'https://api.openai.com/v1',
-      'gpt-4o-mini',
+      'gpt-4.1',
     ])
     expect(parseEnv({ ...valid, LLM_API_KEY: 'sk-1' }).LLM_API_KEY).toBe('sk-1')
+  })
+  it('leaves web research off without EXA_API_KEY', () => {
+    expect(parseEnv({ ...valid, EXA_API_KEY: '' }).EXA_API_KEY).toBeUndefined()
+    expect(parseEnv({ ...valid, EXA_API_KEY: 'exa-1' }).EXA_API_KEY).toBe('exa-1')
   })
 })

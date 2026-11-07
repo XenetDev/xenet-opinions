@@ -47,9 +47,46 @@ describe('parseMessageBody run fields', () => {
     })
   })
 
-  it('rejects a seed field over 2000 characters', () => {
-    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2000) } })?.seed?.actors).toHaveLength(2000)
-    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2001) } })).toBeNull()
+  it('rejects background or change over 2000 characters and actors over 12 000', () => {
+    expect(parseMessageBody({ ...base, seed: { background: 'x'.repeat(2000) } })?.seed?.background).toHaveLength(2000)
+    expect(parseMessageBody({ ...base, seed: { background: 'x'.repeat(2001) } })).toBeNull()
+    expect(parseMessageBody({ ...base, seed: { change: 'x'.repeat(2001) } })).toBeNull()
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(12_000) } })?.seed?.actors).toHaveLength(12_000)
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(12_001) } })).toBeNull()
     expect(parseMessageBody({ ...base, seed: { background: 1 } })).toBeNull()
+  })
+})
+
+describe('parseMessageBody panel', () => {
+  const panel = {
+    participants: 25,
+    audience: 'Small business owners',
+    groups: ['customers', 'skeptics'],
+    webResearch: true,
+  }
+
+  it('accepts a valid panel and researchId', () => {
+    const body = parseMessageBody({ ...base, panel, researchId: 'r1' })
+    expect(body?.panel).toEqual(panel)
+    expect(body?.researchId).toBe('r1')
+  })
+
+  it('leaves panel and researchId undefined when absent', () => {
+    const body = parseMessageBody(base)
+    expect(body?.panel).toBeUndefined()
+    expect(body?.researchId).toBeUndefined()
+  })
+
+  it('rejects participants outside 4 to 50', () => {
+    expect(parseMessageBody({ ...base, panel: { ...panel, participants: 3 } })).toBeNull()
+    expect(parseMessageBody({ ...base, panel: { ...panel, participants: 51 } })).toBeNull()
+    expect(parseMessageBody({ ...base, panel: { ...panel, participants: 4 } })).not.toBeNull()
+    expect(parseMessageBody({ ...base, panel: { ...panel, participants: 50 } })).not.toBeNull()
+  })
+
+  it('rejects unknown groups and audiences over 300 characters', () => {
+    expect(parseMessageBody({ ...base, panel: { ...panel, groups: ['aliens'] } })).toBeNull()
+    expect(parseMessageBody({ ...base, panel: { ...panel, audience: 'x'.repeat(301) } })).toBeNull()
+    expect(parseMessageBody({ ...base, panel: { ...panel, audience: 'x'.repeat(300) } })).not.toBeNull()
   })
 })

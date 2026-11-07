@@ -488,3 +488,13 @@ run('transition with expect guards on the locked row and can patch from it', () 
     expect(await store.lastSeq(created.id)).toBe(1)
   }),
 )
+
+run('reads research by id', () =>
+  withFixture(async ({ db, store, userId, mkChat }) => {
+    const research = { query: 'q', digest: 'd', sources: [{ title: 'T', url: 'https://x.test', excerpt: 'e' }] }
+    const id = `res_${crypto.randomUUID()}`
+    await db.insert(schema.research).values({ id, userId, chatId: await mkChat(), payload: research })
+    expect(await store.getResearch(id)).toEqual(research)
+    expect(await store.getResearch('missing')).toBeNull()
+  }),
+)

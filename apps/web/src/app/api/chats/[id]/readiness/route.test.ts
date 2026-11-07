@@ -9,7 +9,11 @@ vi.mock('@/server/uploads', () => ({ readOwnedUploads: vi.fn() }))
 vi.mock('@/server/readiness/check', () => ({ checkReadiness: vi.fn() }))
 vi.mock('@/server/readiness/rate-limit', () => ({ allowCheck: vi.fn() }))
 vi.mock('@/server/readiness/document-text', () => ({ documentText: vi.fn() }))
+vi.mock('@/server/research/exa', () => ({ researchQuestion: vi.fn() }))
+vi.mock('@/server/research/store', () => ({ saveResearch: vi.fn() }))
+vi.mock('@/env', () => ({ env: { EXA_API_KEY: 'exa-key' } }))
 
+import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
 import { storage } from '@/lib/storage'
 import { getOwnedChat } from '@/server/chats'
@@ -17,6 +21,8 @@ import { getLimits } from '@/server/limits'
 import { checkReadiness } from '@/server/readiness/check'
 import { documentText } from '@/server/readiness/document-text'
 import { allowCheck } from '@/server/readiness/rate-limit'
+import { researchQuestion } from '@/server/research/exa'
+import { saveResearch } from '@/server/research/store'
 import { runStore, runsStartedSince } from '@/server/runs'
 import { readOwnedUploads } from '@/server/uploads'
 import { sessionUser } from '@/test/session-user'
@@ -41,6 +47,7 @@ const limits = (over: Partial<ReturnType<typeof getLimits>> = {}) =>
     signedInMaxRunsPerDay: 5,
     anonymous: true,
     maxRounds: 10,
+    maxParticipants: 50,
     allowPause: true,
     ...over,
   })
@@ -63,6 +70,7 @@ beforeEach(() => {
   vi.mocked(documentText).mockImplementation(async (f) => `text of ${f.filename}`)
   vi.mocked(runsStartedSince).mockResolvedValue({ count: 0, oldestQueuedAt: null })
   limits()
+  env.EXA_API_KEY = 'exa-key'
 })
 
 describe('POST /api/chats/:id/readiness', () => {
@@ -202,6 +210,85 @@ describe('POST /api/chats/:id/readiness', () => {
     expect(checkReadiness).not.toHaveBeenCalled()
   })
 
+  describe('with a panel', () => {
+    const panel = { participants: 25, audience: 'Texas drivers', groups: ['customers', 'media'], webResearch: true }
+    const research = {
+      query: 'brief',
+      digest: '[1] T: e',
+      sources: [{ title: 'T', url: 'https://example.com', excerpt: 'e' }],
+    }
+    const draft = { background: 'b', actors: 'a', change: 'c' }
+
+    it('rejects an invalid panel', async () => {
+      const res = await call({ text: 'brief', uploadIds: [], panel: { ...panel, participants: 51 } })
+      expect(res.status).toBe(400)
+      expect(checkReadiness).not.toHaveBeenCalled()
+    })
+
+    it('researches the question, drafts with it, saves it and returns its id', async () => {
+      vi.mocked(researchQuestion).mockResolvedValue(research)
+      vi.mocked(saveResearch).mockResolvedValue('res1')
+      vi.mocked(checkReadiness).mockResolvedValue({ ready: true, seed: draft })
+      const res = await call({ text: 'brief', uploadIds: [], panel })
+      expect(await res.json()).toEqual({ ready: true, seed: draft, researchId: 'res1' })
+      expect(researchQuestion).toHaveBeenCalledWith('brief')
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'brief',
+        documents: [],
+        panel,
+        maxParticipants: 50,
+        research,
+      })
+      expect(saveResearch).toHaveBeenCalledWith({ userId: 'user1', chatId: 'c1', research })
+    })
+
+    it('drafts without research when the search finds nothing', async () => {
+      vi.mocked(researchQuestion).mockResolvedValue(null)
+      vi.mocked(checkReadiness).mockResolvedValue({ ready: true, seed: draft })
+      const res = await call({ text: 'brief', uploadIds: [], panel })
+      expect(await res.json()).toEqual({ ready: true, seed: draft })
+      expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [], panel, maxParticipants: 50 })
+      expect(saveResearch).not.toHaveBeenCalled()
+    })
+
+    it('still answers when saving the research fails', async () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(researchQuestion).mockResolvedValue(research)
+      vi.mocked(saveResearch).mockRejectedValue(new Error('db down'))
+      vi.mocked(checkReadiness).mockResolvedValue({ ready: true, seed: draft })
+      const res = await call({ text: 'brief', uploadIds: [], panel })
+      expect(await res.json()).toEqual({ ready: true, seed: draft })
+      expect(logged.mock.calls[0]?.[0]).toBe('research save failed')
+      logged.mockRestore()
+    })
+
+    it('caps the panel at the plan participant limit', async () => {
+      limits({ maxParticipants: 10 })
+      vi.mocked(researchQuestion).mockResolvedValue(null)
+      await call({ text: 'brief', uploadIds: [], panel: { ...panel, participants: 50 } })
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'brief',
+        documents: [],
+        panel: { ...panel, participants: 10 },
+        maxParticipants: 10,
+      })
+    })
+
+    it('does not research without EXA_API_KEY or with web research off', async () => {
+      env.EXA_API_KEY = undefined
+      await call({ text: 'brief', uploadIds: [], panel })
+      env.EXA_API_KEY = 'exa-key'
+      await call({ text: 'brief', uploadIds: [], panel: { ...panel, webResearch: false } })
+      expect(researchQuestion).not.toHaveBeenCalled()
+      expect(checkReadiness).toHaveBeenLastCalledWith({
+        text: 'brief',
+        documents: [],
+        panel: { ...panel, webResearch: false },
+        maxParticipants: 50,
+      })
+    })
+  })
+
   describe('retry', () => {
     const failedRun = (over: Record<string, unknown> = {}) => ({
       id: 'r1',
@@ -224,6 +311,23 @@ describe('POST /api/chats/:id/readiness', () => {
         force: true,
       })
       expect(runsStartedSince).not.toHaveBeenCalled()
+    })
+
+    it('drafts the retry cast for the run panel without new research', async () => {
+      limits({ maxParticipants: 10 })
+      const panel = { participants: 25, groups: ['customers'], webResearch: true }
+      vi.mocked(runStore.getLatestByChat).mockResolvedValue(
+        failedRun({ config: { requirement: 'the ask', maxRounds: 3, uploadIds: [], panel } }) as never,
+      )
+      await call({ retry: true })
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'the ask',
+        documents: [],
+        force: true,
+        panel: { ...panel, participants: 10 },
+        maxParticipants: 10,
+      })
+      expect(researchQuestion).not.toHaveBeenCalled()
     })
 
     it('is still blocked while paused', async () => {

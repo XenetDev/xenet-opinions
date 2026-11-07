@@ -159,7 +159,7 @@ describe.skipIf(!process.env.DATABASE_URL)('syncSubscription (real db)', () => {
     await sync.syncSubscription('sub_a', stripe)
     vi.spyOn(await import('./stripe'), 'getStripe').mockReturnValue(fakeStripe([renewed]).stripe)
     const allowance = await getAllowance({ id: USER, isAnonymous: false }, now)
-    expect(allowance).toMatchObject({ plan: 'starter', used: 1, max: 4, maxRounds: 5 })
+    expect(allowance).toMatchObject({ plan: 'starter', used: 1, max: 2, maxRounds: 5 })
     expect(new Date(allowance.resetAt!).getTime()).toBe((1_800_000_000 + 5_184_000) * 1000)
   })
 })

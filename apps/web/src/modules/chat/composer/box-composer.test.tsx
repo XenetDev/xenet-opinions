@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ComponentProps } from 'react'
+import { type ComponentProps, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
@@ -16,11 +16,17 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
 })
 
 afterEach(() => {
   toastSpy.mockReset()
   cleanup()
+  window.localStorage.clear()
   vi.unstubAllGlobals()
 })
 
@@ -48,6 +54,22 @@ function renderComposer(props: Partial<Props> = {}) {
   return { ...view, onSend }
 }
 
+function Controlled({ onValueChange, onSend }: Pick<Props, 'onSend'> & { onValueChange: (value: string) => void }) {
+  const [value, setValue] = useState('hello')
+  return (
+    <BoxComposer
+      chatId="c1"
+      mode="run"
+      value={value}
+      onValueChange={(next) => {
+        onValueChange(next)
+        setValue(next)
+      }}
+      onSend={onSend}
+    />
+  )
+}
+
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
 const type = (value: string) => fireEvent.change(textarea(), { target: { value } })
 const formUpload = <T extends unknown[]>(post: (...args: T) => Promise<Response>) =>
@@ -61,6 +83,7 @@ const attach = () =>
   fireEvent.change(screen.getByTestId('file-input'), {
     target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
   })
+const DEFAULT_PANEL = { participants: 20, groups: [], webResearch: false }
 const openMenu = (name: string | RegExp) => fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' })
 
 describe('BoxComposer', () => {
@@ -191,18 +214,34 @@ describe('BoxComposer', () => {
     expect(click).toHaveBeenCalledTimes(1)
   })
 
-  it('toggles the pause chip, swaps its icon for a check and sends the choice', async () => {
+  it('keeps the toolbar to attach, Improve prompt and send', () => {
+    const { container } = renderComposer()
+    const toolbar = container.querySelector('[data-align="block-end"]') as HTMLElement
+    expect(
+      within(toolbar)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label') ?? b.textContent),
+    ).toEqual(['Add files', 'Improve prompt', 'Send message'])
+    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /rounds?$/ })).toBeNull()
+  })
+
+  it('sends pause and rounds chosen in Configure', async () => {
     stubUpload()
-    const { onSend } = renderComposer()
+    const { onSend } = renderComposer({ maxRounds: 5 })
     attach()
-    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
-    expect(chip.querySelector('svg.lucide-pause')).toBeTruthy()
-    fireEvent.click(chip)
-    expect(chip.getAttribute('aria-pressed')).toBe('true')
-    expect(chip.getAttribute('data-variant')).toBe('secondary')
-    expect(chip.querySelector('svg.lucide-check')).toBeTruthy()
-    expect(chip.querySelector('svg.lucide-pause')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Pause for interviews' }))
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Rounds' }), { key: 'Enter' })
+    expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
+      '1 round',
+      '2 rounds',
+      '3 rounds',
+      '4 rounds',
+      '5 rounds',
+    ])
+    fireEvent.click(screen.getByRole('option', { name: '1 round' }))
+    expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 1 round · pause on · ~3 min')
     type('hello')
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() =>
@@ -210,59 +249,30 @@ describe('BoxComposer', () => {
         kind: 'run',
         uploadIds: ['u1'],
         files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
-        runOptions: { maxRounds: 3, pauseForInterviews: true },
+        runOptions: { maxRounds: 1, pauseForInterviews: true },
+        panel: DEFAULT_PANEL,
       }),
     )
-    await waitFor(() => expect(textarea().value).toBe(''))
   })
 
-  it('turns pause off again on a second press', () => {
-    renderComposer()
-    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
-    fireEvent.click(chip)
-    fireEvent.click(chip)
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
-    expect(chip.getAttribute('data-variant')).toBe('ghost')
-  })
-
-  it('hides the pause chip when pausing is not allowed', () => {
+  it('offers no pause in Configure when pausing is not allowed', () => {
     renderComposer({ allowPause: false })
-    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    expect(screen.queryByRole('switch', { name: 'Pause for interviews' })).toBeNull()
   })
 
   it.each(['followUp', 'interview'] as const)('has no plus menu, pause or rounds in %s mode', (mode) => {
     renderComposer({ mode })
     expect(screen.queryByTestId('file-input')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /rounds?$/ })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Pause for interviews' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Rounds' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeTruthy()
-  })
-
-  it('reads the default rounds and offers 1 to maxRounds', async () => {
-    stubUpload()
-    const { onSend } = renderComposer({ maxRounds: 5 })
-    attach()
-    openMenu('3 rounds')
-    const items = screen.getAllByRole('menuitemradio').map((item) => item.textContent)
-    expect(items).toEqual(['1 round', '2 rounds', '3 rounds', '4 rounds', '5 rounds'])
-    fireEvent.click(screen.getByRole('menuitemradio', { name: '1 round' }))
-    expect(screen.getByRole('button', { name: '1 round' })).toBeTruthy()
-    type('hello')
-    fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() =>
-      expect(onSend).toHaveBeenCalledWith('hello', {
-        kind: 'run',
-        uploadIds: ['u1'],
-        files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
-        runOptions: { maxRounds: 1, pauseForInterviews: false },
-      }),
-    )
   })
 
   it('caps the default rounds at maxRounds', () => {
     renderComposer({ maxRounds: 2 })
-    expect(screen.getByRole('button', { name: '2 rounds' })).toBeTruthy()
+    expect(screen.getByTestId('panel-summary').textContent).toContain('· 2 rounds ·')
   })
 
   it('shows Send when idle', () => {
@@ -293,12 +303,11 @@ describe('BoxComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('disables the field, plus menu, pause, rounds and send when disabled', () => {
+  it('disables the field, plus menu, Configure and send when disabled', () => {
     renderComposer({ disabled: true })
     expect(textarea().disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Add files' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'Pause for interviews' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: '3 rounds' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /Configure/ }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('file-input') as HTMLInputElement).disabled).toBe(true)
   })
@@ -358,6 +367,60 @@ describe('BoxComposer', () => {
     expect(send.getAttribute('aria-busy')).toBe('true')
     expect(send.querySelector('[data-slot="spinner"]')).toBeTruthy()
     expect(textarea().readOnly).toBe(true)
+    expect(textarea().value).toBe('')
+  })
+
+  it.each(['run', 'followUp', 'interview'] as const)(
+    'clears the text as soon as a %s message is sent, before it settles',
+    async (mode) => {
+      const onSend = vi.fn(() => new Promise<void>(() => {}))
+      renderComposer({ mode, onSend })
+      if (mode === 'interview') fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+      expect(textarea().value).toBe('')
+    },
+  )
+
+  it.each(['run', 'interview'] as const)('puts the text back when a %s send fails', async (mode) => {
+    const onSend = vi.fn(async () => {
+      throw new Error('send_failed')
+    })
+    renderComposer({ mode, onSend })
+    if (mode === 'interview') fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    type('hello')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(textarea().value).toBe('hello'))
+    expect(textarea().readOnly).toBe(false)
+  })
+
+  it('puts a controlled value back through onValueChange when the send fails', async () => {
+    const onValueChange = vi.fn()
+    const onSend = vi.fn(async () => {
+      throw new Error('send_failed')
+    })
+    render(
+      <TooltipProvider>
+        <Controlled onValueChange={onValueChange} onSend={onSend} />
+      </TooltipProvider>,
+    )
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(textarea().value).toBe('hello'))
+    expect(onValueChange.mock.calls).toEqual([[''], ['hello']])
+  })
+
+  it('closes Configure when a run is sent', async () => {
+    const onSend = vi.fn(() => new Promise<void>(() => {}))
+    renderComposer({ onSend })
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    expect(screen.getByRole('slider')).toBeTruthy()
+    type('hello')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('slider')).toBeNull()
+    expect(screen.getByRole('button', { name: /Configure/ }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('creates the chat on attach when there is no chat yet and uploads into it', async () => {
@@ -499,7 +562,8 @@ describe('BoxComposer', () => {
       fireEvent.change(screen.getByTestId('file-input'), {
         target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Pause for interviews' }))
+      fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+      fireEvent.click(screen.getByRole('switch', { name: 'Pause for interviews' }))
     }
     expect(await axe(container)).toHaveNoViolations()
   })
@@ -542,5 +606,160 @@ describe('BoxComposer', () => {
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
     expect(toastSpy).not.toHaveBeenCalled()
+  })
+
+  describe('configure panel', () => {
+    const configure = () => fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+
+    it('shows above the box in run mode only', () => {
+      renderComposer({ maxParticipants: 25, maxRounds: 5 })
+      expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 3 rounds · ~5 min')
+      cleanup()
+      renderComposer({ mode: 'followUp' })
+      expect(screen.queryByRole('button', { name: /Configure/ })).toBeNull()
+    })
+
+    it('sends the chosen panel with the run', async () => {
+      const { onSend } = renderComposer({ maxParticipants: 25, webResearchAvailable: true, plan: 'starter' })
+      configure()
+      fireEvent.click(screen.getByRole('button', { name: 'Customers' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'Audience' }), { target: { value: 'Fleet managers' } })
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() =>
+        expect(onSend).toHaveBeenCalledWith(
+          'hello',
+          expect.objectContaining({
+            panel: { participants: 20, groups: ['customers'], audience: 'Fleet managers', webResearch: true },
+          }),
+        ),
+      )
+    })
+
+    it('sends web research off when it is unavailable, whatever was stored', async () => {
+      window.localStorage.setItem('xo.panel', JSON.stringify({ participants: 40, groups: [], webResearch: true }))
+      const { onSend } = renderComposer({ maxParticipants: 10, webResearchAvailable: false })
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() =>
+        expect(onSend).toHaveBeenCalledWith(
+          'hello',
+          expect.objectContaining({ panel: { participants: 10, groups: [], webResearch: false } }),
+        ),
+      )
+    })
+  })
+
+  describe('Improve prompt', () => {
+    const improve = () => screen.getByRole('button', { name: 'Improve prompt' })
+    const answer = (response: () => Response) => {
+      const fetchStub = vi.fn(async () => response())
+      vi.stubGlobal('fetch', fetchStub)
+      return fetchStub
+    }
+
+    it('is disabled without text and absent outside run mode', () => {
+      renderComposer()
+      expect((improve() as HTMLButtonElement).disabled).toBe(true)
+      cleanup()
+      renderComposer({ mode: 'followUp' })
+      expect(screen.queryByRole('button', { name: 'Improve prompt' })).toBeNull()
+    })
+
+    it('replaces the text with the brief and undoes it with one click', async () => {
+      const fetchStub = answer(() => Response.json({ text: 'Should we raise prices? Owners and dealers.' }))
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      await waitFor(() => expect(textarea().value).toBe('Should we raise prices? Owners and dealers.'))
+      const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit]
+      expect(url).toBe('/api/prompt/improve')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(String(init.body))).toEqual({ text: 'raise prices?' })
+      fireEvent.click(screen.getByRole('button', { name: 'Undo improve' }))
+      expect(textarea().value).toBe('raise prices?')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    it('clears an improved prompt on send and drops the undo', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      const onSend = vi.fn(() => new Promise<void>(() => {}))
+      renderComposer({ onSend })
+      type('q')
+      fireEvent.click(improve())
+      await screen.findByRole('button', { name: 'Undo improve' })
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledWith('A brief.', expect.objectContaining({ kind: 'run' })))
+      expect(textarea().value).toBe('')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Improve prompt' })).toBeTruthy()
+    })
+
+    it('reports the improved text through a controlled value', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      const onValueChange = vi.fn()
+      renderComposer({ value: 'q', onValueChange })
+      fireEvent.click(improve())
+      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith('A brief.'))
+    })
+
+    it('drops the undo once the user edits the text', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      renderComposer()
+      type('q')
+      fireEvent.click(improve())
+      await screen.findByRole('button', { name: 'Undo improve' })
+      type('A brief, edited.')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    const pendingImprove = () => {
+      let resolve: (response: Response) => void = () => {}
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise<Response>((done) => {
+              resolve = done
+            }),
+        ),
+      )
+      return (text: string) => act(async () => resolve(Response.json({ text })))
+    }
+
+    it('sends nothing while the rewrite is in flight', async () => {
+      const finish = pendingImprove()
+      const { onSend } = renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+      await finish('A brief.')
+      expect(onSend).not.toHaveBeenCalled()
+      expect(textarea().value).toBe('A brief.')
+    })
+
+    it('ignores a late rewrite once the text has changed', async () => {
+      const finish = pendingImprove()
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      type('something else')
+      await finish('A brief.')
+      expect(textarea().value).toBe('something else')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+      expect(toastSpy).not.toHaveBeenCalled()
+    })
+
+    it('keeps the original and says so when the rewrite fails', async () => {
+      answer(() => Response.json({ error: 'improve_failed' }, { status: 502 }))
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      await waitFor(() => expect(toastSpy).toHaveBeenCalledWith("Couldn't improve the prompt. Your text is unchanged."))
+      expect(textarea().value).toBe('raise prices?')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
   })
 })

@@ -1,8 +1,24 @@
 export const PLANS = {
-  guest: { name: 'Guest', runs: 1, maxRounds: 3, period: 'lifetime', priceUsd: 0 },
-  free: { name: 'Free', runs: 2, maxRounds: 3, period: 'month', priceUsd: 0 },
-  starter: { name: 'Starter', runs: 4, maxRounds: 5, period: 'billing', priceUsd: 10, lookupKey: 'starter_monthly' },
-  pro: { name: 'Pro', runs: 6, maxRounds: 10, period: 'billing', priceUsd: 20, lookupKey: 'pro_monthly' },
+  guest: { name: 'Guest', runs: 1, maxRounds: 3, maxParticipants: 10, period: 'lifetime', priceUsd: 0 },
+  free: { name: 'Free', runs: 1, maxRounds: 3, maxParticipants: 10, period: 'month', priceUsd: 0 },
+  starter: {
+    name: 'Starter',
+    runs: 2,
+    maxRounds: 5,
+    maxParticipants: 25,
+    period: 'billing',
+    priceUsd: 10,
+    lookupKey: 'starter_monthly',
+  },
+  pro: {
+    name: 'Pro',
+    runs: 2,
+    maxRounds: 10,
+    maxParticipants: 50,
+    period: 'billing',
+    priceUsd: 20,
+    lookupKey: 'pro_monthly',
+  },
 } as const
 
 export type PlanId = keyof typeof PLANS

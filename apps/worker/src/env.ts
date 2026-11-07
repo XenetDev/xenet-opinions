@@ -25,6 +25,9 @@ export const workerEnvSchema = z.object({
   ENV_SWEEP_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60_000),
   MAX_CONCURRENT_RUNS: z.coerce.number().int().positive().default(1),
   WORKER_ID: z.string().min(1).default(`${hostname()}-${process.pid}`),
+  LLM_API_KEY: optional,
+  LLM_BASE_URL: z.preprocess((v) => v || undefined, z.url().default('https://api.openai.com/v1')),
+  LLM_MODEL_NAME: z.preprocess((v) => v || undefined, z.string().default('gpt-4.1')),
 })
 
 export type WorkerEnv = z.infer<typeof workerEnvSchema>

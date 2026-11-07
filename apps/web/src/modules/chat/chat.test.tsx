@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reportQuestion, reportSummaryFixture } from '@/modules/report/fixture'
 import { axe } from '@/test/axe'
 import { UsageProvider, useUsage } from './shell/usage-context'
 import type { RunStatusState } from './use-run-status'
@@ -24,6 +25,8 @@ const composer = vi.hoisted(() => ({
   sent: undefined as undefined | Promise<string>,
 }))
 const upsertChat = vi.hoisted(() => vi.fn())
+const runExport = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/modules/report/export/run', () => ({ runExport }))
 
 vi.mock('@ai-sdk/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@ai-sdk/react')>()
@@ -55,6 +58,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/c/c1',
 }))
 const promptOnly = { kind: 'run', uploadIds: [], files: [], runOptions: { maxRounds: 1, pauseForInterviews: false } }
+const PANEL = { participants: 25, groups: ['customers', 'dealers'], audience: 'Owners', webResearch: true }
+const panelRun = { ...promptOnly, panel: PANEL }
 const LONG_PROMPT = Array.from({ length: 40 }, (_, index) => `word${index}`).join(' ')
 
 vi.mock('./composer/composer', async () => {
@@ -89,6 +94,12 @@ vi.mock('./composer/composer', async () => {
           </button>
           <button type="button" onClick={() => send(promptOnly)}>
             Send prompt-only run
+          </button>
+          <button type="button" onClick={() => send(panelRun)}>
+            Send panel run
+          </button>
+          <button type="button" onClick={() => send({ ...panelRun, panel: { ...PANEL, webResearch: false } })}>
+            Send unresearched panel run
           </button>
           <button type="button" onClick={() => send(promptOnly, 'and if prices fall?')}>
             Send another prompt-only run
@@ -168,6 +179,7 @@ const limits = {
   signedInMaxRunsPerDay: 3,
   anonymous: false,
   maxRounds: 40,
+  maxParticipants: 50,
   allowPause: true,
 }
 
@@ -393,6 +405,40 @@ describe('Chat', () => {
     renderChat()
     await act(async () => chat.options!.onError(new Error('network down')))
     expect(screen.getByRole('status').textContent).toBe('')
+  })
+
+  it('exports each report with its own run finish time', async () => {
+    chat.messages = [
+      { id: 'u0', role: 'user', parts: [{ type: 'text', text: 'Earlier question?' }] },
+      { id: 'm0', role: 'assistant', parts: [{ type: 'data-report_summary', data: reportSummaryFixture }] },
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: reportQuestion }] },
+      { id: 'm1', role: 'assistant', parts: [{ type: 'data-report_summary', data: reportSummaryFixture }] },
+    ]
+    render(
+      <Chat
+        chatId="c1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={doneRun('closed')}
+        limits={limits}
+        runFinishedAt={{ m0: '2026-10-01T09:00:00.000Z', m1: '2026-11-05T16:20:00.000Z' }}
+      />,
+    )
+    const [older, newer] = screen.getAllByTestId('report-card')
+    fireEvent.click(within(older!).getByRole('button', { name: 'PDF' }))
+    await waitFor(() =>
+      expect(runExport).toHaveBeenLastCalledWith('pdf', reportSummaryFixture, {
+        title: 'Earlier question?',
+        date: new Date('2026-10-01T09:00:00.000Z'),
+      }),
+    )
+    fireEvent.click(within(newer!).getByRole('button', { name: 'PDF' }))
+    await waitFor(() =>
+      expect(runExport).toHaveBeenLastCalledWith('pdf', reportSummaryFixture, {
+        title: reportQuestion,
+        date: new Date('2026-11-05T16:20:00.000Z'),
+      }),
+    )
   })
 
   it('shows the send-error notice when no run is active', async () => {
@@ -634,6 +680,7 @@ describe('Chat', () => {
     ['demo_paused', 'The demo is paused right now. Try again later.'],
     ['quota_exceeded', "You've used today's two runs. Come back tomorrow."],
     ['rounds_exceeded', 'The demo allows up to 3 rounds.'],
+    ['participants_exceeded', 'The demo allows up to 50 participants.'],
   ])('shows the %s notice when sending fails', async (code, sentence) => {
     renderChat(null, { maxRounds: 3 })
     act(() => chat.options!.onError(new Error(JSON.stringify({ error: code }))))
@@ -753,6 +800,20 @@ describe('Chat', () => {
       await waitFor(() => expect(screen.queryByTestId('context-card')).toBeNull())
     })
 
+    it('shows the participants notice when the restart cast is too large', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT }, () =>
+        Response.json({ error: 'participants_exceeded', max: 50 }, { status: 400 }),
+      )
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      await waitFor(() =>
+        expect(screen.getAllByText('The demo allows up to 50 participants.').length).toBeGreaterThan(0),
+      )
+    })
+
     it('shows the unfilled card for an empty draft and skip still posts a seed', async () => {
       failedWith('no_actors')
       answer({ ready: false, draft: EMPTY_DRAFT })
@@ -820,7 +881,12 @@ describe('Chat', () => {
   describe('checking the brief before a run', () => {
     const card = () => screen.queryByTestId('context-card')
     const runOptions = { maxRounds: 1, pauseForInterviews: false }
-    const checking = () => screen.queryAllByRole('status').find((el) => el.textContent?.startsWith('Thinking'))
+    const checking = () =>
+      screen
+        .queryAllByRole('status')
+        .find((el) =>
+          /^(Thinking|Building your panel…|Researching and building your panel…)/.test(el.textContent ?? ''),
+        )
 
     it('asks for context when the check cannot be reached for a short prompt, and sends nothing', async () => {
       fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
@@ -986,6 +1052,109 @@ describe('Chat', () => {
         expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'short' }, { body: { uploadIds: ['u1'], runOptions } }),
       )
       expect(card()).toBeNull()
+    })
+
+    it('sends the panel to the check and the panel and research to the run', async () => {
+      answerReadiness({ ready: true, researchId: 'res1' })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith(
+          { text: 'why?' },
+          { body: { uploadIds: [], runOptions, panel: PANEL, researchId: 'res1' } },
+        ),
+      )
+      expect(readinessBodies()).toEqual([{ text: 'why?', uploadIds: [], panel: PANEL }])
+    })
+
+    it('keeps the panel and research through the drafted card', async () => {
+      answerReadiness({ ready: false, draft: DRAFT, researchId: 'res1' })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Run with these' }))
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        { text: 'why?' },
+        { body: { uploadIds: [], runOptions, seed: DRAFT, panel: PANEL, researchId: 'res1' } },
+      )
+    })
+
+    it('sends the panel without research when none came back', async () => {
+      answerReadiness({ ready: true })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith(
+          { text: 'why?' },
+          { body: { uploadIds: [], runOptions, panel: PANEL } },
+        ),
+      )
+    })
+
+    it('says it is researching and building the panel while a researched panel run is checked', async () => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={limits}
+          webResearchAvailable
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(checking()?.textContent).toMatch(/^Researching and building your panel…\d/)
+      expect(screen.queryByText('Thinking')).toBeNull()
+      expect(screen.queryByText('Xenet Opinions')).toBeNull()
+    })
+
+    it.each([
+      ['research is unavailable', false, 'Send panel run'],
+      ['research is off', true, 'Send unresearched panel run'],
+    ])('says it is building the panel when %s', async (_, webResearchAvailable, button) => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={limits}
+          webResearchAvailable={webResearchAvailable}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: button }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(checking()?.textContent).toMatch(/^Building your panel…\d/)
+      expect(screen.queryByText('Thinking')).toBeNull()
+      expect(screen.queryByText('Researching and building your panel…')).toBeNull()
+    })
+
+    it('leaves the research line out for a run without a panel', async () => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(screen.queryByText('Researching and building your panel…')).toBeNull()
+      expect(screen.queryByText('Building your panel…')).toBeNull()
+    })
+
+    it('hands the plan limits and research availability to the composer', () => {
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={{ ...limits, maxParticipants: 10, plan: 'free' }}
+          webResearchAvailable
+        />,
+      )
+      expect(composer.props).toMatchObject({ maxParticipants: 10, plan: 'free', webResearchAvailable: true })
+      cleanup()
+      renderChat()
+      expect(composer.props).toMatchObject({ webResearchAvailable: false })
     })
 
     it('replaces the pending question on a second send', async () => {

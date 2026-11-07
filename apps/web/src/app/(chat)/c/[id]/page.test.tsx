@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
+vi.mock('@/env', () => ({
+  env: { EXA_API_KEY: undefined as string | undefined, NEXT_PUBLIC_APP_URL: 'https://opinions.example' },
+}))
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('not found')
@@ -26,7 +29,9 @@ vi.mock('@/server/limits', () => ({
 }))
 vi.mock('@/modules/chat/chat', () => ({ Chat: () => null }))
 
+import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
+import { loadChatPage } from '@/server/chat-page'
 import { sessionUser } from '@/test/session-user'
 import ChatPage from './page'
 
@@ -42,5 +47,23 @@ describe('Chat page', () => {
     expect(props.limits).toMatchObject({ signedInMaxRunsPerDay: 3 })
     expect(props).not.toHaveProperty('signIn')
     expect(props).not.toHaveProperty('usage')
+  })
+
+  it('offers web research only when Exa is configured', async () => {
+    expect((await open()).props.webResearchAvailable).toBe(false)
+    env.EXA_API_KEY = 'exa-key'
+    expect((await open()).props.webResearchAvailable).toBe(true)
+    env.EXA_API_KEY = undefined
+  })
+
+  it('passes live share links as full URLs by assistant message', async () => {
+    vi.mocked(loadChatPage).mockResolvedValueOnce({
+      initialMessages: [],
+      activeRun: null,
+      latestRun: null,
+      runFinishedAt: {},
+      runShareTokens: { a1: 'tok1' },
+    })
+    expect((await open()).props.runShareUrls).toEqual({ a1: 'https://opinions.example/r/tok1' })
   })
 })

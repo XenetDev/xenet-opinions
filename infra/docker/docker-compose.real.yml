@@ -22,6 +22,12 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-gpt-4o-mini}
 
+  worker:
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in .env.selfhost}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME:-gpt-4o-mini}
+
   mirofish-proxy:
     environment:
       MIROFISH_UPSTREAM: mirofish:5001

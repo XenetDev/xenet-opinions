@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
+import type { ReportSummary, ReportSummaryFailed } from './summary/schema'
 
 export const STAGES = [
   'ontology',
@@ -133,6 +134,18 @@ export const InterviewWindowDataSchema = z.object({
 })
 export type InterviewWindowData = z.infer<typeof InterviewWindowDataSchema>
 
+export const DebriefDataSchema = z.object({
+  answers: z.array(
+    z.object({
+      agentId: z.string(),
+      name: z.string(),
+      answer: z.string().optional(),
+      status: z.enum(['done', 'failed']),
+    }),
+  ),
+})
+export type DebriefData = z.infer<typeof DebriefDataSchema>
+
 export const QueueDataSchema = z.object({ position: z.number().int().min(0), pausedAhead: z.boolean().optional() })
 export type QueueData = z.infer<typeof QueueDataSchema>
 
@@ -151,6 +164,9 @@ export type OpinionsDataParts = {
   error: ErrorData
   interview: InterviewData
   interview_window: InterviewWindowData
+  debrief: DebriefData
+  report_summary: ReportSummary
+  report_summary_failed: ReportSummaryFailed
   queue: QueueData
   cursor: CursorData
 }
@@ -160,3 +176,4 @@ export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>
 export const stagePartId = (stage: Stage) => `stage:${stage}` as const
 export const interviewPartId = (id: string) => `interview:${id}` as const
 export { MAX_INTERVIEW_AGENTS } from './follow-up/keepalive'
+export * from './summary/schema'

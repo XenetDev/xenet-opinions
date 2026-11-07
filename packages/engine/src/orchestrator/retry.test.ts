@@ -79,6 +79,13 @@ describe('prepareRetry', () => {
     expect(prepareRetry(failedAt('sim_run')).cursors).not.toHaveProperty('envCloseRequested')
   })
 
+  it('drops debriefDone on a sim_run retry so the debrief reruns, and keeps it on a report retry', () => {
+    const done = { cursors: { ...cursors, debriefDone: true } }
+    expect(prepareRetry(failedAt('sim_run', done)).cursors).not.toHaveProperty('debriefDone')
+    expect(prepareRetry(failedAt('report', done)).cursors.debriefDone).toBe(true)
+    expect(prepareRetry(failedAt('interviews', done)).cursors.debriefDone).toBe(true)
+  })
+
   it('re-enters a run that failed in interviews at report with the report requested', () => {
     const run = failedAt('interviews', {
       cursors: { ...cursors, interviewsStartedAt: 'x', closeWaitStartedAt: 'y', envCheckedAt: 'z' },

@@ -1,6 +1,6 @@
 'use client'
 
-import { SEED_FIELD_MAX } from '@xo/engine/policy'
+import { SEED_ACTORS_MAX, SEED_FIELD_MAX } from '@xo/engine/policy'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Badge } from '@/components/reui/badge'
 import { Frame, FrameDescription, FrameFooter, FrameHeader, FramePanel, FrameTitle } from '@/components/reui/frame'
@@ -76,7 +76,7 @@ export function ContextCard({
                   value={values[key]}
                   onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))}
                   placeholder={placeholder}
-                  maxLength={SEED_FIELD_MAX}
+                  maxLength={key === 'actors' ? SEED_ACTORS_MAX : SEED_FIELD_MAX}
                   disabled={pending}
                   className="max-h-40"
                 />
