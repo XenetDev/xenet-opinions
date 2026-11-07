@@ -18,7 +18,7 @@ const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
 const planQuotaNotice = (
-  limits: Pick<Limits, 'plan' | 'resetAt' | 'signedInMaxRunsPerDay'>,
+  limits: Pick<Limits, 'plan' | 'resetAt' | 'signedInMaxRunsPerDay' | 'maxRunsPerDay'>,
   signInAvailable: boolean,
 ) => {
   const when = limits.resetAt ? shortDate(limits.resetAt) : ''
@@ -27,10 +27,10 @@ const planQuotaNotice = (
   switch (limits.plan) {
     case 'guest':
       return signInAvailable
-        ? `You've used your free run. Sign in for ${limits.signedInMaxRunsPerDay} free runs a month.`
+        ? `You've used your free run. Sign in for ${limits.signedInMaxRunsPerDay} free run${limits.signedInMaxRunsPerDay === 1 ? '' : 's'} a month.`
         : "You've used your free run."
     case 'free':
-      return `You've used your free runs this month. Upgrade for more. ${reset}`.trim()
+      return `You've used your free run${limits.maxRunsPerDay === 1 ? '' : 's'} this month. Upgrade for more. ${reset}`.trim()
     case 'starter':
       return `You've used your Starter runs. Upgrade to Pro for more. ${renew}`.trim()
     default:

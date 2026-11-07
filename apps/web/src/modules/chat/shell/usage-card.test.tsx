@@ -119,9 +119,12 @@ describe('UsageCard with a plan', () => {
   })
 
   it('offers guests sign-in instead of upgrade', () => {
-    planned({ plan: 'guest', used: 1, max: 1, resetAt: null }, { max: 2 })
+    planned({ plan: 'guest', used: 1, max: 1, resetAt: null }, { max: 1 })
     expect(screen.getByText('No runs left')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Sign in for 2 runs a month' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in for 1 run a month' })).toBeTruthy()
+    cleanup()
+    planned({ plan: 'guest', used: 1, max: 1, resetAt: null }, { max: 3 })
+    expect(screen.getByRole('button', { name: 'Sign in for 3 runs a month' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
   })
 })

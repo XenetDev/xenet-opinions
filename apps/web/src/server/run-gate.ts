@@ -9,6 +9,11 @@ type Window = Awaited<ReturnType<typeof runsStartedSince>>
 
 export type RunGate = { ok: true; limits: Limits; window: Window; quota?: RunQuota } | { ok: false; response: Response }
 
+const participantsExceeded = (max: number): RunGate => ({
+  ok: false,
+  response: Response.json({ error: 'participants_exceeded', max }, { status: 400 }),
+})
+
 async function checkPlanGate(
   user: SessionUser,
   requestedRounds: number,
@@ -24,11 +29,7 @@ async function checkPlanGate(
     }
   if (requestedRounds > limits.maxRounds)
     return { ok: false, response: Response.json({ error: 'rounds_exceeded', max: limits.maxRounds }, { status: 400 }) }
-  if (requestedParticipants > limits.maxParticipants)
-    return {
-      ok: false,
-      response: Response.json({ error: 'participants_exceeded', max: limits.maxParticipants }, { status: 400 }),
-    }
+  if (requestedParticipants > limits.maxParticipants) return participantsExceeded(limits.maxParticipants)
   return {
     ok: true,
     limits,
@@ -64,11 +65,7 @@ export async function checkRunGate(
     maxRounds: limits.maxRounds,
     windowStartedAt: window.oldestQueuedAt ?? now,
   })
-  if (policy.ok && requestedParticipants > limits.maxParticipants)
-    return {
-      ok: false,
-      response: Response.json({ error: 'participants_exceeded', max: limits.maxParticipants }, { status: 400 }),
-    }
+  if (policy.ok && requestedParticipants > limits.maxParticipants) return participantsExceeded(limits.maxParticipants)
   if (policy.ok) return { ok: true, limits, window }
   if (policy.code === 'demo_paused')
     return { ok: false, response: Response.json({ error: 'demo_paused' }, { status: 409 }) }
