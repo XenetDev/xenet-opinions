@@ -1274,6 +1274,36 @@ describe('Chat in new mode', () => {
     pushState.mockRestore()
   })
 
+  it('never flashes the welcome block or drops the question between the check and the first chunk', async () => {
+    chat.real = true
+    const pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+    let respond: (response: Response) => void = () => {}
+    answerReadiness({ ready: true }, (url: string) =>
+      url === '/api/chats/n1/messages'
+        ? new Promise<Response>((resolve) => {
+            respond = resolve
+          })
+        : Promise.resolve(Response.json({ status: 'queued' })),
+    )
+    renderNew()
+    const flashes: string[] = []
+    const observer = new MutationObserver(() => {
+      if (screen.queryByRole('heading', { name: 'Xenet Opinions' })) flashes.push('welcome')
+      if (!screen.queryByText('why?')) flashes.push('question gone')
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send run' }))
+    await waitFor(() => expect(screen.getByText('why?')).toBeTruthy())
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+    await waitFor(() => expect(posts()).toContain('/api/chats/n1/messages'))
+    const chunks = [{ type: 'start', messageId: 'a1' }]
+    respond(new Response(chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join(''), { headers: SSE }))
+    await waitFor(() => expect(pushState).toHaveBeenCalledWith(null, '', '/c/n1'))
+    await act(async () => {})
+    observer.disconnect()
+    expect(flashes).toEqual([])
+    pushState.mockRestore()
+  })
+
   it('adopts fresh usage from the server', () => {
     const view = renderNew()
     expect(used()).toBe('0')

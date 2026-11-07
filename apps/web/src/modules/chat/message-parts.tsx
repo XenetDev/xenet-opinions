@@ -80,7 +80,7 @@ export function MessageParts({
   const summaryFailed = parts.some((part) => part.type === 'data-report_summary_failed')
   const texts = parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
   const interviewGroups = groupInterviews(parts)
-  const showConsole = (queue !== undefined && queue.position >= 1) || parts.some((part) => CONSOLE_PARTS.has(part.type))
+  const showConsole = (queue !== undefined && queue.position >= 2) || parts.some((part) => CONSOLE_PARTS.has(part.type))
 
   return (
     <>

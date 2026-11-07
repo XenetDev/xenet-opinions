@@ -30,7 +30,7 @@ describe('deriveConsole', () => {
   })
 
   it('explains a paused run ahead in the queue', () => {
-    const model = deriveConsole([{ type: 'data-queue', data: { position: 1, pausedAhead: true } }], live)
+    const model = deriveConsole([{ type: 'data-queue', data: { position: 2, pausedAhead: true } }], live)
     expect(model.rows[0]?.detail).toBe('A run is paused for interviews; yours starts when it finishes.')
   })
 
