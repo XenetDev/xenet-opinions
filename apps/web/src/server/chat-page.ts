@@ -2,6 +2,7 @@ import { materialiseRun } from '@xo/engine'
 import type { OpinionsUIMessage, Stage } from '@xo/engine/parts'
 import { listMessages, listRunFinishes } from '@/server/chats'
 import { runStore } from '@/server/runs'
+import { listShareTokens } from '@/server/share'
 import { toUIMessages } from '@/server/ui-message'
 
 export type ActiveRun = {
@@ -30,11 +31,13 @@ export async function loadChatPage(
   activeRun: ActiveRun | null
   latestRun: LatestRun | null
   runFinishedAt: Record<string, string>
+  runShareTokens: Record<string, string>
 }> {
-  const [rows, latest, runFinishedAt] = await Promise.all([
+  const [rows, latest, runFinishedAt, runShareTokens] = await Promise.all([
     listMessages(chatId),
     runStore.getLatestByChat(chatId),
     listRunFinishes(chatId),
+    listShareTokens(chatId),
   ])
   const messages = toUIMessages(rows)
   const active = latest && (latest.status === 'queued' || latest.status === 'running') ? latest : null
@@ -59,6 +62,7 @@ export async function loadChatPage(
       },
       latestRun,
       runFinishedAt,
+      runShareTokens,
     }
   }
 
@@ -71,8 +75,9 @@ export async function loadChatPage(
         activeRun: null,
         latestRun,
         runFinishedAt,
+        runShareTokens,
       }
     }
   }
-  return { initialMessages: messages, activeRun: null, latestRun, runFinishedAt }
+  return { initialMessages: messages, activeRun: null, latestRun, runFinishedAt, runShareTokens }
 }

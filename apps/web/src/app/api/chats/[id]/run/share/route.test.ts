@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/env', () => ({ env: { NEXT_PUBLIC_APP_URL: 'https://opinions.example' } }))
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/share', () => ({ createShareLink: vi.fn(), revokeShareLink: vi.fn() }))
+vi.mock('@/server/share', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/server/share')>()),
+  createShareLink: vi.fn(),
+  revokeShareLink: vi.fn(),
+}))
+vi.mock('@/lib/db', () => ({ db: {} }))
 
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'

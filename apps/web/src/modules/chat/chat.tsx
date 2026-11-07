@@ -95,6 +95,7 @@ export function Chat({
   webResearchAvailable = false,
   startedAt,
   runFinishedAt,
+  runShareUrls,
 }: {
   mode?: 'new' | 'existing'
   chatId: string
@@ -111,6 +112,7 @@ export function Chat({
   webResearchAvailable?: boolean
   startedAt?: string
   runFinishedAt?: Record<string, string>
+  runShareUrls?: Record<string, string>
 }) {
   const router = useRouter()
   const signInDialog = useSignInDialog()
@@ -485,6 +487,7 @@ export function Chat({
                     parts={message.parts}
                     chatId={chatId}
                     messageId={message.id}
+                    shareUrl={runShareUrls?.[message.id]}
                     title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
                     question={asked || undefined}
                     finishedAt={runFinishedAt?.[message.id]}

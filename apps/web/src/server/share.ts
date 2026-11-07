@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { schema } from '@xo/db'
 import { type ReportSummary, ReportSummarySchema } from '@xo/engine/parts'
-import { and, desc, eq, exists, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, isNotNull, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 
 const { chats, runEvents, runs } = schema
@@ -12,6 +12,16 @@ export type SharedReport = { title: string; date: string; summary: ReportSummary
 const TOKEN = /^[A-Za-z0-9_-]{32}$/
 
 export const newShareToken = () => randomBytes(24).toString('base64url')
+
+export const shareUrl = (token: string, base: string) => new URL(`/r/${token}`, base).toString()
+
+export async function listShareTokens(chatId: string): Promise<Record<string, string>> {
+  const rows = await db
+    .select({ messageId: runs.assistantMessageId, token: runs.shareToken })
+    .from(runs)
+    .where(and(eq(runs.chatId, chatId), isNotNull(runs.shareToken)))
+  return Object.fromEntries(rows.flatMap((r) => (r.token ? [[r.messageId, r.token]] : [])))
+}
 
 const hasSummary = (runId: typeof runs.id) =>
   exists(

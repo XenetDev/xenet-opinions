@@ -48,6 +48,7 @@ export function MessageParts({
   onAddActors,
   chatId,
   messageId,
+  shareUrl,
   title,
   question,
   finishedAt,
@@ -61,6 +62,7 @@ export function MessageParts({
   onAddActors?: () => void
   chatId?: string
   messageId?: string
+  shareUrl?: string
   title?: string
   question?: string
   finishedAt?: string
@@ -148,6 +150,7 @@ export function MessageParts({
         failed={summaryFailed}
         chatId={chatId}
         messageId={messageId}
+        shareUrl={shareUrl}
         title={question ?? title}
         finishedAt={finishedAt}
       >

@@ -64,3 +64,26 @@ describe('ReportBlock exports', () => {
     expect(within(dialog).queryByRole('button', { name: 'Word' })).toBeNull()
   })
 })
+
+describe('ReportBlock share link', () => {
+  it('seeds the live link and keeps a revoke across closing and reopening the sheet', async () => {
+    const url = 'https://opinions.example/r/abcdefghijklmnopqrstuvwxyz012345'
+    const fetchMock = vi.fn(async () => new Response('{"revoked":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ReportBlock summary={summary} chatId="c1" messageId="m1" title={reportQuestion} shareUrl={url} />)
+    const openSheet = () => fireEvent.click(screen.getByRole('button', { name: 'Open report' }))
+    openSheet()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Share' }))
+    expect(((await screen.findByRole('textbox', { name: 'Share link' })) as HTMLInputElement).value).toBe(url)
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await screen.findByRole('button', { name: 'Create link' })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    openSheet()
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Share' }))
+    expect(await screen.findByRole('button', { name: 'Create link' })).toBeTruthy()
+    vi.unstubAllGlobals()
+  })
+})

@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
-import { createShareLink, revokeShareLink, type ShareTarget } from '@/server/share'
+import { createShareLink, revokeShareLink, type ShareTarget, shareUrl } from '@/server/share'
 
 export const runtime = 'nodejs'
 
@@ -40,7 +40,7 @@ export async function POST(request: Request, ctx: Ctx) {
   if (auth instanceof Response) return auth
   const token = await createShareLink(auth.chatId, auth.target)
   if (!token) return Response.json({ error: 'no_summary' }, { status: 409 })
-  return Response.json({ token, url: new URL(`/r/${token}`, env.NEXT_PUBLIC_APP_URL).toString() })
+  return Response.json({ token, url: shareUrl(token, env.NEXT_PUBLIC_APP_URL) })
 }
 
 export async function DELETE(request: Request, ctx: Ctx) {

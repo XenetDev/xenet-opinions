@@ -17,10 +17,22 @@ const FAILED = {
   revoke: 'The link could not be revoked. Try again.',
 }
 
-export function SharePopover({ chatId, messageId }: { chatId: string; messageId?: string }) {
+export function SharePopover({
+  chatId,
+  messageId,
+  url: controlled,
+  onUrlChange,
+}: {
+  chatId: string
+  messageId?: string
+  url?: string | null
+  onUrlChange?: (url: string | null) => void
+}) {
   const id = useId()
   const inputId = `${id}-link`
-  const [url, setUrl] = useState<string | null>(null)
+  const [own, setOwn] = useState<string | null>(null)
+  const url = controlled === undefined ? own : controlled
+  const setUrl = onUrlChange ?? setOwn
   const [pending, setPending] = useState<'create' | 'revoke' | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -75,7 +87,8 @@ export function SharePopover({ chatId, messageId }: { chatId: string; messageId?
         <PopoverHeader>
           <PopoverTitle id={`${id}-title`}>Share this report</PopoverTitle>
           <PopoverDescription id={`${id}-desc`} className="text-xs text-pretty">
-            Anyone with the link can read the report. The chat, your interviews and files stay private.
+            Anyone with the link can see your question and this report. The chat, your interviews and files stay
+            private.
           </PopoverDescription>
         </PopoverHeader>
         {url ? (

@@ -9,7 +9,7 @@ vi.mock('@/lib/db', async () => {
 
 import { db } from '@/lib/db'
 import { reportSummaryFixture as summary } from '@/modules/report/fixture'
-import { createShareLink, loadSharedReport, revokeShareLink } from './share'
+import { createShareLink, listShareTokens, loadSharedReport, revokeShareLink } from './share'
 
 const userId = `us_${crypto.randomUUID()}`
 const now = new Date()
@@ -123,6 +123,20 @@ describe.skipIf(!process.env.DATABASE_URL)('share links (real db)', () => {
     expect(report).toEqual({ title: 'Should Toyota raise prices?', date: '2026-11-01T10:01:00.000Z', summary })
     expect(Object.keys(report!).sort()).toEqual(['date', 'summary', 'title'])
     expect(JSON.stringify(report)).not.toMatch(/private follow-up|private answer|Owner Name|example\.invalid|up1/)
+  })
+
+  it('lists live tokens of the chat by assistant message', async () => {
+    const chatId = await mkChat()
+    const shared = await mkRun(chatId, { queuedAt: new Date('2026-11-01T10:00:00Z'), events: withSummary() })
+    const revoked = await mkRun(chatId, { queuedAt: new Date('2026-11-02T10:00:00Z'), events: withSummary() })
+    await mkRun(chatId, { queuedAt: new Date('2026-11-03T10:00:00Z') })
+    const token = await createShareLink(chatId, { runId: shared.id })
+    await createShareLink(chatId, { runId: revoked.id })
+    await revokeShareLink(chatId, { runId: revoked.id })
+    const other = await mkChat()
+    await mkRun(other, { queuedAt: new Date('2026-11-01T10:00:00Z'), events: withSummary() })
+    await createShareLink(other)
+    expect(await listShareTokens(chatId)).toEqual({ [shared.assistantMessageId]: token })
   })
 
   it('returns null for unknown, malformed, deleted-chat and invalid-summary tokens', async () => {

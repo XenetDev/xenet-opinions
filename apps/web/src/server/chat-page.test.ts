@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   listMessages: vi.fn(),
   listRunFinishes: vi.fn(),
+  listShareTokens: vi.fn(),
   toUIMessages: vi.fn(),
   getActiveByChat: vi.fn(),
   getLatestByChat: vi.fn(),
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/server/chats', () => ({ listMessages: mocks.listMessages, listRunFinishes: mocks.listRunFinishes }))
+vi.mock('@/server/share', () => ({ listShareTokens: mocks.listShareTokens }))
 vi.mock('@/server/ui-message', () => ({ toUIMessages: mocks.toUIMessages }))
 vi.mock('@/server/runs', () => ({
   runStore: { getActiveByChat: mocks.getActiveByChat, getLatestByChat: mocks.getLatestByChat },
@@ -25,6 +27,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset()
   mocks.listMessages.mockResolvedValue([])
   mocks.listRunFinishes.mockResolvedValue({})
+  mocks.listShareTokens.mockResolvedValue({})
   mocks.getActiveByChat.mockResolvedValue(null)
   mocks.getLatestByChat.mockResolvedValue(null)
 })
@@ -78,7 +81,13 @@ describe('loadChatPage', () => {
     expect(mocks.listMessages).toHaveBeenCalledWith('c1')
     expect(mocks.getLatestByChat).toHaveBeenCalledWith('c1')
     release([])
-    expect(await page).toEqual({ initialMessages: [user], activeRun: null, latestRun: null, runFinishedAt: {} })
+    expect(await page).toEqual({
+      initialMessages: [user],
+      activeRun: null,
+      latestRun: null,
+      runFinishedAt: {},
+      runShareTokens: {},
+    })
   })
 
   it('seeds the interview window state of a paused run', async () => {
@@ -123,7 +132,13 @@ describe('loadChatPage', () => {
   it('returns messages unchanged when there are no runs', async () => {
     mocks.toUIMessages.mockReturnValue([user])
     const page = await loadChatPage('c1', 'u1')
-    expect(page).toEqual({ initialMessages: [user], activeRun: null, latestRun: null, runFinishedAt: {} })
+    expect(page).toEqual({
+      initialMessages: [user],
+      activeRun: null,
+      latestRun: null,
+      runFinishedAt: {},
+      runShareTokens: {},
+    })
   })
 
   it('returns follow-up rows in order after a done run, with latestRun env state', async () => {
@@ -181,5 +196,13 @@ describe('loadChatPage', () => {
     const page = await loadChatPage('c1', 'u1')
     expect(mocks.listRunFinishes).toHaveBeenCalledWith('c1')
     expect(page.runFinishedAt).toEqual({ a1: '2026-11-01T10:00:00.000Z', a2: '2026-11-05T16:20:00.000Z' })
+  })
+
+  it('returns the live share token of every run by assistant message', async () => {
+    mocks.toUIMessages.mockReturnValue([user])
+    mocks.listShareTokens.mockResolvedValue({ a1: 'tok1' })
+    const page = await loadChatPage('c1', 'u1')
+    expect(mocks.listShareTokens).toHaveBeenCalledWith('c1')
+    expect(page.runShareTokens).toEqual({ a1: 'tok1' })
   })
 })

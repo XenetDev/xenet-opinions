@@ -44,16 +44,19 @@ export function ReportBlock({
   summary,
   chatId,
   messageId,
+  shareUrl,
   title,
   finishedAt,
 }: {
   summary: ReportSummary
   chatId?: string
   messageId?: string
+  shareUrl?: string
   title?: string
   finishedAt?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [liveUrl, setLiveUrl] = useState<string | null>(shareUrl ?? null)
   const exports = useReportExport(summary, title, finishedAt)
   return (
     <>
@@ -65,6 +68,8 @@ export function ReportBlock({
           onOpenChange={setOpen}
           chatId={chatId}
           messageId={messageId}
+          shareUrl={liveUrl}
+          onShareUrlChange={setLiveUrl}
           title={title}
           {...exports}
         />
@@ -116,6 +121,7 @@ export function ReportSection({
   failed,
   chatId,
   messageId,
+  shareUrl,
   title,
   finishedAt,
   children,
@@ -124,6 +130,7 @@ export function ReportSection({
   failed: boolean
   chatId?: string
   messageId?: string
+  shareUrl?: string
   title?: string
   finishedAt?: string
   children: ReactNode
@@ -133,7 +140,14 @@ export function ReportSection({
   if (current)
     return (
       <div data-part="report">
-        <ReportBlock summary={current} chatId={chatId} messageId={messageId} title={title} finishedAt={finishedAt} />
+        <ReportBlock
+          summary={current}
+          chatId={chatId}
+          messageId={messageId}
+          shareUrl={shareUrl}
+          title={title}
+          finishedAt={finishedAt}
+        />
       </div>
     )
   return (

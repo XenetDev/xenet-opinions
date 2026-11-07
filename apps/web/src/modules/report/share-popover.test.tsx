@@ -59,6 +59,21 @@ describe('SharePopover', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
+  it('shows a live link straight away and says what it exposes', async () => {
+    const onUrlChange = vi.fn()
+    render(<SharePopover chatId="c1" messageId="m1" url={URL_} onUrlChange={onUrlChange} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    const input = (await screen.findByRole('textbox', { name: 'Share link' })) as HTMLInputElement
+    expect(input.value).toBe(URL_)
+    expect(screen.getByText(/Anyone with the link can see your question and this report\./)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Create link' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }))
+    fetchMock.mockReturnValueOnce(ok({ revoked: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    await waitFor(() => expect(onUrlChange).toHaveBeenCalledWith(null))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('reports a failed create', async () => {
     fetchMock.mockReturnValueOnce(Promise.resolve(new Response('{"error":"no_summary"}', { status: 409 })))
     render(<SharePopover chatId="c1" />)

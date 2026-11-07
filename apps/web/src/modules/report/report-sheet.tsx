@@ -14,7 +14,16 @@ type SheetProps = {
   title?: string
   onExport?: (kind: ExportKind) => void
   exporting?: ExportKind | null
-} & ({ readOnly: true; chatId?: string; messageId?: never } | { readOnly?: false; chatId: string; messageId?: string })
+} & (
+  | { readOnly: true; chatId?: string; messageId?: never; shareUrl?: never; onShareUrlChange?: never }
+  | {
+      readOnly?: false
+      chatId: string
+      messageId?: string
+      shareUrl?: string | null
+      onShareUrlChange?: (url: string | null) => void
+    }
+)
 
 export function ReportSheet({ summary, open, onOpenChange, title, onExport, exporting, ...rest }: SheetProps) {
   return (
@@ -30,7 +39,14 @@ export function ReportSheet({ summary, open, onOpenChange, title, onExport, expo
           </div>
           <div className="flex flex-wrap gap-2">
             <ExportButtons onExport={onExport} exporting={exporting} only={rest.readOnly ? ['pdf'] : undefined} />
-            {!rest.readOnly && <SharePopover chatId={rest.chatId} messageId={rest.messageId} />}
+            {!rest.readOnly && (
+              <SharePopover
+                chatId={rest.chatId}
+                messageId={rest.messageId}
+                url={rest.shareUrl}
+                onUrlChange={rest.onShareUrlChange}
+              />
+            )}
           </div>
         </SheetHeader>
         <ReportView
