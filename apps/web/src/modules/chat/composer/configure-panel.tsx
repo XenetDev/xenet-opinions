@@ -266,7 +266,7 @@ export function ConfigurePanel({
             <div className="flex flex-col gap-0.5">
               <Label htmlFor={`${id}-research`}>Web research</Label>
               <p id={`${id}-research-hint`} className="text-xs text-muted-foreground">
-                Searches the web (Exa) for current prices, competitors and news, and cites them in the report.
+                Searches the web for current prices, competitors and news, and cites them in the report.
               </p>
             </div>
             <Switch

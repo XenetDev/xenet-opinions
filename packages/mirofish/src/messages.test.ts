@@ -5,13 +5,13 @@ describe('englishMessage', () => {
   it.each([
     [
       '没有找到符合条件的实体，请检查图谱是否正确构建',
-      'MiroFish found no people or groups in the knowledge graph to simulate. Add more detail about who is involved and retry.',
+      'The simulation found no people or groups to simulate. Add more detail about who is involved and retry.',
     ],
-    ['  LLM_API_KEY 未配置  ', 'The MiroFish LLM API key is not configured.'],
-    ['ZEP_API_KEY 未配置', 'The MiroFish Zep API key is not configured.'],
-    ['ZEP_API_KEY未配置', 'The MiroFish Zep API key is not configured.'],
-    ['启用图谱记忆更新时必须提供 graph_id', 'MiroFish needs a graph id to enable graph memory updates.'],
-    ['需要安装PyMuPDF: pip install PyMuPDF', 'MiroFish cannot read PDFs: PyMuPDF is not installed on the backend.'],
+    ['  LLM_API_KEY 未配置  ', 'The simulation service is not configured (language model key).'],
+    ['ZEP_API_KEY 未配置', 'The simulation service is not configured (graph memory key).'],
+    ['ZEP_API_KEY未配置', 'The simulation service is not configured (graph memory key).'],
+    ['启用图谱记忆更新时必须提供 graph_id', 'The simulation needs a graph id to enable graph memory updates.'],
+    ['需要安装PyMuPDF: pip install PyMuPDF', 'The simulation service cannot read PDFs right now.'],
   ])('translates %j exactly', (input, output) => {
     expect(englishMessage(input)).toBe(output)
   })
@@ -36,8 +36,8 @@ describe('englishMessage', () => {
   })
 
   it('falls back to a generic message when Chinese remains', () => {
-    expect(englishMessage('未知错误')).toBe('MiroFish reported an error that was not translated.')
-    expect(englishMessage('模拟不存在: 测试')).toBe('MiroFish reported an error that was not translated.')
+    expect(englishMessage('未知错误')).toBe('The simulation reported an error.')
+    expect(englishMessage('模拟不存在: 测试')).toBe('The simulation reported an error.')
   })
 
   it('passes English through unchanged', () => {

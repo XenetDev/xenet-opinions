@@ -39,7 +39,7 @@ describe('createHttp', () => {
     const err = await caught(http.getJson('/x', z.unknown()))
     expect(err.code).toBe('api')
     expect(err.message).toBe(
-      'MiroFish found no people or groups in the knowledge graph to simulate. Add more detail about who is involved and retry.',
+      'The simulation found no people or groups to simulate. Add more detail about who is involved and retry.',
     )
     expect(err.raw).toBe(raw)
   })
