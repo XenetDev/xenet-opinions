@@ -38,8 +38,11 @@ describe('SharePopover', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/chats/c1/run/share', expect.objectContaining({ method: 'POST' }))
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({ messageId: 'm1' })
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
-    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Link copied.'))
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy()
+    expect(screen.getByText('Link copied').className).toContain('sr-only')
+    expect(screen.getByRole('status').textContent).toBe('')
     expect(writeText).toHaveBeenCalledWith(URL_)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy(), { timeout: 3000 })
   })
 
   it('revokes only after an in-place confirmation', async () => {
