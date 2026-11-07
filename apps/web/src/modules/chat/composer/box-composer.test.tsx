@@ -241,7 +241,7 @@ describe('BoxComposer', () => {
       '5 rounds',
     ])
     fireEvent.click(screen.getByRole('option', { name: '1 round' }))
-    expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 1 round · pause on · ~3 min')
+    expect(screen.getByRole('combobox', { name: 'Rounds' }).textContent).toContain('1 round')
     type('hello')
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() =>
@@ -272,7 +272,8 @@ describe('BoxComposer', () => {
 
   it('caps the default rounds at maxRounds', () => {
     renderComposer({ maxRounds: 2 })
-    expect(screen.getByTestId('panel-summary').textContent).toContain('· 2 rounds ·')
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    expect(screen.getByRole('combobox', { name: 'Rounds' }).textContent).toContain('2 rounds')
   })
 
   it('shows Send when idle', () => {
@@ -613,7 +614,7 @@ describe('BoxComposer', () => {
 
     it('shows above the box in run mode only', () => {
       renderComposer({ maxParticipants: 25, maxRounds: 5 })
-      expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 3 rounds · ~5 min')
+      expect(screen.getByTestId('panel-estimate').textContent).toBe('About 13 min')
       cleanup()
       renderComposer({ mode: 'followUp' })
       expect(screen.queryByRole('button', { name: /Configure/ })).toBeNull()

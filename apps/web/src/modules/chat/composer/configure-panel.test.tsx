@@ -5,7 +5,15 @@ import type { Panel } from '@xo/engine/policy'
 import { type ComponentProps, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { axe } from '@/test/axe'
-import { ConfigurePanel, clampPanel, defaultPanel, PANEL_STORAGE_KEY, panelSummary, usePanel } from './configure-panel'
+import {
+  ConfigurePanel,
+  clampPanel,
+  defaultPanel,
+  PANEL_STORAGE_KEY,
+  panelEstimate,
+  panelMinutes,
+  usePanel,
+} from './configure-panel'
 import type { RunOptionsValue } from './run-options'
 
 beforeAll(() => {
@@ -51,40 +59,17 @@ function Harness({ initial, rounds = 5, ...props }: Props) {
 const renderPanel = (props: Partial<Props> = {}) =>
   render(<Harness maxParticipants={25} webResearchAvailable maxRounds={40} allowPause plan="starter" {...props} />)
 const open = () => fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
-const summary = () => screen.getByTestId('panel-summary').textContent
+const estimate = () => screen.getByTestId('panel-estimate').textContent
 const chip = (name: string) => screen.getByRole('button', { name })
 
-describe('panelSummary', () => {
-  it('formats participants, groups, rounds, research and minutes', () => {
-    const panel: Panel = {
-      participants: 25,
-      groups: ['customers', 'prospects', 'employees', 'dealers'],
-      webResearch: true,
-    }
-    expect(panelSummary(panel, 5, true)).toBe('about 25 participants · 4 groups · 5 rounds · web research on · ~8 min')
-    expect(panelSummary({ ...panel, participants: 10, groups: ['media'], webResearch: false }, 1, true)).toBe(
-      'about 10 participants · 1 group · 1 round · web research off · ~2 min',
-    )
-  })
-
-  it('leaves out web research when it is unavailable and groups when none are chosen', () => {
-    expect(panelSummary({ participants: 20, groups: [], webResearch: true }, 3, false)).toBe(
-      'about 20 participants · 3 rounds · ~5 min',
-    )
-  })
-
-  it('adds pause on only when pausing is on', () => {
-    const panel: Panel = { participants: 20, groups: [], webResearch: true }
-    expect(panelSummary(panel, 3, true, true)).toBe(
-      'about 20 participants · 3 rounds · web research on · pause on · ~5 min',
-    )
-    expect(panelSummary(panel, 3, true, false)).not.toContain('pause')
-  })
-
-  it('names the audience when set', () => {
-    expect(panelSummary({ participants: 20, groups: [], audience: 'Fleet managers', webResearch: true }, 3, true)).toBe(
-      'about 20 participants · Fleet managers · 3 rounds · web research on · ~5 min',
-    )
+describe('panelEstimate', () => {
+  it('estimates from participants and rounds, rounding long runs to 5 minutes', () => {
+    expect(panelMinutes(10, 3)).toBe(10)
+    expect(panelMinutes(20, 3)).toBe(13)
+    expect(panelMinutes(25, 5)).toBe(20)
+    expect(panelMinutes(50, 10)).toBe(35)
+    expect(panelMinutes(2, 1)).toBe(7)
+    expect(panelEstimate(10, 3)).toBe('About 10 min')
   })
 })
 
@@ -143,9 +128,9 @@ describe('usePanel', () => {
 })
 
 describe('ConfigurePanel', () => {
-  it('shows the summary while closed and the controls when opened', () => {
+  it('shows the time estimate while closed and the controls when opened', () => {
     renderPanel()
-    expect(summary()).toBe('about 20 participants · 5 rounds · web research on · ~7 min')
+    expect(estimate()).toBe('About 15 min')
     expect(screen.queryByRole('slider')).toBeNull()
     open()
     expect(screen.getByRole('slider')).toBeTruthy()
@@ -182,17 +167,16 @@ describe('ConfigurePanel', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('updates the summary as groups and the audience change', () => {
+  it('toggles groups and sets the audience', () => {
     renderPanel()
     open()
     fireEvent.click(chip('Customers'))
     fireEvent.click(chip('Dealers/partners'))
     expect(chip('Customers').getAttribute('aria-pressed')).toBe('true')
-    expect(summary()).toBe('about 20 participants · 2 groups · 5 rounds · web research on · ~7 min')
     fireEvent.click(chip('Customers'))
-    expect(summary()).toBe('about 20 participants · 1 group · 5 rounds · web research on · ~7 min')
+    expect(chip('Customers').getAttribute('aria-pressed')).toBe('false')
     fireEvent.change(screen.getByRole('textbox', { name: 'Audience' }), { target: { value: 'Fleet managers' } })
-    expect(summary()).toBe('about 20 participants · Fleet managers · 1 group · 5 rounds · web research on · ~7 min')
+    expect((screen.getByRole('textbox', { name: 'Audience' }) as HTMLInputElement).value).toBe('Fleet managers')
   })
 
   it('stops more groups than participants', () => {
@@ -214,7 +198,8 @@ describe('ConfigurePanel', () => {
     })
     open()
     fireEvent.click(screen.getByRole('button', { name: 'Fewer participants' }))
-    expect(summary()).toMatch(/^about 4 participants · 4 groups/)
+    expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('4')
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(4)
     expect(chip('Media').getAttribute('aria-pressed')).toBe('false')
   })
 
@@ -222,12 +207,11 @@ describe('ConfigurePanel', () => {
     renderPanel()
     open()
     fireEvent.click(screen.getByRole('switch', { name: 'Web research' }))
-    expect(summary()).toContain('web research off')
+    expect(screen.getByRole('switch', { name: 'Web research' }).getAttribute('aria-checked')).toBe('false')
     cleanup()
     renderPanel({ webResearchAvailable: false })
     open()
     expect(screen.queryByRole('switch', { name: 'Web research' })).toBeNull()
-    expect(summary()).not.toContain('web research')
   })
 
   it('sets rounds from a select capped at the plan rounds', () => {
@@ -243,7 +227,7 @@ describe('ConfigurePanel', () => {
       '4 rounds',
     ])
     fireEvent.click(screen.getByRole('option', { name: '2 rounds' }))
-    expect(summary()).toContain('· 2 rounds ·')
+    expect(screen.getByRole('combobox', { name: 'Rounds' }).textContent).toBe('2 rounds')
   })
 
   it('toggles pause for interviews and hides it when the plan does not allow pausing', () => {
@@ -251,10 +235,8 @@ describe('ConfigurePanel', () => {
     open()
     const pause = screen.getByRole('switch', { name: 'Pause for interviews' })
     expect(pause.getAttribute('aria-checked')).toBe('false')
-    expect(summary()).not.toContain('pause')
     fireEvent.click(pause)
     expect(pause.getAttribute('aria-checked')).toBe('true')
-    expect(summary()).toBe('about 20 participants · 5 rounds · web research on · pause on · ~7 min')
     cleanup()
     renderPanel({ allowPause: false })
     open()
