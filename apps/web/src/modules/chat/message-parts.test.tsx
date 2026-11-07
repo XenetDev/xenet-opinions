@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type OpinionsUIMessage, STAGES } from '@xo/engine/parts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { reportQuestion, reportSummaryFixture } from '@/modules/report/fixture'
 import { axe } from '@/test/axe'
 import { MessageParts } from './message-parts'
 
@@ -12,7 +13,10 @@ vi.mock('./parts/graph-preview', () => ({
   ),
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 type Parts = OpinionsUIMessage['parts']
 
@@ -204,5 +208,64 @@ describe('MessageParts', () => {
     rerender(<MessageParts parts={[{ type: 'data-queue', data: { position: 2 } }, ...stageParts]} />)
     expect(screen.queryByText(/in queue/)).toBeNull()
     expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('complete')
+  })
+})
+
+describe('MessageParts report', () => {
+  const report: Parts[number] = { type: 'text', text: '# MiroFish report\n\nOwners push back.' }
+  const summaryPart: Parts[number] = { type: 'data-report_summary', data: reportSummaryFixture }
+  const failedPart: Parts[number] = { type: 'data-report_summary_failed', data: { message: 'invalid' } }
+
+  it('keeps today’s report for an old run without a summary', () => {
+    const { container } = render(<MessageParts parts={[...stageParts, report]} chatId="c1" />)
+    expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
+    expect(container.querySelector('[data-part="report"]')).toBeNull()
+    expect(screen.queryByTestId('report-card')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry summary' })).toBeNull()
+  })
+
+  it('shows the card instead of the long report and opens the sheet on Summary', () => {
+    const { container } = render(
+      <MessageParts parts={[...stageParts, report, summaryPart]} chatId="c1" question={reportQuestion} />,
+    )
+    expect(container.querySelector('[data-part="text"]')).toBeNull()
+    expect(screen.getByTestId('report-card')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open report' }))
+    const dialog = screen.getByRole('dialog', { name: reportQuestion })
+    expect(within(dialog).getByRole('tab', { name: 'Summary', selected: true })).toBeTruthy()
+  })
+
+  it('offers Retry summary when the summary failed and shows the card on success', async () => {
+    const fetchSpy = vi.fn(async () => Response.json({ summary: reportSummaryFixture }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchSpy)
+    render(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" />)
+    expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry summary' }))
+    await waitFor(() => expect(screen.getByTestId('report-card')).toBeTruthy())
+    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/summary', { method: 'POST' })
+    expect(screen.queryByRole('heading', { name: 'MiroFish report' })).toBeNull()
+  })
+
+  it('keeps the report and explains when the retry is refused', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: 'summary_unavailable' }, { status: 503 })),
+    )
+    const { container } = render(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry summary' }))
+    const retry = container.querySelector<HTMLElement>('[data-part="summary-retry"]')!
+    await waitFor(() =>
+      expect(within(retry).getByRole('status').textContent).toBe('Summaries are not available right now.'),
+    )
+    expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
+    expect(screen.queryByTestId('report-card')).toBeNull()
+  })
+
+  it('has no axe violations with the card or the retry', async () => {
+    const view = render(<MessageParts parts={[...stageParts, report, summaryPart]} chatId="c1" />)
+    expect(await axe(view.container)).toHaveNoViolations()
+    view.rerender(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" />)
+    expect(await axe(view.container)).toHaveNoViolations()
   })
 })

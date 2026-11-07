@@ -483,6 +483,7 @@ export function Chat({
                     parts={message.parts}
                     chatId={chatId}
                     title={asked && (asked.length > 60 ? `${asked.slice(0, 60).trimEnd()}…` : asked)}
+                    question={asked || undefined}
                     windowUntil={run.stage === 'interviews' ? run.envKeepaliveUntil : undefined}
                     reportRequested={run.stage === 'interviews' && run.reportRequested}
                     windowLive={runActive && message.id === run.assistantMessageId}
