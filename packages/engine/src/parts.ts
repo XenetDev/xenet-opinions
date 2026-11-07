@@ -2,6 +2,36 @@ import type { UIMessage } from 'ai'
 import { z } from 'zod'
 import type { ReportSummary, ReportSummaryFailed } from './summary/schema'
 
+const parseList = (v: string): unknown[] | null => {
+  const text = v.trim()
+  if (!text.startsWith('[')) return null
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export const normaliseTopics = (v: unknown): string[] => {
+  const items = typeof v === 'string' ? (parseList(v) ?? v.split(',')) : Array.isArray(v) ? v : []
+  const flat = items.flatMap((t) => (typeof t === 'string' ? (parseList(t) ?? [t]) : []))
+  return [
+    ...new Set(
+      flat
+        .flatMap((t) =>
+          typeof t === 'string'
+            ? t
+                .trim()
+                .replace(/^["'[]+|["'\]]+$/g, '')
+                .trim()
+            : [],
+        )
+        .filter(Boolean),
+    ),
+  ]
+}
+
 export const STAGES = [
   'ontology',
   'graph_build',

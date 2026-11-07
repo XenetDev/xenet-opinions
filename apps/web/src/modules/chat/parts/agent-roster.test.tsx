@@ -36,6 +36,15 @@ describe('AgentRoster', () => {
     expect(screen.getByText('engines')).toBeTruthy()
   })
 
+  it('shows separate tags for topics stored as a JSON-encoded list', () => {
+    const stored = [{ id: 'd', name: 'Dirk Steinmann', topics: ['["Toyota vehicles","Customer loyalty"]'] }]
+    render(<AgentRoster data={{ count: 1, profiles: stored }} />)
+    fireEvent.click(screen.getAllByTestId('agent-card')[0]!)
+    expect(screen.getByText('Toyota vehicles')).toBeTruthy()
+    expect(screen.getByText('Customer loyalty')).toBeTruthy()
+    expect(screen.queryByText(/\["Toyota/)).toBeNull()
+  })
+
   describe('when selection is enabled', () => {
     const renderEnabled = (max?: number) =>
       render(
