@@ -1,4 +1,5 @@
 import { NO_ACTORS_CODE } from '@xo/engine'
+import type { Panel } from '@xo/engine/policy'
 import { z } from 'zod'
 import { env } from '@/env'
 import { isChatId } from '@/lib/chat-id'
@@ -48,6 +49,10 @@ async function loadDocuments(uploads: Array<{ filename: string; mediaType: strin
   return uploads.map((upload, index) => ({ filename: upload.filename, text: texts[index] ?? '' }))
 }
 
+function capped(panel: Panel, maxParticipants: number) {
+  return { panel: { ...panel, participants: Math.min(panel.participants, maxParticipants) }, maxParticipants }
+}
+
 async function saveOwnedResearch(input: { userId: string; chatId: string; research: Research }) {
   try {
     return await saveResearch(input)
@@ -87,19 +92,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         text: latest.config.requirement,
         documents,
         force: true,
-        ...(panel.success && { panel: panel.data }),
+        ...(panel.success && capped(panel.data, gate.limits.maxParticipants)),
       }),
     )
   }
 
-  const { text, panel } = body.data
+  const { text } = body.data
+  const sized = body.data.panel && capped(body.data.panel, gate.limits.maxParticipants)
   const uploadIds = [...new Set(body.data.uploadIds)]
   const rows = await readOwnedUploads({ chatId, userId: user.id, uploadIds })
   if (rows.length !== uploadIds.length) return Response.json({ error: 'invalid_body' }, { status: 400 })
   if (!allowCheck(user.id)) return Response.json(fallbackReadiness(text, rows.length))
-  const researching = panel?.webResearch && env.EXA_API_KEY ? researchQuestion(text) : Promise.resolve(null)
+  const researching = sized?.panel.webResearch && env.EXA_API_KEY ? researchQuestion(text) : Promise.resolve(null)
   const [documents, research] = await Promise.all([loadDocuments(rows), researching])
-  const readiness = await checkReadiness({ text, documents, ...(panel && { panel }), ...(research && { research }) })
+  const readiness = await checkReadiness({ text, documents, ...sized, ...(research && { research }) })
   const researchId = research && (await saveOwnedResearch({ userId: user.id, chatId, research }))
   return Response.json(researchId ? { ...readiness, researchId } : readiness)
 }

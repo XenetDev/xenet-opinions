@@ -9,6 +9,7 @@ import {
   readinessForcedNote,
   readinessNoDocumentsNote,
   readinessPanelNote,
+  readinessPanelRetryNote,
   readinessResearchSection,
   readinessSchema,
   readinessSystem,
@@ -24,14 +25,16 @@ type Input = {
   documents: Array<{ filename: string; text: string }>
   force?: boolean
   panel?: Panel
+  maxParticipants?: number
   research?: Research | null
 }
 
-function userPrompt(input: Input): string {
+function userPrompt(input: Input, retry = false): string {
   const documents = input.documents.map((doc) => `<document filename="${doc.filename}">\n${doc.text}\n</document>`)
   return [
     ...(input.force ? [readinessForcedNote] : documents.length ? [] : [readinessNoDocumentsNote]),
-    ...(input.panel ? [readinessPanelNote(input.panel)] : []),
+    ...(input.panel ? [readinessPanelNote(input.panel, input.maxParticipants)] : []),
+    ...(retry ? [readinessPanelRetryNote] : []),
     `<question>\n${input.text}\n</question>`,
     ...(input.research ? [readinessResearchSection(input.research)] : []),
     ...documents,
@@ -78,20 +81,25 @@ export async function checkReadiness(
       apiKey: env.LLM_API_KEY,
       ...(deps.fetch && { fetch: deps.fetch }),
     })(env.LLM_MODEL_NAME)
-    const { output } = await withTimeout(input.panel ? PANEL_TIMEOUT_MS : TIMEOUT_MS, (abortSignal) =>
-      generate({
-        model,
-        system: readinessSystem,
-        prompt: userPrompt(input),
-        output: Output.object({ schema: readinessSchema }),
-        abortSignal,
-      }),
-    )
-    const draft = output.draft && cleanDraft(output.draft)
+    const { ready, draft } = await withTimeout(input.panel ? PANEL_TIMEOUT_MS : TIMEOUT_MS, async (abortSignal) => {
+      const ask = async (retry: boolean) => {
+        const { output } = await generate({
+          model,
+          system: readinessSystem,
+          prompt: userPrompt(input, retry),
+          output: Output.object({ schema: readinessSchema }),
+          abortSignal,
+        })
+        return { ready: output.ready, draft: output.draft && cleanDraft(output.draft) }
+      }
+      const first = await ask(false)
+      if (!input.panel || input.force || first.draft?.actors) return first
+      return { ready: first.ready, draft: (await ask(true)).draft }
+    })
     if (input.force) return { ready: false, draft: draft ?? EMPTY_DRAFT }
     if (input.documents.length === 0) return draft?.actors ? { ready: true, seed: draft } : fallback
     if (!draft?.actors) return { ready: true }
-    if (output.ready) return input.panel ? { ready: true, seed: draft } : { ready: true }
+    if (ready) return input.panel ? { ready: true, seed: draft } : { ready: true }
     return { ready: false, draft }
   } catch (error) {
     console.error('readiness check failed', { error })

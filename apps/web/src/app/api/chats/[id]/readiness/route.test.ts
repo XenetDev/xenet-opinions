@@ -232,7 +232,13 @@ describe('POST /api/chats/:id/readiness', () => {
       const res = await call({ text: 'brief', uploadIds: [], panel })
       expect(await res.json()).toEqual({ ready: true, seed: draft, researchId: 'res1' })
       expect(researchQuestion).toHaveBeenCalledWith('brief')
-      expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [], panel, research })
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'brief',
+        documents: [],
+        panel,
+        maxParticipants: 50,
+        research,
+      })
       expect(saveResearch).toHaveBeenCalledWith({ userId: 'user1', chatId: 'c1', research })
     })
 
@@ -241,7 +247,7 @@ describe('POST /api/chats/:id/readiness', () => {
       vi.mocked(checkReadiness).mockResolvedValue({ ready: true, seed: draft })
       const res = await call({ text: 'brief', uploadIds: [], panel })
       expect(await res.json()).toEqual({ ready: true, seed: draft })
-      expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [], panel })
+      expect(checkReadiness).toHaveBeenCalledWith({ text: 'brief', documents: [], panel, maxParticipants: 50 })
       expect(saveResearch).not.toHaveBeenCalled()
     })
 
@@ -256,6 +262,18 @@ describe('POST /api/chats/:id/readiness', () => {
       logged.mockRestore()
     })
 
+    it('caps the panel at the plan participant limit', async () => {
+      limits({ maxParticipants: 10 })
+      vi.mocked(researchQuestion).mockResolvedValue(null)
+      await call({ text: 'brief', uploadIds: [], panel: { ...panel, participants: 50 } })
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'brief',
+        documents: [],
+        panel: { ...panel, participants: 10 },
+        maxParticipants: 10,
+      })
+    })
+
     it('does not research without EXA_API_KEY or with web research off', async () => {
       env.EXA_API_KEY = undefined
       await call({ text: 'brief', uploadIds: [], panel })
@@ -266,6 +284,7 @@ describe('POST /api/chats/:id/readiness', () => {
         text: 'brief',
         documents: [],
         panel: { ...panel, webResearch: false },
+        maxParticipants: 50,
       })
     })
   })
@@ -295,12 +314,19 @@ describe('POST /api/chats/:id/readiness', () => {
     })
 
     it('drafts the retry cast for the run panel without new research', async () => {
-      const panel = { participants: 10, groups: ['customers'], webResearch: true }
+      limits({ maxParticipants: 10 })
+      const panel = { participants: 25, groups: ['customers'], webResearch: true }
       vi.mocked(runStore.getLatestByChat).mockResolvedValue(
         failedRun({ config: { requirement: 'the ask', maxRounds: 3, uploadIds: [], panel } }) as never,
       )
       await call({ retry: true })
-      expect(checkReadiness).toHaveBeenCalledWith({ text: 'the ask', documents: [], force: true, panel })
+      expect(checkReadiness).toHaveBeenCalledWith({
+        text: 'the ask',
+        documents: [],
+        force: true,
+        panel: { ...panel, participants: 10 },
+        maxParticipants: 10,
+      })
       expect(researchQuestion).not.toHaveBeenCalled()
     })
 
