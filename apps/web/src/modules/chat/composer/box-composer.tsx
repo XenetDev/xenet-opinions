@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
 import { FileChips, PersonaChips } from './chips'
-import { ConfigurePanel, usePanel } from './configure-panel'
+import { ConfigurePanel, defaultPanel, usePanel } from './configure-panel'
 import { defaultRounds, type RunOptionsValue } from './run-options'
 import { useUploads } from './use-uploads'
 
@@ -178,6 +178,8 @@ export function BoxComposer({
       throw error
     }
     reset()
+    setPanel(defaultPanel(maxParticipants, webResearchAvailable))
+    setRunOptions({ maxRounds: defaultRounds(maxRounds), pauseForInterviews: false })
   }
 
   const send = async () => {

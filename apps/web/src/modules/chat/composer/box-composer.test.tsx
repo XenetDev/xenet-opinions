@@ -636,6 +636,35 @@ describe('BoxComposer', () => {
       )
     })
 
+    it('resets Configure to the defaults after a run is sent, but keeps it when the send fails', async () => {
+      const onSend = vi.fn().mockRejectedValueOnce(new Error('send_failed')).mockResolvedValue(undefined)
+      renderComposer({ onSend, maxParticipants: 25, webResearchAvailable: true, plan: 'starter' })
+      configure()
+      fireEvent.click(screen.getByRole('button', { name: 'Customers' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'Audience' }), { target: { value: 'Fleet managers' } })
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+      await waitFor(() =>
+        expect(JSON.parse(window.localStorage.getItem('xo.panel') ?? '{}').groups).toEqual(['customers']),
+      )
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2))
+      expect(onSend.mock.calls[1]?.[1]).toMatchObject({
+        panel: { participants: 20, groups: ['customers'], audience: 'Fleet managers' },
+      })
+      await waitFor(() =>
+        expect(JSON.parse(window.localStorage.getItem('xo.panel') ?? '{}')).toEqual({
+          participants: 20,
+          groups: [],
+          webResearch: true,
+        }),
+      )
+      configure()
+      expect((screen.getByRole('textbox', { name: 'Audience' }) as HTMLInputElement).value).toBe('')
+      expect(screen.getByRole('button', { name: 'Customers' }).getAttribute('aria-pressed')).toBe('false')
+    })
+
     it('sends web research off when it is unavailable, whatever was stored', async () => {
       window.localStorage.setItem('xo.panel', JSON.stringify({ participants: 40, groups: [], webResearch: true }))
       const { onSend } = renderComposer({ maxParticipants: 10, webResearchAvailable: false })
