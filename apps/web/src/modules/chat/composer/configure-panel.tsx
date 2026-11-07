@@ -18,12 +18,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { PauseRow, RoundsRow, type RunOptionsValue, roundsLabel } from './run-options'
+import { PauseRow, RoundsRow, type RunOptionsValue } from './run-options'
 
 export const PANEL_STORAGE_KEY = 'xo.panel'
 
 const DEFAULT_PARTICIPANTS = 20
-const AUDIENCE_SUMMARY_MAX = 40
 const GROUP_IDS = new Set<string>(PANEL_GROUPS.map((group) => group.id))
 const UPGRADES = ['starter', 'pro'] as const
 
@@ -75,23 +74,12 @@ export function usePanel(maxParticipants: number, webResearchAvailable: boolean)
   return [panel, update] as const
 }
 
-export const panelMinutes = (participants: number, rounds: number) => Math.ceil(participants / 10) + rounds
-
-export function panelSummary(panel: Panel, rounds: number, webResearchAvailable: boolean, pause = false): string {
-  const audience = panel.audience?.trim()
-  const groups = panel.groups.length
-  return [
-    `about ${panel.participants} participants`,
-    ...(audience
-      ? [audience.length > AUDIENCE_SUMMARY_MAX ? `${audience.slice(0, AUDIENCE_SUMMARY_MAX).trimEnd()}…` : audience]
-      : []),
-    ...(groups > 0 ? [groups === 1 ? '1 group' : `${groups} groups`] : []),
-    roundsLabel(rounds),
-    ...(webResearchAvailable ? [`web research ${panel.webResearch ? 'on' : 'off'}`] : []),
-    ...(pause ? ['pause on'] : []),
-    `~${panelMinutes(panel.participants, rounds)} min`,
-  ].join(' · ')
+export function panelMinutes(participants: number, rounds: number): number {
+  const minutes = 6 + 0.36 * participants + 1.5 * Math.max(0, rounds - 3)
+  return minutes > 15 ? Math.round(minutes / 5) * 5 : Math.max(5, Math.round(minutes))
 }
+
+export const panelEstimate = (participants: number, rounds: number) => `About ${panelMinutes(participants, rounds)} min`
 
 function PlanHint({ plan, maxParticipants }: { plan?: PlanId; maxParticipants: number }) {
   const upgrades = UPGRADES.filter((id) => PLANS[id].maxParticipants > maxParticipants)
@@ -171,16 +159,13 @@ export function ConfigurePanel({
             />
           </Button>
         </CollapsibleTrigger>
-        <p data-testid="panel-summary" className="px-2 text-xs text-muted-foreground tabular-nums">
-          {panelSummary(value, rounds, webResearchAvailable, allowPause && runOptions.pauseForInterviews)}
+        <p data-testid="panel-estimate" className="px-2 text-xs text-muted-foreground tabular-nums">
+          {panelEstimate(value.participants, rounds)}
         </p>
       </div>
       <CollapsibleContent className="flex flex-col gap-4 rounded-xl border bg-card p-3.5">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Participants</span>
-            <span className="text-xs text-muted-foreground">~{panelMinutes(value.participants, rounds)} min</span>
-          </div>
+          <span className="text-sm font-medium">Participants</span>
           <div className="flex items-center gap-2.5">
             <Button
               variant="outline"
