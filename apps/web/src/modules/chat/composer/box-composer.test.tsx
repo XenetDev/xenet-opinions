@@ -16,11 +16,17 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
   Element.prototype.releasePointerCapture ??= () => {}
   Element.prototype.scrollIntoView ??= () => {}
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
 })
 
 afterEach(() => {
   toastSpy.mockReset()
   cleanup()
+  window.localStorage.clear()
   vi.unstubAllGlobals()
 })
 
@@ -61,6 +67,7 @@ const attach = () =>
   fireEvent.change(screen.getByTestId('file-input'), {
     target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
   })
+const DEFAULT_PANEL = { participants: 20, groups: [], webResearch: false }
 const openMenu = (name: string | RegExp) => fireEvent.keyDown(screen.getByRole('button', { name }), { key: 'Enter' })
 
 describe('BoxComposer', () => {
@@ -211,6 +218,7 @@ describe('BoxComposer', () => {
         uploadIds: ['u1'],
         files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
         runOptions: { maxRounds: 3, pauseForInterviews: true },
+        panel: DEFAULT_PANEL,
       }),
     )
     await waitFor(() => expect(textarea().value).toBe(''))
@@ -256,6 +264,7 @@ describe('BoxComposer', () => {
         uploadIds: ['u1'],
         files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
         runOptions: { maxRounds: 1, pauseForInterviews: false },
+        panel: DEFAULT_PANEL,
       }),
     )
   })
@@ -542,5 +551,107 @@ describe('BoxComposer', () => {
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
     expect(toastSpy).not.toHaveBeenCalled()
+  })
+
+  describe('configure panel', () => {
+    const configure = () => fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+
+    it('shows above the box in run mode only', () => {
+      renderComposer({ maxParticipants: 25, maxRounds: 5 })
+      expect(screen.getByTestId('panel-summary').textContent).toBe('20 participants · 3 rounds · ~5 min')
+      cleanup()
+      renderComposer({ mode: 'followUp' })
+      expect(screen.queryByRole('button', { name: /Configure/ })).toBeNull()
+    })
+
+    it('sends the chosen panel with the run', async () => {
+      const { onSend } = renderComposer({ maxParticipants: 25, webResearchAvailable: true, plan: 'starter' })
+      configure()
+      fireEvent.click(screen.getByRole('button', { name: 'Customers' }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'Audience' }), { target: { value: 'Fleet managers' } })
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() =>
+        expect(onSend).toHaveBeenCalledWith(
+          'hello',
+          expect.objectContaining({
+            panel: { participants: 20, groups: ['customers'], audience: 'Fleet managers', webResearch: true },
+          }),
+        ),
+      )
+    })
+
+    it('sends web research off when it is unavailable, whatever was stored', async () => {
+      window.localStorage.setItem('xo.panel', JSON.stringify({ participants: 40, groups: [], webResearch: true }))
+      const { onSend } = renderComposer({ maxParticipants: 10, webResearchAvailable: false })
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() =>
+        expect(onSend).toHaveBeenCalledWith(
+          'hello',
+          expect.objectContaining({ panel: { participants: 10, groups: [], webResearch: false } }),
+        ),
+      )
+    })
+  })
+
+  describe('Improve prompt', () => {
+    const improve = () => screen.getByRole('button', { name: 'Improve prompt' })
+    const answer = (response: () => Response) => {
+      const fetchStub = vi.fn(async () => response())
+      vi.stubGlobal('fetch', fetchStub)
+      return fetchStub
+    }
+
+    it('is disabled without text and absent outside run mode', () => {
+      renderComposer()
+      expect((improve() as HTMLButtonElement).disabled).toBe(true)
+      cleanup()
+      renderComposer({ mode: 'followUp' })
+      expect(screen.queryByRole('button', { name: 'Improve prompt' })).toBeNull()
+    })
+
+    it('replaces the text with the brief and undoes it with one click', async () => {
+      const fetchStub = answer(() => Response.json({ text: 'Should we raise prices? Owners and dealers.' }))
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      await waitFor(() => expect(textarea().value).toBe('Should we raise prices? Owners and dealers.'))
+      const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit]
+      expect(url).toBe('/api/prompt/improve')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(String(init.body))).toEqual({ text: 'raise prices?' })
+      fireEvent.click(screen.getByRole('button', { name: 'Undo improve' }))
+      expect(textarea().value).toBe('raise prices?')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    it('reports the improved text through a controlled value', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      const onValueChange = vi.fn()
+      renderComposer({ value: 'q', onValueChange })
+      fireEvent.click(improve())
+      await waitFor(() => expect(onValueChange).toHaveBeenCalledWith('A brief.'))
+    })
+
+    it('drops the undo once the user edits the text', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      renderComposer()
+      type('q')
+      fireEvent.click(improve())
+      await screen.findByRole('button', { name: 'Undo improve' })
+      type('A brief, edited.')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    it('keeps the original and says so when the rewrite fails', async () => {
+      answer(() => Response.json({ error: 'improve_failed' }, { status: 502 }))
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      await waitFor(() => expect(toastSpy).toHaveBeenCalledWith("Couldn't improve the prompt. Your text is unchanged."))
+      expect(textarea().value).toBe('raise prices?')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
   })
 })

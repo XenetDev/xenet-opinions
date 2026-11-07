@@ -2,6 +2,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import type { OpinionsUIMessage, SourcesData, Stage } from '@xo/engine/parts'
+import type { Panel } from '@xo/engine/policy'
 import { generateId } from 'ai'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -39,12 +40,20 @@ const INTERVIEW_NOTICES: Record<string, string> = {
   run_paused: 'Pick personas to interview, or generate the report.',
 }
 
-type RunBody = { uploadIds: string[]; runOptions: RunOptionsValue; seed?: SeedContext }
+type RunBody = {
+  uploadIds: string[]
+  runOptions: RunOptionsValue
+  seed?: SeedContext
+  panel?: Panel
+  researchId?: string
+}
 
 type PendingRun = {
   text: string
   runOptions: RunOptionsValue
   uploadIds: string[]
+  panel?: Panel
+  researchId?: string
   files: SourcesData['files']
   draft?: SeedContext
   checking: boolean
@@ -83,6 +92,7 @@ export function Chat({
   activeRun,
   latestRun,
   limits,
+  webResearchAvailable = false,
   startedAt,
 }: {
   mode?: 'new' | 'existing'
@@ -97,6 +107,7 @@ export function Chat({
   } | null
   latestRun: LatestRun | null
   limits: Limits
+  webResearchAvailable?: boolean
   startedAt?: string
 }) {
   const router = useRouter()
@@ -295,6 +306,8 @@ export function Chat({
       uploadIds: pending.uploadIds,
       runOptions: pending.runOptions,
       ...(seed && Object.keys(seed).length > 0 ? { seed } : {}),
+      ...(pending.panel && { panel: pending.panel }),
+      ...(pending.researchId && { researchId: pending.researchId }),
     }).then(
       () => {
         startingRef.current = false
@@ -312,12 +325,13 @@ export function Chat({
     uploadIds: string[],
     files: SourcesData['files'],
     runOptions: RunOptionsValue,
+    panel?: Panel,
   ) => {
     if (checkRef.current) return
     const check = {}
     checkRef.current = check
-    setPendingRun({ text, runOptions, uploadIds, files, checking: true })
-    const result = await requestReadiness(chatId, { text, uploadIds })
+    setPendingRun({ text, runOptions, uploadIds, files, ...(panel && { panel }), checking: true })
+    const result = await requestReadiness(chatId, { text, uploadIds, ...(panel && { panel }) })
     if (checkRef.current !== check) return
     checkRef.current = null
     if (!result.ok) {
@@ -325,13 +339,23 @@ export function Chat({
       setNotice(sendNotices(limits, !!signIn)[result.code] ?? SEND_FAILED)
       throw new Error(result.code)
     }
+    const { researchId } = result.readiness
+    const sized = { ...(panel && { panel }), ...(researchId && { researchId }) }
     if (result.readiness.ready) {
       const seed = result.readiness.seed && seedFrom(result.readiness.seed)
       setPendingRun(null)
-      await startRun(text, { uploadIds, runOptions, ...(seed && { seed }) })
+      await startRun(text, { uploadIds, runOptions, ...(seed && { seed }), ...sized })
       return
     }
-    setPendingRun({ text, runOptions, uploadIds, files, draft: seedFrom(result.readiness.draft), checking: false })
+    setPendingRun({
+      text,
+      runOptions,
+      uploadIds,
+      files,
+      ...sized,
+      draft: seedFrom(result.readiness.draft),
+      checking: false,
+    })
   }
 
   const retryRun = async (seed?: SeedContext) => {
@@ -416,7 +440,14 @@ export function Chat({
                       text: pendingRun.text,
                       files: pendingRun.files,
                       card: pendingRun.checking ? (
-                        <Thinking />
+                        pendingRun.panel ? (
+                          <div className="flex flex-col gap-1">
+                            <Thinking />
+                            <p className="text-xs text-muted-foreground">Researching and building your panel…</p>
+                          </div>
+                        ) : (
+                          <Thinking />
+                        )
                       ) : (
                         <ContextCard
                           pending={status === 'submitted' || status === 'streaming'}
@@ -493,6 +524,9 @@ export function Chat({
               maxRounds={limits.maxRounds}
               chatId={chatId}
               allowPause={limits.allowPause}
+              maxParticipants={limits.maxParticipants}
+              webResearchAvailable={webResearchAvailable}
+              plan={limits.plan}
               {...(mode === 'new' && { value: draft, onValueChange: setDraft })}
               mode={interviewMode ? 'interview' : followUpMode ? 'followUp' : 'run'}
               status={interviewMode ? undefined : status}
@@ -518,7 +552,7 @@ export function Chat({
                   void sendMessage({ text }, { body: { target: submit.target, agentIds: submit.agentIds } })
                   return
                 }
-                await sendRun(text, submit.uploadIds, submit.files, submit.runOptions)
+                await sendRun(text, submit.uploadIds, submit.files, submit.runOptions, submit.panel)
               }}
             />
           </div>

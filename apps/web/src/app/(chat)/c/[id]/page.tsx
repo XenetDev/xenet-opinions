@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
+import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
 import { Chat } from '@/modules/chat/chat'
 import { resolveLimits } from '@/server/billing/limits'
@@ -24,6 +25,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       activeRun={activeRun}
       latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       limits={limits}
+      webResearchAvailable={!!env.EXA_API_KEY}
       startedAt={chat.createdAt.toISOString()}
     />
   )

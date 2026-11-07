@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
+vi.mock('@/env', () => ({ env: { EXA_API_KEY: undefined as string | undefined } }))
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('not found')
@@ -26,6 +27,7 @@ vi.mock('@/server/limits', () => ({
 }))
 vi.mock('@/modules/chat/chat', () => ({ Chat: () => null }))
 
+import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
 import { sessionUser } from '@/test/session-user'
 import ChatPage from './page'
@@ -42,5 +44,12 @@ describe('Chat page', () => {
     expect(props.limits).toMatchObject({ signedInMaxRunsPerDay: 3 })
     expect(props).not.toHaveProperty('signIn')
     expect(props).not.toHaveProperty('usage')
+  })
+
+  it('offers web research only when Exa is configured', async () => {
+    expect((await open()).props.webResearchAvailable).toBe(false)
+    env.EXA_API_KEY = 'exa-key'
+    expect((await open()).props.webResearchAvailable).toBe(true)
+    env.EXA_API_KEY = undefined
   })
 })

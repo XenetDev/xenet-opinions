@@ -1,8 +1,9 @@
 'use client'
 
 import type { SourcesData } from '@xo/engine/parts'
+import { PANEL_MAX_PARTICIPANTS, type Panel, type PlanId } from '@xo/engine/policy'
 import type { ChatStatus } from 'ai'
-import { ArrowUpIcon, PaperclipIcon, PlusIcon } from 'lucide-react'
+import { ArrowUpIcon, PaperclipIcon, PlusIcon, SparklesIcon, Undo2Icon } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, type ReactNode, useCallback, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Frame, FrameHeader, FramePanel } from '@/components/reui/frame'
@@ -15,12 +16,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
 import { FileChips, PersonaChips } from './chips'
+import { ConfigurePanel, usePanel } from './configure-panel'
 import { defaultRounds, PauseToggle, RoundsPicker, type RunOptionsValue } from './run-options'
 import { useUploads } from './use-uploads'
 
 const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
 const NO_PERSONAS = 'Select at least one persona to interview'
 const FAILED_FILES = 'Remove failed files to continue'
+const IMPROVE_FAILED = "Couldn't improve the prompt. Your text is unchanged."
 
 const PLACEHOLDERS = {
   run: 'Ask how people would react to…',
@@ -29,10 +32,21 @@ const PLACEHOLDERS = {
 } as const
 
 export type ComposerSubmit =
-  | { kind: 'run'; uploadIds: string[]; files: SourcesData['files']; runOptions: RunOptionsValue }
+  | { kind: 'run'; uploadIds: string[]; files: SourcesData['files']; runOptions: RunOptionsValue; panel: Panel }
   | { kind: 'followUp'; target: 'report' | 'agents'; agentIds: string[] }
 
 export type ComposerBlock = { message: string; action?: { label: string; onClick: () => void } }
+
+async function requestImprove(text: string): Promise<string | null> {
+  const response = await fetch('/api/prompt/improve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  }).catch(() => null)
+  if (!response?.ok) return null
+  const json = (await response.json().catch(() => null)) as { text?: unknown } | null
+  return typeof json?.text === 'string' && json.text.trim() ? json.text : null
+}
 
 export function BoxComposer({
   chatId,
@@ -44,6 +58,9 @@ export function BoxComposer({
   onStop,
   maxRounds = 40,
   allowPause = true,
+  maxParticipants = PANEL_MAX_PARTICIPANTS,
+  webResearchAvailable = false,
+  plan,
   onNeedChat,
   value,
   onValueChange,
@@ -59,6 +76,9 @@ export function BoxComposer({
   onStop?: () => void
   maxRounds?: number
   allowPause?: boolean
+  maxParticipants?: number
+  webResearchAvailable?: boolean
+  plan?: PlanId
   onNeedChat?: () => Promise<string>
   value?: string
   onValueChange?: (value: string) => void
@@ -78,14 +98,18 @@ export function BoxComposer({
   const { files, add, remove, uploadAll, reset } = useUploads(chatId ?? resolveChatId)
   const [ownText, setOwnText] = useState('')
   const text = value ?? ownText
+  const [undoText, setUndoText] = useState<string | null>(null)
+  const [improving, setImproving] = useState(false)
   const setText = (next: string) => {
     setOwnText(next)
+    setUndoText(null)
     onValueChange?.(next)
   }
   const [runOptions, setRunOptions] = useState<RunOptionsValue>({
     maxRounds: defaultRounds(maxRounds),
     pauseForInterviews: false,
   })
+  const [panel, setPanel] = usePanel(maxParticipants, webResearchAvailable)
   const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
@@ -129,6 +153,7 @@ export function BoxComposer({
         uploadIds[i] ? [{ id: uploadIds[i], filename: file.name, mediaType: file.type, sizeBytes: file.size }] : [],
       ),
       runOptions: { ...runOptions, pauseForInterviews: allowPause && runOptions.pauseForInterviews },
+      panel: { ...panel, webResearch: webResearchAvailable && panel.webResearch },
     })
     reset()
     setText('')
@@ -151,6 +176,25 @@ export function BoxComposer({
     setSending(false)
   }
 
+  const improve = async () => {
+    const original = text
+    if (!original.trim() || improving) return
+    setImproving(true)
+    const improved = await requestImprove(original)
+    setImproving(false)
+    if (!improved) {
+      toast(IMPROVE_FAILED)
+      return
+    }
+    setText(improved)
+    setUndoText(original)
+  }
+
+  const undoImprove = () => {
+    if (undoText === null) return
+    setText(undoText)
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     void send()
@@ -167,6 +211,17 @@ export function BoxComposer({
 
   return (
     <div className="flex w-full flex-col gap-2">
+      {mode === 'run' && (
+        <ConfigurePanel
+          value={panel}
+          onChange={setPanel}
+          maxParticipants={maxParticipants}
+          webResearchAvailable={webResearchAvailable}
+          rounds={runOptions.maxRounds}
+          plan={plan}
+          disabled={disabled}
+        />
+      )}
       {notice && (
         <p role={routed ? undefined : 'status'} className="px-3 text-sm text-destructive">
           {notice}
@@ -235,7 +290,7 @@ export function BoxComposer({
                 onKeyDown={handleKeyDown}
                 placeholder={PLACEHOLDERS[mode]}
                 disabled={disabled}
-                readOnly={sending}
+                readOnly={sending || improving}
                 rows={1}
                 className="field-sizing-content max-h-48 min-h-16 px-3 py-3"
               />
@@ -271,6 +326,33 @@ export function BoxComposer({
                       maxRounds={maxRounds}
                       disabled={disabled}
                     />
+                    {undoText === null ? (
+                      <InputGroupButton
+                        size="sm"
+                        variant="ghost"
+                        disabled={disabled || sending || improving || !text.trim()}
+                        aria-busy={improving || undefined}
+                        onClick={() => void improve()}
+                      >
+                        {improving ? (
+                          <Spinner data-icon="inline-start" aria-hidden="true" />
+                        ) : (
+                          <SparklesIcon data-icon="inline-start" aria-hidden="true" />
+                        )}
+                        Improve prompt
+                      </InputGroupButton>
+                    ) : (
+                      <InputGroupButton
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Undo improve"
+                        disabled={disabled || sending}
+                        onClick={undoImprove}
+                      >
+                        <Undo2Icon data-icon="inline-start" aria-hidden="true" />
+                        Undo
+                      </InputGroupButton>
+                    )}
                   </>
                 )}
                 <div className="ms-auto flex items-center">

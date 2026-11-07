@@ -55,6 +55,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/c/c1',
 }))
 const promptOnly = { kind: 'run', uploadIds: [], files: [], runOptions: { maxRounds: 1, pauseForInterviews: false } }
+const PANEL = { participants: 25, groups: ['customers', 'dealers'], audience: 'Owners', webResearch: true }
+const panelRun = { ...promptOnly, panel: PANEL }
 const LONG_PROMPT = Array.from({ length: 40 }, (_, index) => `word${index}`).join(' ')
 
 vi.mock('./composer/composer', async () => {
@@ -89,6 +91,9 @@ vi.mock('./composer/composer', async () => {
           </button>
           <button type="button" onClick={() => send(promptOnly)}>
             Send prompt-only run
+          </button>
+          <button type="button" onClick={() => send(panelRun)}>
+            Send panel run
           </button>
           <button type="button" onClick={() => send(promptOnly, 'and if prices fall?')}>
             Send another prompt-only run
@@ -987,6 +992,75 @@ describe('Chat', () => {
         expect(chat.sendMessage).toHaveBeenCalledWith({ text: 'short' }, { body: { uploadIds: ['u1'], runOptions } }),
       )
       expect(card()).toBeNull()
+    })
+
+    it('sends the panel to the check and the panel and research to the run', async () => {
+      answerReadiness({ ready: true, researchId: 'res1' })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith(
+          { text: 'why?' },
+          { body: { uploadIds: [], runOptions, panel: PANEL, researchId: 'res1' } },
+        ),
+      )
+      expect(readinessBodies()).toEqual([{ text: 'why?', uploadIds: [], panel: PANEL }])
+    })
+
+    it('keeps the panel and research through the drafted card', async () => {
+      answerReadiness({ ready: false, draft: DRAFT, researchId: 'res1' })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Run with these' }))
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        { text: 'why?' },
+        { body: { uploadIds: [], runOptions, seed: DRAFT, panel: PANEL, researchId: 'res1' } },
+      )
+    })
+
+    it('sends the panel without research when none came back', async () => {
+      answerReadiness({ ready: true })
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() =>
+        expect(chat.sendMessage).toHaveBeenCalledWith(
+          { text: 'why?' },
+          { body: { uploadIds: [], runOptions, panel: PANEL } },
+        ),
+      )
+    })
+
+    it('says it is researching and building the panel while a panel run is checked', async () => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(screen.getByText('Researching and building your panel…')).toBeTruthy()
+    })
+
+    it('leaves the research line out for a run without a panel', async () => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(screen.queryByText('Researching and building your panel…')).toBeNull()
+    })
+
+    it('hands the plan limits and research availability to the composer', () => {
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={{ ...limits, maxParticipants: 10, plan: 'free' }}
+          webResearchAvailable
+        />,
+      )
+      expect(composer.props).toMatchObject({ maxParticipants: 10, plan: 'free', webResearchAvailable: true })
+      cleanup()
+      renderChat()
+      expect(composer.props).toMatchObject({ webResearchAvailable: false })
     })
 
     it('replaces the pending question on a second send', async () => {

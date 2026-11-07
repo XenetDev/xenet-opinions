@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
+vi.mock('@/env', () => ({ env: { EXA_API_KEY: undefined as string | undefined } }))
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/limits', () => ({
   getLimits: (user: { isAnonymous: boolean }) => ({
@@ -15,6 +16,7 @@ vi.mock('@/server/limits', () => ({
 }))
 vi.mock('@/modules/chat/home/home-chat', () => ({ HomeChat: () => null }))
 
+import { env } from '@/env'
 import { getSessionUser } from '@/lib/session'
 import { sessionUser } from '@/test/session-user'
 import Home from './page'
@@ -30,5 +32,12 @@ describe('Home page', () => {
     expect(element.props).not.toHaveProperty('signIn')
     expect(element.props).not.toHaveProperty('usage')
     expect(element.props).not.toHaveProperty('recent')
+  })
+
+  it('offers web research only when Exa is configured', async () => {
+    expect((await Home()).props.webResearchAvailable).toBe(false)
+    env.EXA_API_KEY = 'exa-key'
+    expect((await Home()).props.webResearchAvailable).toBe(true)
+    env.EXA_API_KEY = undefined
   })
 })
