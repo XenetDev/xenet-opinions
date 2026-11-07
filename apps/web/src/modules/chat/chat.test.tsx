@@ -680,6 +680,7 @@ describe('Chat', () => {
     ['demo_paused', 'The demo is paused right now. Try again later.'],
     ['quota_exceeded', "You've used today's two runs. Come back tomorrow."],
     ['rounds_exceeded', 'The demo allows up to 3 rounds.'],
+    ['participants_exceeded', 'The demo allows up to 50 participants.'],
   ])('shows the %s notice when sending fails', async (code, sentence) => {
     renderChat(null, { maxRounds: 3 })
     act(() => chat.options!.onError(new Error(JSON.stringify({ error: code }))))
@@ -797,6 +798,20 @@ describe('Chat', () => {
       expect(init.method).toBe('POST')
       expect(JSON.parse(String(init.body))).toEqual({ seed: DRAFT })
       await waitFor(() => expect(screen.queryByTestId('context-card')).toBeNull())
+    })
+
+    it('shows the participants notice when the restart cast is too large', async () => {
+      failedWith('no_actors')
+      answer({ ready: false, draft: DRAFT }, () =>
+        Response.json({ error: 'participants_exceeded', max: 50 }, { status: 400 }),
+      )
+      renderChat()
+      fireEvent.click(screen.getByRole('button', { name: "Add who's involved" }))
+      await screen.findByText('We drafted who to simulate')
+      fireEvent.click(screen.getByRole('button', { name: 'Run with these' }))
+      await waitFor(() =>
+        expect(screen.getAllByText('The demo allows up to 50 participants.').length).toBeGreaterThan(0),
+      )
     })
 
     it('shows the unfilled card for an empty draft and skip still posts a seed', async () => {

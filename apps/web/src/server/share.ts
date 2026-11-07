@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { schema } from '@xo/db'
 import { type ReportSummary, ReportSummarySchema } from '@xo/engine/parts'
-import { and, desc, eq, exists, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, isNotNull, type SQL, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 
 const { chats, runEvents, runs } = schema
@@ -31,7 +31,7 @@ const hasSummary = (runId: typeof runs.id) =>
       .where(and(eq(runEvents.runId, runId), eq(runEvents.kind, 'report_summary'))),
   )
 
-async function shareableRunId(chatId: string, target: ShareTarget = {}): Promise<string | null> {
+export async function chatRunId(chatId: string, target: ShareTarget = {}, ...where: SQL[]): Promise<string | null> {
   const [row] = await db
     .select({ id: runs.id })
     .from(runs)
@@ -40,13 +40,15 @@ async function shareableRunId(chatId: string, target: ShareTarget = {}): Promise
         eq(runs.chatId, chatId),
         target.runId ? eq(runs.id, target.runId) : undefined,
         target.messageId ? eq(runs.assistantMessageId, target.messageId) : undefined,
-        hasSummary(runs.id),
+        ...where,
       ),
     )
     .orderBy(desc(runs.queuedAt))
     .limit(1)
   return row?.id ?? null
 }
+
+const shareableRunId = (chatId: string, target: ShareTarget = {}) => chatRunId(chatId, target, hasSummary(runs.id))
 
 export async function createShareLink(chatId: string, target?: ShareTarget): Promise<string | null> {
   const runId = await shareableRunId(chatId, target)

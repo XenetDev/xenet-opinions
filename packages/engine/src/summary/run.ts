@@ -5,7 +5,7 @@ import { AgentsDataSchema, DebriefDataSchema, type SimFeedData, SimFeedDataSchem
 import { PANEL_GROUPS } from '../policy/panel'
 import { FenceError, type RunStore } from '../store/types'
 import { aggregate } from './aggregate'
-import { classify, type Persona, verbatim } from './classify'
+import { classify, fixGroups, type Persona, verbatim } from './classify'
 import { generateNarrative } from './generate'
 import { type ReportSummary, ReportSummarySchema } from './schema'
 import { cleanWriteup } from './writeup'
@@ -60,6 +60,31 @@ const authorOf = (profiles: Array<{ id: string; name: string }>) => {
   return (agent: string) => (ids.has(agent) ? agent : (names.get(agent) ?? undefined))
 }
 
+async function summaryGroups(
+  run: Run,
+  personas: Persona[],
+  model: LanguageModel,
+  deps: SummaryDeps,
+  opts: SummaryOptions,
+): Promise<string[]> {
+  const configured = run.config.panel?.groups ?? []
+  const labels = PANEL_GROUPS.filter((g) => (configured as string[]).includes(g.id)).map((g) => g.label)
+  if (labels.length) return labels
+  const cast = run.config.panel?.castGroups ?? []
+  if (cast.length) return cast
+  const fixed = await fixGroups(personas, {
+    model,
+    abortSignal: opts.signal,
+    ...(deps.generate ? { generate: deps.generate } : {}),
+  }).catch((error) => {
+    if (opts.signal.aborted) throw error
+    deps.log?.('summary groups pre-pass failed', { runId: run.id, error })
+    return []
+  })
+  if (opts.requireRunning) await ensureRunning(run, deps.store)
+  return fixed
+}
+
 export async function runSummary(run: Run, deps: SummaryDeps, opts: SummaryOptions): Promise<ReportSummary> {
   const model = deps.summaryModel
   if (!model) throw new SummaryError(NOT_CONFIGURED)
@@ -82,8 +107,7 @@ export async function runSummary(run: Run, deps: SummaryDeps, opts: SummaryOptio
     }
   })
 
-  const configured = run.config.panel?.groups ?? []
-  const groups = PANEL_GROUPS.filter((g) => (configured as string[]).includes(g.id)).map((g) => g.label)
+  const groups = await summaryGroups(run, personas, model, deps, opts)
   const classified = await classify(personas, {
     model,
     abortSignal: opts.signal,

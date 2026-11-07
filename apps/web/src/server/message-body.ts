@@ -1,5 +1,11 @@
 import { MAX_INTERVIEW_AGENTS, SEED_ACTORS_MAX, SEED_FIELD_MAX } from '@xo/engine'
-import { PANEL_AUDIENCE_MAX, PANEL_GROUPS, PANEL_MAX_PARTICIPANTS, PANEL_MIN_PARTICIPANTS } from '@xo/engine/policy'
+import {
+  CAST_GROUPS_MAX,
+  PANEL_AUDIENCE_MAX,
+  PANEL_GROUPS,
+  PANEL_MAX_PARTICIPANTS,
+  PANEL_MIN_PARTICIPANTS,
+} from '@xo/engine/policy'
 import { z } from 'zod'
 import { MAX_FILES } from './upload-rules'
 
@@ -15,6 +21,7 @@ export const panelSchema = z.object({
   audience: z.string().trim().max(PANEL_AUDIENCE_MAX).optional(),
   groups: z.array(z.enum(groupIds)).max(PANEL_GROUPS.length),
   webResearch: z.boolean(),
+  castGroups: z.array(z.string().trim().min(1).max(SEED_FIELD_MAX)).max(CAST_GROUPS_MAX).optional(),
 })
 
 export const seedSchema = z.object({

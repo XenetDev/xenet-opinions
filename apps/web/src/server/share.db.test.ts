@@ -9,7 +9,7 @@ vi.mock('@/lib/db', async () => {
 
 import { db } from '@/lib/db'
 import { reportSummaryFixture as summary } from '@/modules/report/fixture'
-import { createShareLink, listShareTokens, loadSharedReport, revokeShareLink } from './share'
+import { chatRunId, createShareLink, listShareTokens, loadSharedReport, revokeShareLink } from './share'
 
 const userId = `us_${crypto.randomUUID()}`
 const now = new Date()
@@ -109,6 +109,17 @@ describe.skipIf(!process.env.DATABASE_URL)('share links (real db)', () => {
     expect(await createShareLink(chatId, { runId: foreign.id })).toBeNull()
     expect(await createShareLink(chatId, { messageId: foreign.assistantMessageId })).toBeNull()
     expect(await revokeShareLink(chatId, { runId: foreign.id })).toBe(false)
+  })
+
+  it("resolves a chat's run by message, latest by default, with or without a summary", async () => {
+    const chatId = await mkChat()
+    const older = await mkRun(chatId, { queuedAt: new Date('2026-11-01T10:00:00Z') })
+    const newer = await mkRun(chatId, { queuedAt: new Date('2026-11-02T10:00:00Z') })
+    expect(await chatRunId(chatId)).toBe(newer.id)
+    expect(await chatRunId(chatId, { messageId: older.assistantMessageId })).toBe(older.id)
+    const other = await mkChat()
+    const foreign = await mkRun(other, { queuedAt: new Date('2026-11-01T10:00:00Z') })
+    expect(await chatRunId(chatId, { messageId: foreign.assistantMessageId })).toBeNull()
   })
 
   it('loads only the report: question, date and the latest summary', async () => {

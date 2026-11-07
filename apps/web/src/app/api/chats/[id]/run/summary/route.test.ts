@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/env', () => ({ env: {} }))
 vi.mock('@/lib/session', () => ({ getSessionUser: vi.fn() }))
 vi.mock('@/server/chats', () => ({ getOwnedChat: vi.fn() }))
-vi.mock('@/server/runs', () => ({ runStore: { getLatestByChat: vi.fn(), listEvents: vi.fn(), appendEvent: vi.fn() } }))
+vi.mock('@/server/runs', () => ({ runStore: { get: vi.fn(), listEvents: vi.fn(), appendEvent: vi.fn() } }))
+vi.mock('@/server/share', () => ({ chatRunId: vi.fn() }))
 vi.mock('@/server/summary', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/server/summary')>()),
   summaryModel: vi.fn(),
@@ -18,14 +19,27 @@ import { materialiseRun, summaryEvent } from '@xo/engine'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { runStore } from '@/server/runs'
+import { chatRunId } from '@/server/share'
 import { summaryModel } from '@/server/summary'
 import { sessionUser } from '@/test/session-user'
 import { maxDuration, POST } from './route'
 
-const call = () =>
-  POST(new Request('http://localhost/api/chats/c1/run/summary', { method: 'POST' }), {
-    params: Promise.resolve({ id: 'c1' }),
-  })
+const call = (body: unknown = { messageId: 'a1' }) =>
+  POST(
+    new Request('http://localhost/api/chats/c1/run/summary', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ id: 'c1' }) },
+  )
+
+const latest = (run: unknown) => {
+  vi.mocked(chatRunId).mockResolvedValue(run ? (run as { id: string }).id : null)
+  vi.mocked(runStore.get).mockResolvedValue(run as never)
+}
+
+const failure = { kind: 'report_summary_failed', payload: { message: 'x' } }
 
 const owned = () => {
   vi.mocked(getSessionUser).mockResolvedValue(sessionUser())
@@ -58,7 +72,7 @@ describe('POST /api/chats/[id]/run/summary', () => {
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ error: 'not_found' })
     expect(getOwnedChat).toHaveBeenCalledWith('c1', 'user1')
-    expect(runStore.getLatestByChat).not.toHaveBeenCalled()
+    expect(chatRunId).not.toHaveBeenCalled()
     expect(summaryEvent).not.toHaveBeenCalled()
   })
 
@@ -66,9 +80,9 @@ describe('POST /api/chats/[id]/run/summary', () => {
     ['no run', null],
     ['a running run', { ...doneRun, status: 'running' }],
     ['a failed run', { ...doneRun, status: 'failed' }],
-  ])('returns 409 run_not_done for %s', async (_, latest) => {
+  ])('returns 409 run_not_done for %s', async (_, run) => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(latest as never)
+    latest(run)
     const res = await call()
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'run_not_done' })
@@ -77,7 +91,7 @@ describe('POST /api/chats/[id]/run/summary', () => {
 
   it('returns 409 summary_exists when the run already has a summary', async () => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(doneRun as never)
+    latest(doneRun)
     vi.mocked(summaryModel).mockReturnValue(model as never)
     vi.mocked(runStore.listEvents).mockResolvedValue([
       { kind: 'report_summary_failed', payload: { message: 'x' } },
@@ -92,7 +106,7 @@ describe('POST /api/chats/[id]/run/summary', () => {
 
   it('returns 503 when no summary model is configured', async () => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(doneRun as never)
+    latest(doneRun)
     vi.mocked(summaryModel).mockReturnValue(undefined)
     const res = await call()
     expect(res.status).toBe(503)
@@ -101,9 +115,9 @@ describe('POST /api/chats/[id]/run/summary', () => {
 
   it('runs the summary after a failed one, appends the event and re-persists the message parts', async () => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(doneRun as never)
+    latest(doneRun)
     vi.mocked(summaryModel).mockReturnValue(model as never)
-    vi.mocked(runStore.listEvents).mockResolvedValue([{ kind: 'report_summary_failed', payload: {} }] as never)
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure] as never)
     const outcome = { kind: 'report_summary' as const, partId: 'report_summary', payload: { verdict: 'V' } }
     vi.mocked(summaryEvent).mockResolvedValue(outcome)
     const res = await call()
@@ -123,9 +137,9 @@ describe('POST /api/chats/[id]/run/summary', () => {
 
   it('records a failed summary and returns 502', async () => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(doneRun as never)
+    latest(doneRun)
     vi.mocked(summaryModel).mockReturnValue(model as never)
-    vi.mocked(runStore.listEvents).mockResolvedValue([])
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure] as never)
     const outcome = {
       kind: 'report_summary_failed' as const,
       partId: 'report_summary_failed',
@@ -141,9 +155,9 @@ describe('POST /api/chats/[id]/run/summary', () => {
 
   it('refuses a second retry while one is running', async () => {
     owned()
-    vi.mocked(runStore.getLatestByChat).mockResolvedValue(doneRun as never)
+    latest(doneRun)
     vi.mocked(summaryModel).mockReturnValue(model as never)
-    vi.mocked(runStore.listEvents).mockResolvedValue([])
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure] as never)
     let finish: (value: never) => void = () => {}
     vi.mocked(summaryEvent).mockReturnValue(new Promise((resolve) => (finish = resolve as never)))
     const first = call()
@@ -153,5 +167,49 @@ describe('POST /api/chats/[id]/run/summary', () => {
     expect(await second.json()).toEqual({ error: 'summary_running' })
     finish({ kind: 'report_summary', partId: 'report_summary', payload: {} } as never)
     expect((await first).status).toBe(201)
+  })
+
+  it("resolves the card's run by messageId within the chat", async () => {
+    owned()
+    latest(doneRun)
+    vi.mocked(summaryModel).mockReturnValue(model as never)
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure] as never)
+    vi.mocked(summaryEvent).mockResolvedValue({ kind: 'report_summary', partId: 'report_summary', payload: {} })
+    await call({ messageId: 'a7' })
+    expect(chatRunId).toHaveBeenCalledWith('c1', { messageId: 'a7' })
+    expect(runStore.get).toHaveBeenCalledWith('r1')
+  })
+
+  it('returns 400 for a malformed body', async () => {
+    owned()
+    const res = await call('{nope')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'bad_request' })
+    expect(chatRunId).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 summary_not_failed when the run has no failed summary', async () => {
+    owned()
+    latest(doneRun)
+    vi.mocked(summaryModel).mockReturnValue(model as never)
+    vi.mocked(runStore.listEvents).mockResolvedValue([{ kind: 'report_text', payload: {} }] as never)
+    const res = await call()
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'summary_not_failed' })
+    expect(summaryEvent).not.toHaveBeenCalled()
+  })
+
+  it('allows a retry after two failures and refuses after three', async () => {
+    owned()
+    latest(doneRun)
+    vi.mocked(summaryModel).mockReturnValue(model as never)
+    vi.mocked(summaryEvent).mockResolvedValue({ kind: 'report_summary', partId: 'report_summary', payload: {} })
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure, failure] as never)
+    expect((await call()).status).toBe(201)
+    vi.mocked(runStore.listEvents).mockResolvedValue([failure, failure, failure] as never)
+    const res = await call()
+    expect(res.status).toBe(429)
+    expect(await res.json()).toEqual({ error: 'summary_retry_limit' })
+    expect(summaryEvent).toHaveBeenCalledTimes(1)
   })
 })

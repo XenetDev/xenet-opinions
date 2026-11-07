@@ -1,11 +1,11 @@
-import { buildSeedDocument, tailRunAsUIMessageStream } from '@xo/engine'
+import { buildSeedDocument, castGroups, castWithinPlan, tailRunAsUIMessageStream } from '@xo/engine'
 import { createUIMessageStreamResponse, UI_MESSAGE_STREAM_HEADERS } from 'ai'
 import { isChatId } from '@/lib/chat-id'
 import { getSessionUser } from '@/lib/session'
 import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
-import { messageText, parseMessageBody } from '@/server/message-body'
+import { type MessageBody, messageText, parseMessageBody } from '@/server/message-body'
 import { readOwnedResearch } from '@/server/research/store'
 import { checkRunGate } from '@/server/run-gate'
 import { countOwnedUploads, QuotaExceededError, RunActiveError, runStore, startRun } from '@/server/runs'
@@ -13,6 +13,12 @@ import { createSeedUpload } from '@/server/uploads'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
+
+function withCastGroups(panel: NonNullable<MessageBody['panel']>, actors: string | undefined) {
+  const { castGroups: _client, ...rest } = panel
+  const groups = actors ? castGroups(actors) : []
+  return groups.length ? { ...rest, castGroups: groups } : rest
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(request.headers)
@@ -69,6 +75,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   })
   if (!gate.ok) return gate.response
   const { limits } = gate
+  if (!castWithinPlan(body.seed?.actors, limits.maxParticipants))
+    return Response.json({ error: 'participants_exceeded', max: limits.maxParticipants }, { status: 400 })
 
   if (uploadIds.length > 0 && (await countOwnedUploads({ chatId, userId: user.id, uploadIds })) !== uploadIds.length) {
     if (!owned) return Response.json({ error: 'not_found' }, { status: 404 })
@@ -89,6 +97,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? body.researchId
       : undefined
 
+  const panel = body.panel && withCastGroups(body.panel, body.seed?.actors)
+
   let started: Awaited<ReturnType<typeof startRun>>
   try {
     started = await startRun({
@@ -98,7 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       text,
       uploadIds,
       maxRounds: body.runOptions.maxRounds,
-      ...(body.panel && { panel: body.panel }),
+      ...(panel && { panel }),
       ...(researchId && { researchId }),
       pauseForInterviews: limits.allowPause && body.runOptions.pauseForInterviews,
       ...(gate.quota && { quota: gate.quota }),

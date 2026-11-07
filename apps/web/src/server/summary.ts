@@ -7,6 +7,8 @@ export function summaryModel(): LanguageModel | undefined {
   return createOpenAICompatible({ name: 'llm', baseURL: env.LLM_BASE_URL, apiKey: env.LLM_API_KEY })(env.LLM_MODEL_NAME)
 }
 
+export const SUMMARY_MAX_FAILURES = 3
+
 const inFlight = new Set<string>()
 
 export async function exclusive<T>(runId: string, run: () => Promise<T>): Promise<T | null> {

@@ -239,25 +239,31 @@ describe('MessageParts report', () => {
   it('offers Retry summary when the summary failed and shows the card on success', async () => {
     const fetchSpy = vi.fn(async () => Response.json({ summary: reportSummaryFixture }, { status: 201 }))
     vi.stubGlobal('fetch', fetchSpy)
-    render(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" />)
+    render(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" messageId="a1" />)
     expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Retry summary' }))
     await waitFor(() => expect(screen.getByTestId('report-card')).toBeTruthy())
-    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/summary', { method: 'POST' })
+    expect(fetchSpy).toHaveBeenCalledWith('/api/chats/c1/run/summary', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messageId: 'a1' }),
+    })
     expect(screen.queryByRole('heading', { name: 'MiroFish report' })).toBeNull()
   })
 
-  it('keeps the report and explains when the retry is refused', async () => {
+  it.each([
+    ['summary_unavailable', 503, 'Summaries are not available right now.'],
+    ['summary_retry_limit', 429, 'The summary could not be built after several tries. The full report is below.'],
+    ['summary_not_failed', 409, 'There is no failed summary to retry. Reload the page.'],
+  ])('keeps the report and explains when the retry is refused with %s', async (error, status, text) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => Response.json({ error: 'summary_unavailable' }, { status: 503 })),
+      vi.fn(async () => Response.json({ error }, { status })),
     )
     const { container } = render(<MessageParts parts={[...stageParts, report, failedPart]} chatId="c1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Retry summary' }))
     const retry = container.querySelector<HTMLElement>('[data-part="summary-retry"]')!
-    await waitFor(() =>
-      expect(within(retry).getByRole('status').textContent).toBe('Summaries are not available right now.'),
-    )
+    await waitFor(() => expect(within(retry).getByRole('status').textContent).toBe(text))
     expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
     expect(screen.queryByTestId('report-card')).toBeNull()
   })

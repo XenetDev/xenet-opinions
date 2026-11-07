@@ -369,7 +369,10 @@ export function Chat({
       ...(seed && { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seed }) }),
     }).catch(() => null)
     if (response?.status === 201) router.refresh()
-    else setNotice(await errorOf(response, 'Something went wrong retrying the run'))
+    else {
+      const code = await errorOf(response, 'Something went wrong retrying the run')
+      setNotice(sendNotices(limits, !!signIn)[code] ?? code)
+    }
   }
 
   const handleRetry = () => retryRun()

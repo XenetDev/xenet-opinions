@@ -1,10 +1,11 @@
-import { buildSeedDocument, NO_ACTORS_CODE } from '@xo/engine'
+import { buildSeedDocument, castWithinPlan, NO_ACTORS_CODE } from '@xo/engine'
 import { z } from 'zod'
 import { getSessionUser } from '@/lib/session'
 import { getOwnedChat } from '@/server/chats'
 import { getLimits } from '@/server/limits'
 import { seedSchema } from '@/server/message-body'
 import { retryRun } from '@/server/retry'
+import { checkRunGate } from '@/server/run-gate'
 import { RunActiveError, RunNotFailedError, runStore } from '@/server/runs'
 import { createSeedUpload, readOwnedUploads } from '@/server/uploads'
 
@@ -38,6 +39,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const latest = await runStore.getLatestByChat(chatId)
   if (latest?.status !== 'failed') return Response.json({ error: 'run_not_failed' }, { status: 409 })
   if (seed && latest.error?.code !== NO_ACTORS_CODE) return Response.json({ error: 'run_not_failed' }, { status: 409 })
+  if (seed?.actors) {
+    const gate = await checkRunGate(user, { spendsQuota: false })
+    if (!gate.ok) return gate.response
+    if (!castWithinPlan(seed.actors, gate.limits.maxParticipants))
+      return Response.json({ error: 'participants_exceeded', max: gate.limits.maxParticipants }, { status: 400 })
+  }
 
   try {
     let restart: { uploadIds: string[] } | undefined

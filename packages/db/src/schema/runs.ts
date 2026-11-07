@@ -31,7 +31,13 @@ export type RunConfig = {
   maxRounds: number
   uploadIds: string[]
   pauseForInterviews?: boolean
-  panel?: { participants: number; audience?: string; groups: string[]; webResearch: boolean }
+  panel?: {
+    participants: number
+    audience?: string
+    groups: string[]
+    webResearch: boolean
+    castGroups?: string[]
+  }
   researchId?: string
 }
 

@@ -237,6 +237,43 @@ describe('tick', () => {
     expect((store.events.get(run.id) ?? []).some((e) => e.kind.startsWith('report_summary'))).toBe(false)
   })
 
+  const priorSummary = {
+    verdict: 'V',
+    confidence: { level: 'low' as const, reason: 'R' },
+    headline: { sentiment: null, actShare: null, switchShare: null, topConcern: null },
+    split: { positive: 0, neutral: 0, negative: 0 },
+    groups: [],
+    findings: [],
+    risks: [],
+    opportunities: [],
+    participants: [],
+    sources: [],
+    method: { participants: 0, groups: 0, rounds: 1, webResearch: false },
+    writeup: '',
+  }
+
+  it.each([
+    ['report_summary' as const, priorSummary],
+    ['report_summary_failed' as const, { message: 'earlier' }],
+  ])('does not rerun the summary after a restart when %s already exists', async (kind, payload) => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    await store.appendEvent(run.id, { kind, partId: kind, payload })
+    const generate = vi.fn(() => ({}))
+    deps.summaryModel = mockModel(generate)
+    const next = await tick(run, deps)
+    expect(next.stage).toBe('finished')
+    expect(generate).not.toHaveBeenCalled()
+    expect((store.events.get(run.id) ?? []).filter((e) => e.kind.startsWith('report_summary'))).toHaveLength(1)
+  })
+
   it('lets a lost fence escape the summary step', async () => {
     const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
     vi.mocked(deps.mirofish.report.get)

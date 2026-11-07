@@ -15,6 +15,8 @@ const RETRY_ERRORS: Record<string, string> = {
   summary_running: 'A summary is already being built. Check back in a minute.',
   summary_exists: 'A summary already exists. Reload the page to see it.',
   run_not_done: 'The run has not finished yet.',
+  summary_not_failed: 'There is no failed summary to retry. Reload the page.',
+  summary_retry_limit: 'The summary could not be built after several tries. The full report is below.',
 }
 const RETRY_FAILED = 'The summary could not be built. Try again.'
 
@@ -80,14 +82,26 @@ export function ReportBlock({
   )
 }
 
-export function RetrySummary({ chatId, onSummary }: { chatId: string; onSummary: (summary: ReportSummary) => void }) {
+export function RetrySummary({
+  chatId,
+  messageId,
+  onSummary,
+}: {
+  chatId: string
+  messageId?: string
+  onSummary: (summary: ReportSummary) => void
+}) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const retry = async () => {
     setPending(true)
     setError(null)
-    const response = await fetch(`/api/chats/${chatId}/run/summary`, { method: 'POST' }).catch(() => null)
+    const response = await fetch(`/api/chats/${chatId}/run/summary`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(messageId ? { messageId } : {}),
+    }).catch(() => null)
     const body = (await response?.json().catch(() => null)) as { summary?: unknown; error?: string } | null
     const parsed = response?.status === 201 ? ReportSummarySchema.safeParse(body?.summary) : null
     setPending(false)
@@ -155,7 +169,7 @@ export function ReportSection({
       {children}
       {failed && chatId && (
         <div data-part="summary-retry">
-          <RetrySummary chatId={chatId} onSummary={setRetried} />
+          <RetrySummary chatId={chatId} messageId={messageId} onSummary={setRetried} />
         </div>
       )}
     </>

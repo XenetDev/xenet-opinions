@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSeedDocument,
   CAST_GUIDANCE,
+  castCharsMax,
+  castGroups,
+  castPeople,
+  castWithinPlan,
   needsSeedContext,
   ontologyRequirement,
+  SEED_ACTORS_MAX,
   SEED_PROMPT_MIN_WORDS,
   wordCount,
 } from './seed'
@@ -60,5 +65,49 @@ describe('ontologyRequirement', () => {
     expect(requirement.startsWith('Is this a good investment?\n\n')).toBe(true)
     expect(requirement).toContain(CAST_GUIDANCE)
     expect(CAST_GUIDANCE).toContain('Do not create personas for products, projects, documents')
+  })
+})
+
+describe('cast limits', () => {
+  const cast = (groups: Record<string, number>) =>
+    Object.entries(groups)
+      .flatMap(([group, n]) => [
+        `${group}:`,
+        ...Array.from({ length: n }, (_, i) => `- Person ${group} ${i}, 30, role, City: view`),
+      ])
+      .join('\n')
+
+  it('counts person lines that start with "- "', () => {
+    expect(castPeople(cast({ Customers: 3, Media: 2 }))).toBe(5)
+    expect(castPeople('  - indented\n-no space\nCustomers:\n\n- one')).toBe(2)
+    expect(castPeople('')).toBe(0)
+  })
+
+  it('parses group headings, trimmed, de-duplicated and at most 12', () => {
+    expect(castGroups(cast({ 'Pro customers': 1, Media: 1 }))).toEqual(['Pro customers', 'Media'])
+    expect(castGroups('  Customers:  \n- a: b\nCustomers:\n**Dealers:**\n: \nNot a heading')).toEqual([
+      'Customers',
+      'Dealers',
+    ])
+    const many = Array.from({ length: 15 }, (_, i) => `Group ${i}:`).join('\n')
+    expect(castGroups(many)).toHaveLength(12)
+  })
+
+  it('allows the plan maximum plus a slack of max(2, 10%)', () => {
+    expect(castWithinPlan(cast({ A: 12 }), 10)).toBe(true)
+    expect(castWithinPlan(cast({ A: 13 }), 10)).toBe(false)
+    expect(castWithinPlan(cast({ A: 30 }), 10)).toBe(false)
+    expect(castWithinPlan(cast({ A: 28 }), 25)).toBe(true)
+    expect(castWithinPlan(cast({ A: 29 }), 25)).toBe(false)
+    expect(castWithinPlan(cast({ A: 55 }), 50)).toBe(true)
+    expect(castWithinPlan(cast({ A: 56 }), 50)).toBe(false)
+    expect(castWithinPlan(undefined, 10)).toBe(true)
+  })
+
+  it('caps the cast length at 300 characters per participant, never above SEED_ACTORS_MAX', () => {
+    expect(castCharsMax(10)).toBe(3000)
+    expect(castCharsMax(50)).toBe(SEED_ACTORS_MAX)
+    expect(castWithinPlan('x'.repeat(3000), 10)).toBe(true)
+    expect(castWithinPlan('x'.repeat(3001), 10)).toBe(false)
   })
 })

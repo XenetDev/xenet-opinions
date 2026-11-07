@@ -389,6 +389,74 @@ describe('POST /api/chats/[id]/messages', () => {
       expect(startRun).not.toHaveBeenCalled()
     })
 
+    describe('the seed cast', () => {
+      const person = (i: number) => `- Person ${i}, 30, owner, Leeds: fine`
+      const cast = (people: number) => {
+        const half = Math.ceil(people / 2)
+        return [
+          'Customers:',
+          ...Array.from({ length: half }, (_, i) => person(i)),
+          'Media:',
+          ...Array.from({ length: people - half }, (_, i) => person(half + i)),
+        ].join('\n')
+      }
+      const guestPanel = { participants: 10, groups: [], webResearch: false }
+
+      it('refuses a guest cast of 30 people', async () => {
+        authed()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: guestPanel,
+          seed: { actors: cast(30) },
+        })
+        expect(res.status).toBe(400)
+        expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+        expect(createSeedUpload).not.toHaveBeenCalled()
+        expect(startRun).not.toHaveBeenCalled()
+      })
+
+      it('allows a guest cast of 11 people and stores its groups on the panel', async () => {
+        authed()
+        start()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: { ...guestPanel, castGroups: ['Injected'] },
+          seed: { actors: cast(11) },
+        })
+        expect(res.status).toBe(200)
+        await res.body?.cancel()
+        expect(startRun).toHaveBeenCalledWith(
+          expect.objectContaining({ panel: { ...guestPanel, castGroups: ['Customers', 'Media'] } }),
+        )
+      })
+
+      it('drops client castGroups when the cast has no group headings', async () => {
+        authed()
+        start()
+        const res = await call(userMessage('Should we raise prices?'), {
+          uploadIds: [],
+          panel: { ...guestPanel, castGroups: ['Injected'] },
+          seed: { actors: '- Maria Lopez, 34, owner, Austin: fine' },
+        })
+        await res.body?.cancel()
+        expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ panel: guestPanel }))
+      })
+
+      it.each([
+        ['too many people', cast(13)],
+        ['too long', `Customers:\n- ${'x'.repeat(3000)}`],
+      ])('refuses a cast that is %s even without a panel', async (_, actors) => {
+        authed()
+        limits({ maxParticipants: 10 })
+        const res = await call(userMessage('Should we raise prices?'), { uploadIds: [], seed: { actors } })
+        expect(res.status).toBe(400)
+        expect(await res.json()).toEqual({ error: 'participants_exceeded', max: 10 })
+        expect(startRun).not.toHaveBeenCalled()
+      })
+    })
+
     it('writes the seed fields into the document', async () => {
       authed()
       start()

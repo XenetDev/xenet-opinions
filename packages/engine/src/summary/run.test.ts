@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { event } from '../orchestrator/emit'
 import { createMemoryStore } from '../store/memory'
 import { FenceError } from '../store/types'
-import { classifySystem } from './classify'
+import { classifySystem, groupsSystem } from './classify'
 import { generateSystem } from './generate'
 import { runSummary, summaryEvent } from './run'
 import { ReportSummarySchema } from './schema'
@@ -92,6 +92,7 @@ const narrative = {
 const model = () =>
   mockModel(({ system, prompt }) => {
     if (system === classifySystem) return classification(prompt)
+    if (system === groupsSystem) return { groups: ['Customers', 'Dealers/partners'] }
     expect(system).toBe(generateSystem)
     expect(system).toMatch(/json/i)
     return narrative
@@ -212,6 +213,73 @@ describe('runSummary', () => {
     expect(prompt).toContain('Name each participant')
     expect(summary.method).toEqual({ participants: 3, groups: 2, rounds: 2, webResearch: false })
     expect(summary.sources).toEqual([])
+  })
+})
+
+describe('runSummary groups', () => {
+  const recording = (groups?: unknown) => {
+    const calls: Array<{ system: string; prompt: string }> = []
+    const summaryModel = mockModel(({ system, prompt }) => {
+      calls.push({ system, prompt })
+      if (system === groupsSystem) return groups
+      if (system === classifySystem) return classification(prompt)
+      return narrative
+    })
+    const classifyPrompts = () => calls.filter((c) => c.system === classifySystem).map((c) => c.prompt)
+    const prepasses = () => calls.filter((c) => c.system === groupsSystem)
+    return { summaryModel, classifyPrompts, prepasses }
+  }
+
+  it('uses the configured groups and skips the pre-pass', async () => {
+    const { store, run } = await setup({
+      panel: { participants: 3, groups: ['customers', 'dealers'], webResearch: false, castGroups: ['Owners'] },
+    })
+    const { summaryModel, classifyPrompts, prepasses } = recording()
+    await runSummary(run, { store, summaryModel }, { signal })
+    expect(classifyPrompts()[0]).toContain('exactly one of these groups: Customers, Dealers/partners.')
+    expect(prepasses()).toHaveLength(0)
+  })
+
+  it("uses the draft cast's groups when none are configured", async () => {
+    const { store, run } = await setup({
+      panel: { participants: 3, groups: [], webResearch: false, castGroups: ['Customers', 'Dealers/partners'] },
+    })
+    const { summaryModel, classifyPrompts, prepasses } = recording()
+    const summary = await runSummary(run, { store, summaryModel }, { signal })
+    expect(classifyPrompts()[0]).toContain('exactly one of these groups: Customers, Dealers/partners.')
+    expect(prepasses()).toHaveLength(0)
+    expect(summary.groups.map((g) => g.label)).toEqual(['Customers', 'Dealers/partners'])
+  })
+
+  it('fixes one label set with a single pre-pass before every classify batch', async () => {
+    const { store, run } = await setup()
+    const profiles = Array.from({ length: 25 }, (_, i) => ({
+      id: String(i),
+      name: `P${i}`,
+      bio: `bio ${i}`,
+      topics: [],
+    }))
+    await store.appendEvent(run.id, event('agents', { count: profiles.length, profiles }))
+    const { summaryModel, classifyPrompts, prepasses } = recording({
+      groups: [' Customers ', 'Dealers/partners', 'customers', 'Press', '', 'A', 'B', 'C', 'D', 'E'],
+    })
+    await runSummary(run, { store, summaryModel }, { signal })
+    expect(prepasses()).toHaveLength(1)
+    expect(prepasses()[0]!.prompt).toContain('P0')
+    expect(prepasses()[0]!.prompt).toContain('P24')
+    expect(classifyPrompts()).toHaveLength(3)
+    for (const prompt of classifyPrompts())
+      expect(prompt).toContain('exactly one of these groups: Customers, Dealers/partners, Press, A, B, C, D.')
+  })
+
+  it('falls back to free-form group names when the pre-pass gives nothing usable', async () => {
+    const { store, run } = await setup()
+    const log = vi.fn()
+    const { summaryModel, classifyPrompts, prepasses } = recording({ groups: [] })
+    const summary = await runSummary(run, { store, summaryModel, log }, { signal })
+    expect(prepasses()).toHaveLength(1)
+    expect(classifyPrompts()[0]).toContain('Name each participant')
+    expect(summary.groups.length).toBeGreaterThan(0)
   })
 })
 
