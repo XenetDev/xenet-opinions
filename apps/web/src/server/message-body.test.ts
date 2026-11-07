@@ -47,9 +47,12 @@ describe('parseMessageBody run fields', () => {
     })
   })
 
-  it('rejects a seed field over 2000 characters', () => {
-    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2000) } })?.seed?.actors).toHaveLength(2000)
-    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(2001) } })).toBeNull()
+  it('rejects background or change over 2000 characters and actors over 12 000', () => {
+    expect(parseMessageBody({ ...base, seed: { background: 'x'.repeat(2000) } })?.seed?.background).toHaveLength(2000)
+    expect(parseMessageBody({ ...base, seed: { background: 'x'.repeat(2001) } })).toBeNull()
+    expect(parseMessageBody({ ...base, seed: { change: 'x'.repeat(2001) } })).toBeNull()
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(12_000) } })?.seed?.actors).toHaveLength(12_000)
+    expect(parseMessageBody({ ...base, seed: { actors: 'x'.repeat(12_001) } })).toBeNull()
     expect(parseMessageBody({ ...base, seed: { background: 1 } })).toBeNull()
   })
 })

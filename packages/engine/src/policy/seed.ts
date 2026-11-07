@@ -1,5 +1,6 @@
 export const SEED_PROMPT_MIN_WORDS = 40
 export const SEED_FIELD_MAX = 2000
+export const SEED_ACTORS_MAX = 12_000
 
 export function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length

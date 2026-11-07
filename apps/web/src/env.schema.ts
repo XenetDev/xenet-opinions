@@ -46,6 +46,7 @@ export const envSchema = z
     LLM_API_KEY: optionalString,
     LLM_BASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().default('https://api.openai.com/v1')),
     LLM_MODEL_NAME: z.preprocess((v) => (v === '' ? undefined : v), z.string().default('gpt-4o-mini')),
+    EXA_API_KEY: optionalString,
   })
   .superRefine((env, ctx) => {
     if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) {

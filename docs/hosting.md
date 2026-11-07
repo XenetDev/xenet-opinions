@@ -278,6 +278,7 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `DEMO_MAX_ROUNDS` | `3` |
 | `HEALTH_CHECK_MIROFISH` | `1` |
 | `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as MiroFish's. They power the readiness check before a run, which drafts who to simulate when the brief names no people or groups. Without `LLM_API_KEY` the check is off; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
+| `EXA_API_KEY` | Optional; an [Exa](https://exa.ai) key. With it, the readiness check searches the web for the question before drafting the cast, and the sources go into the report. Without it web research is off and its toggle is hidden |
 
 ## Limits and costs
 

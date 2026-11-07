@@ -1,9 +1,9 @@
-import { MAX_INTERVIEW_AGENTS, SEED_FIELD_MAX } from '@xo/engine'
+import { MAX_INTERVIEW_AGENTS, SEED_ACTORS_MAX, SEED_FIELD_MAX } from '@xo/engine'
 import { PANEL_AUDIENCE_MAX, PANEL_GROUPS, PANEL_MAX_PARTICIPANTS, PANEL_MIN_PARTICIPANTS } from '@xo/engine/policy'
 import { z } from 'zod'
 import { MAX_FILES } from './upload-rules'
 
-const seedField = z.string().trim().max(SEED_FIELD_MAX).optional()
+const seedField = (max: number) => z.string().trim().max(max).optional()
 
 const groupIds = PANEL_GROUPS.map((group) => group.id) as [
   (typeof PANEL_GROUPS)[number]['id'],
@@ -17,7 +17,11 @@ export const panelSchema = z.object({
   webResearch: z.boolean(),
 })
 
-export const seedSchema = z.object({ background: seedField, actors: seedField, change: seedField })
+export const seedSchema = z.object({
+  background: seedField(SEED_FIELD_MAX),
+  actors: seedField(SEED_ACTORS_MAX),
+  change: seedField(SEED_FIELD_MAX),
+})
 
 const messageBodySchema = z.object({
   id: z.string(),

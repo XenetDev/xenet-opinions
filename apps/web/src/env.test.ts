@@ -102,4 +102,8 @@ describe('parseEnv', () => {
     ])
     expect(parseEnv({ ...valid, LLM_API_KEY: 'sk-1' }).LLM_API_KEY).toBe('sk-1')
   })
+  it('leaves web research off without EXA_API_KEY', () => {
+    expect(parseEnv({ ...valid, EXA_API_KEY: '' }).EXA_API_KEY).toBeUndefined()
+    expect(parseEnv({ ...valid, EXA_API_KEY: 'exa-1' }).EXA_API_KEY).toBe('exa-1')
+  })
 })

@@ -37,10 +37,10 @@ describe('ContextCard', () => {
     expect(document.activeElement).toBe(field('Background and constraints'))
   })
 
-  it('caps each field at 2000 characters', () => {
+  it('caps background and change at 2000 characters and who to simulate at 12 000', () => {
     renderCard()
-    for (const name of ['Background and constraints', 'Who should be simulated', 'What is changing'])
-      expect(field(name).maxLength).toBe(2000)
+    for (const name of ['Background and constraints', 'What is changing']) expect(field(name).maxLength).toBe(2000)
+    expect(field('Who should be simulated').maxLength).toBe(12_000)
   })
 
   it('starts with only the non-empty trimmed fields', () => {

@@ -88,6 +88,10 @@ describe.skipIf(!process.env.DATABASE_URL)('account (real db)', () => {
 
     const usageRun = `usage_${crypto.randomUUID()}`
     await db.insert(schema.runUsage).values({ runId: usageRun, userId: ids.a })
+    const researchId = `rs_${crypto.randomUUID()}`
+    await db
+      .insert(schema.research)
+      .values({ id: researchId, userId: ids.a, chatId: chatA, payload: { query: 'q', digest: 'd', sources: [] } })
 
     await expect(relinkAnonymousUser({ fromUserId: ids.a, toUserId: ids.b })).resolves.toEqual({
       chats: 1,
@@ -97,6 +101,8 @@ describe.skipIf(!process.env.DATABASE_URL)('account (real db)', () => {
 
     const [usage] = await db.select().from(schema.runUsage).where(eq(schema.runUsage.runId, usageRun))
     expect(usage?.userId).toBe(ids.b)
+    const [moved] = await db.select().from(schema.research).where(eq(schema.research.id, researchId))
+    expect(moved?.userId).toBe(ids.b)
 
     expect(await listChats(ids.b)).toHaveLength(2)
     expect(await listChats(ids.a)).toHaveLength(0)

@@ -1,13 +1,15 @@
+import type { Panel } from '@xo/engine/policy'
 import { fallbackReadiness } from '@/server/readiness/fallback'
-import type { Readiness } from '@/server/readiness/types'
+import type { ReadinessResponse } from '@/server/readiness/types'
 
-export type ReadinessResult = { ok: true; readiness: Readiness } | { ok: false; code: string }
+export type ReadinessResult = { ok: true; readiness: ReadinessResponse } | { ok: false; code: string }
 
 const TIMEOUT_MS = 12_000
+const PANEL_TIMEOUT_MS = 70_000
 
 export async function requestReadiness(
   chatId: string,
-  body: { text: string; uploadIds: string[] } | { retry: true },
+  body: { text: string; uploadIds: string[]; panel?: Panel } | { retry: true },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ReadinessResult> {
   const fallback: ReadinessResult = {
@@ -20,16 +22,18 @@ export async function requestReadiness(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout('panel' in body && body.panel ? PANEL_TIMEOUT_MS : TIMEOUT_MS),
     })
   } catch {
     return fallback
   }
   if (!response || response.status >= 500) return fallback
-  const json = (await response.json().catch(() => null)) as (Readiness & { error?: string }) | null
+  const json = (await response.json().catch(() => null)) as (ReadinessResponse & { error?: string }) | null
   if (!response.ok) return { ok: false, code: json?.error ?? 'readiness_failed' }
-  if (json?.ready === false && json.draft) return { ok: true, readiness: { ready: false, draft: json.draft } }
+  const research = typeof json?.researchId === 'string' ? { researchId: json.researchId } : {}
+  if (json?.ready === false && json.draft)
+    return { ok: true, readiness: { ready: false, draft: json.draft, ...research } }
   if (json?.ready === true)
-    return { ok: true, readiness: json.seed ? { ready: true, seed: json.seed } : { ready: true } }
+    return { ok: true, readiness: { ready: true, ...(json.seed && { seed: json.seed }), ...research } }
   return fallback
 }
