@@ -558,7 +558,7 @@ describe('BoxComposer', () => {
 
     it('shows above the box in run mode only', () => {
       renderComposer({ maxParticipants: 25, maxRounds: 5 })
-      expect(screen.getByTestId('panel-summary').textContent).toBe('20 participants · 3 rounds · ~5 min')
+      expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 3 rounds · ~5 min')
       cleanup()
       renderComposer({ mode: 'followUp' })
       expect(screen.queryByRole('button', { name: /Configure/ })).toBeNull()
@@ -642,6 +642,45 @@ describe('BoxComposer', () => {
       await screen.findByRole('button', { name: 'Undo improve' })
       type('A brief, edited.')
       expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    const pendingImprove = () => {
+      let resolve: (response: Response) => void = () => {}
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise<Response>((done) => {
+              resolve = done
+            }),
+        ),
+      )
+      return (text: string) => act(async () => resolve(Response.json({ text })))
+    }
+
+    it('sends nothing while the rewrite is in flight', async () => {
+      const finish = pendingImprove()
+      const { onSend } = renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+      await finish('A brief.')
+      expect(onSend).not.toHaveBeenCalled()
+      expect(textarea().value).toBe('A brief.')
+    })
+
+    it('ignores a late rewrite once the text has changed', async () => {
+      const finish = pendingImprove()
+      renderComposer()
+      type('raise prices?')
+      fireEvent.click(improve())
+      type('something else')
+      await finish('A brief.')
+      expect(textarea().value).toBe('something else')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+      expect(toastSpy).not.toHaveBeenCalled()
     })
 
     it('keeps the original and says so when the rewrite fails', async () => {

@@ -42,21 +42,21 @@ describe('panelSummary', () => {
       groups: ['customers', 'prospects', 'employees', 'dealers'],
       webResearch: true,
     }
-    expect(panelSummary(panel, 5, true)).toBe('25 participants · 4 groups · 5 rounds · web research on · ~8 min')
+    expect(panelSummary(panel, 5, true)).toBe('about 25 participants · 4 groups · 5 rounds · web research on · ~8 min')
     expect(panelSummary({ ...panel, participants: 10, groups: ['media'], webResearch: false }, 1, true)).toBe(
-      '10 participants · 1 group · 1 round · web research off · ~2 min',
+      'about 10 participants · 1 group · 1 round · web research off · ~2 min',
     )
   })
 
   it('leaves out web research when it is unavailable and groups when none are chosen', () => {
     expect(panelSummary({ participants: 20, groups: [], webResearch: true }, 3, false)).toBe(
-      '20 participants · 3 rounds · ~5 min',
+      'about 20 participants · 3 rounds · ~5 min',
     )
   })
 
   it('names the audience when set', () => {
     expect(panelSummary({ participants: 20, groups: [], audience: 'Fleet managers', webResearch: true }, 3, true)).toBe(
-      '20 participants · Fleet managers · 3 rounds · web research on · ~5 min',
+      'about 20 participants · Fleet managers · 3 rounds · web research on · ~5 min',
     )
   })
 })
@@ -118,7 +118,7 @@ describe('usePanel', () => {
 describe('ConfigurePanel', () => {
   it('shows the summary while closed and the controls when opened', () => {
     renderPanel()
-    expect(summary()).toBe('20 participants · 5 rounds · web research on · ~7 min')
+    expect(summary()).toBe('about 20 participants · 5 rounds · web research on · ~7 min')
     expect(screen.queryByRole('slider')).toBeNull()
     open()
     expect(screen.getByRole('slider')).toBeTruthy()
@@ -161,11 +161,11 @@ describe('ConfigurePanel', () => {
     fireEvent.click(chip('Customers'))
     fireEvent.click(chip('Dealers/partners'))
     expect(chip('Customers').getAttribute('aria-pressed')).toBe('true')
-    expect(summary()).toBe('20 participants · 2 groups · 5 rounds · web research on · ~7 min')
+    expect(summary()).toBe('about 20 participants · 2 groups · 5 rounds · web research on · ~7 min')
     fireEvent.click(chip('Customers'))
-    expect(summary()).toBe('20 participants · 1 group · 5 rounds · web research on · ~7 min')
+    expect(summary()).toBe('about 20 participants · 1 group · 5 rounds · web research on · ~7 min')
     fireEvent.change(screen.getByRole('textbox', { name: 'Audience' }), { target: { value: 'Fleet managers' } })
-    expect(summary()).toBe('20 participants · Fleet managers · 1 group · 5 rounds · web research on · ~7 min')
+    expect(summary()).toBe('about 20 participants · Fleet managers · 1 group · 5 rounds · web research on · ~7 min')
   })
 
   it('stops more groups than participants', () => {
@@ -187,7 +187,7 @@ describe('ConfigurePanel', () => {
     })
     open()
     fireEvent.click(screen.getByRole('button', { name: 'Fewer participants' }))
-    expect(summary()).toMatch(/^4 participants · 4 groups/)
+    expect(summary()).toMatch(/^about 4 participants · 4 groups/)
     expect(chip('Media').getAttribute('aria-pressed')).toBe('false')
   })
 

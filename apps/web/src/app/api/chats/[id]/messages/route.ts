@@ -6,6 +6,7 @@ import { ensureOwnedChat, getOwnedChat } from '@/server/chats'
 import { FollowUpError, runFollowUp } from '@/server/follow-up'
 import { createInterviewQuestion, InterviewWindowError } from '@/server/interview-window'
 import { messageText, parseMessageBody } from '@/server/message-body'
+import { readOwnedResearch } from '@/server/research/store'
 import { checkRunGate } from '@/server/run-gate'
 import { countOwnedUploads, QuotaExceededError, RunActiveError, runStore, startRun } from '@/server/runs'
 import { createSeedUpload } from '@/server/uploads'
@@ -83,6 +84,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     uploadIds.push(seed.id)
   }
 
+  const researchId =
+    body.researchId && (await readOwnedResearch(body.researchId, user.id).catch(() => null))
+      ? body.researchId
+      : undefined
+
   let started: Awaited<ReturnType<typeof startRun>>
   try {
     started = await startRun({
@@ -93,7 +99,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       uploadIds,
       maxRounds: body.runOptions.maxRounds,
       ...(body.panel && { panel: body.panel }),
-      ...(body.researchId && { researchId: body.researchId }),
+      ...(researchId && { researchId }),
       pauseForInterviews: limits.allowPause && body.runOptions.pauseForInterviews,
       ...(gate.quota && { quota: gate.quota }),
     })

@@ -95,6 +95,9 @@ vi.mock('./composer/composer', async () => {
           <button type="button" onClick={() => send(panelRun)}>
             Send panel run
           </button>
+          <button type="button" onClick={() => send({ ...panelRun, panel: { ...PANEL, webResearch: false } })}>
+            Send unresearched panel run
+          </button>
           <button type="button" onClick={() => send(promptOnly, 'and if prices fall?')}>
             Send another prompt-only run
           </button>
@@ -1030,12 +1033,42 @@ describe('Chat', () => {
       )
     })
 
-    it('says it is researching and building the panel while a panel run is checked', async () => {
+    it('says it is researching and building the panel while a researched panel run is checked', async () => {
       fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
-      renderChat()
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={limits}
+          webResearchAvailable
+        />,
+      )
       fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
       await waitFor(() => expect(checking()).toBeTruthy())
       expect(screen.getByText('Researching and building your panel…')).toBeTruthy()
+    })
+
+    it.each([
+      ['research is unavailable', false, 'Send panel run'],
+      ['research is off', true, 'Send unresearched panel run'],
+    ])('says it is building the panel when %s', async (_, webResearchAvailable, button) => {
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}))
+      render(
+        <Chat
+          chatId="c1"
+          initialMessages={[]}
+          activeRun={null}
+          latestRun={null}
+          limits={limits}
+          webResearchAvailable={webResearchAvailable}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: button }))
+      await waitFor(() => expect(checking()).toBeTruthy())
+      expect(screen.getByText('Building your panel…')).toBeTruthy()
+      expect(screen.queryByText('Researching and building your panel…')).toBeNull()
     })
 
     it('leaves the research line out for a run without a panel', async () => {
@@ -1044,6 +1077,7 @@ describe('Chat', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Send prompt-only run' }))
       await waitFor(() => expect(checking()).toBeTruthy())
       expect(screen.queryByText('Researching and building your panel…')).toBeNull()
+      expect(screen.queryByText('Building your panel…')).toBeNull()
     })
 
     it('hands the plan limits and research availability to the composer', () => {

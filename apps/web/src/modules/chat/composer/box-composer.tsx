@@ -98,6 +98,8 @@ export function BoxComposer({
   const { files, add, remove, uploadAll, reset } = useUploads(chatId ?? resolveChatId)
   const [ownText, setOwnText] = useState('')
   const text = value ?? ownText
+  const textRef = useRef(text)
+  textRef.current = text
   const [undoText, setUndoText] = useState<string | null>(null)
   const [improving, setImproving] = useState(false)
   const setText = (next: string) => {
@@ -160,7 +162,7 @@ export function BoxComposer({
   }
 
   const send = async () => {
-    if (disabled || stopping || uploading || sendingRef.current) return
+    if (disabled || stopping || uploading || improving || sendingRef.current) return
     if (runBlocked) {
       toast(runBlocked.message, runBlocked.action ? { action: runBlocked.action } : {})
       return
@@ -182,6 +184,7 @@ export function BoxComposer({
     setImproving(true)
     const improved = await requestImprove(original)
     setImproving(false)
+    if (textRef.current !== original) return
     if (!improved) {
       toast(IMPROVE_FAILED)
       return
@@ -379,7 +382,7 @@ export function BoxComposer({
                           size="icon-sm"
                           variant="default"
                           aria-label="Send message"
-                          disabled={disabled || uploading || sending}
+                          disabled={disabled || uploading || sending || improving}
                           aria-disabled={runBlocked ? true : undefined}
                           className={runBlocked ? 'opacity-50' : undefined}
                           aria-busy={sending || undefined}

@@ -81,7 +81,7 @@ export function panelSummary(panel: Panel, rounds: number, webResearchAvailable:
   const audience = panel.audience?.trim()
   const groups = panel.groups.length
   return [
-    `${panel.participants} participants`,
+    `about ${panel.participants} participants`,
     ...(audience
       ? [audience.length > AUDIENCE_SUMMARY_MAX ? `${audience.slice(0, AUDIENCE_SUMMARY_MAX).trimEnd()}…` : audience]
       : []),

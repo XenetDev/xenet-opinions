@@ -443,7 +443,11 @@ export function Chat({
                         pendingRun.panel ? (
                           <div className="flex flex-col gap-1">
                             <Thinking />
-                            <p className="text-xs text-muted-foreground">Researching and building your panel…</p>
+                            <p className="text-xs text-muted-foreground">
+                              {webResearchAvailable && pendingRun.panel.webResearch
+                                ? 'Researching and building your panel…'
+                                : 'Building your panel…'}
+                            </p>
                           </div>
                         ) : (
                           <Thinking />
