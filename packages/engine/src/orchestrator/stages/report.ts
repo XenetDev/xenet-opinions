@@ -67,7 +67,10 @@ export const report: StageHandler = {
     const final = await drain(drained.run, deps, reportId, true)
     if (!final.exhausted) return final.run
     await emit(deps, final.run, 'report_text', { markdown: result.markdown_content ?? '' })
-    const summary = await summaryEvent(final.run, deps, { signal: AbortSignal.timeout(SUMMARY_BUDGET_MS) })
+    const summary = await summaryEvent(final.run, deps, {
+      signal: AbortSignal.timeout(SUMMARY_BUDGET_MS),
+      requireRunning: true,
+    })
     await deps.store.appendEvent(final.run.id, summary, deps.fence)
     return advance(deps, final.run, 'report', 'finished')
   },

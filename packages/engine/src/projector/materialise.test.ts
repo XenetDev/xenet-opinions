@@ -108,7 +108,7 @@ describe('materialiseRun', () => {
     expect(count(parts, 'text')).toBe(0)
   })
 
-  it('includes a summary added after the run finished', async () => {
+  it('includes a summary added after the run finished and drops the earlier failure', async () => {
     const summary = {
       verdict: 'V',
       confidence: { level: 'low' as const, reason: 'R' },
@@ -132,7 +132,7 @@ describe('materialiseRun', () => {
     expect(parts.filter((p) => p.type === 'data-report_summary')).toEqual([
       { type: 'data-report_summary', id: 'report_summary', data: summary },
     ])
-    expect(count(parts, 'data-report_summary_failed')).toBe(1)
+    expect(count(parts, 'data-report_summary_failed')).toBe(0)
     expect(parts.find((p) => p.type === 'data-stage' && p.id === 'stage:report')).toMatchObject({
       data: { status: 'done' },
     })

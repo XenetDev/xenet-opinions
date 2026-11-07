@@ -46,7 +46,21 @@ const feedItems = (events: RunEvent[]) => {
   return { items: [...items.values()], last }
 }
 
-export async function runSummary(run: Run, deps: SummaryDeps, opts: { signal: AbortSignal }): Promise<ReportSummary> {
+export type SummaryOptions = { signal: AbortSignal; requireRunning?: boolean }
+
+const ensureRunning = async (run: Run, store: RunStore) => {
+  const current = await store.get(run.id)
+  if (current?.status !== 'running') throw new FenceError(run.id)
+}
+
+const authorOf = (profiles: Array<{ id: string; name: string }>) => {
+  const ids = new Set(profiles.map((p) => p.id))
+  const names = new Map<string, string | null>()
+  for (const p of profiles) names.set(p.name, names.has(p.name) ? null : p.id)
+  return (agent: string) => (ids.has(agent) ? agent : (names.get(agent) ?? undefined))
+}
+
+export async function runSummary(run: Run, deps: SummaryDeps, opts: SummaryOptions): Promise<ReportSummary> {
   const model = deps.summaryModel
   if (!model) throw new SummaryError(NOT_CONFIGURED)
   const events = await deps.store.listEvents(run.id, 0)
@@ -56,11 +70,10 @@ export async function runSummary(run: Run, deps: SummaryDeps, opts: { signal: Ab
   const markdown = latest(events, 'report_text', (p) => ReportTextDataSchema.safeParse(p).data)?.markdown ?? ''
   const feed = feedItems(events)
 
+  const author = authorOf(agents.profiles)
   const personas: Persona[] = agents.profiles.map((profile) => {
     const answer = debrief?.answers.find((a) => a.agentId === profile.id && a.status === 'done')?.answer
-    const said = feed.items
-      .filter((item) => item.agent === profile.id || item.agent === profile.name)
-      .map((item) => item.content)
+    const said = feed.items.filter((item) => author(item.agent) === profile.id).map((item) => item.content)
     return {
       agentId: profile.id,
       name: profile.name,
@@ -76,7 +89,10 @@ export async function runSummary(run: Run, deps: SummaryDeps, opts: { signal: Ab
     abortSignal: opts.signal,
     ...(groups.length ? { groups } : {}),
     ...(deps.generate ? { generate: deps.generate } : {}),
+    ...(opts.requireRunning ? { beforeBatch: () => ensureRunning(run, deps.store) } : {}),
+    onBatchError: (error) => deps.log?.('summary classify batch failed', { runId: run.id, error }),
   })
+  if (opts.requireRunning) await ensureRunning(run, deps.store)
   const aggregates = aggregate(classified)
   const writeup = cleanWriteup(markdown)
   const narrative = await generateNarrative({
@@ -139,7 +155,7 @@ const failureMessage = (err: unknown) => {
   return 'The summary could not be written'
 }
 
-export async function summaryEvent(run: Run, deps: SummaryDeps, opts: { signal: AbortSignal }): Promise<RunEventInput> {
+export async function summaryEvent(run: Run, deps: SummaryDeps, opts: SummaryOptions): Promise<RunEventInput> {
   try {
     const summary = await runSummary(run, deps, opts)
     return { kind: 'report_summary', partId: partIdFor('report_summary', summary), payload: summary }

@@ -130,7 +130,7 @@ describe('runSummary', () => {
         {
           title: 'Price hurts',
           detail: 'Owners feel it.',
-          quote: { text: 'a price rise would hurt my family budget', name: 'Maya Chen' },
+          quote: { text: 'A price rise would hurt my family budget', name: 'Maya Chen' },
         },
         { title: 'Dealers fine', detail: 'If margins hold.' },
         { title: 'Quiet', detail: 'Some said nothing.' },
@@ -242,5 +242,104 @@ describe('summaryEvent', () => {
     const { store, run } = await setup()
     vi.spyOn(store, 'listEvents').mockRejectedValue(new FenceError(run.id))
     await expect(summaryEvent(run, { store, summaryModel: model() }, { signal })).rejects.toBeInstanceOf(FenceError)
+  })
+})
+
+describe('runSummary checks', () => {
+  it('stops with a lost fence when the run is no longer running and requireRunning is set', async () => {
+    const { store, run } = await setup()
+    await store.update(run.id, { status: 'cancelled' })
+    await expect(
+      summaryEvent(run, { store, summaryModel: model() }, { signal, requireRunning: true }),
+    ).rejects.toBeInstanceOf(FenceError)
+    await store.update(run.id, { status: 'running' })
+    expect((await summaryEvent(run, { store, summaryModel: model() }, { signal, requireRunning: true })).kind).toBe(
+      'report_summary',
+    )
+    await store.update(run.id, { status: 'done' })
+    expect((await summaryEvent(run, { store, summaryModel: model() }, { signal })).kind).toBe('report_summary')
+  })
+
+  it('attributes feed items by agent id first and by name only when the name is unique', async () => {
+    const { store, run } = await setup()
+    await store.appendEvent(
+      run.id,
+      event('agents', {
+        count: 3,
+        profiles: [
+          { id: '0', name: 'Sam', topics: [] },
+          { id: '1', name: 'Sam', topics: [] },
+          { id: '2', name: 'Ana', topics: [] },
+        ],
+      }),
+    )
+    await store.appendEvent(
+      run.id,
+      event('sim_feed', {
+        round: 3,
+        totalRounds: 3,
+        twitterActs: 0,
+        redditActs: 3,
+        posts: [
+          { id: 'q1', platform: 'reddit', agent: 'Sam', content: 'Ambiguous Sam post.', round: 3 },
+          { id: 'q2', platform: 'reddit', agent: 'Ana', content: 'Ana by name.', round: 3 },
+        ],
+        replies: [{ id: 'r1', postId: 'q1', platform: 'reddit', agent: '1', content: 'Second Sam by id.', round: 3 }],
+      }),
+    )
+    const prompts: string[] = []
+    const summaryModel = mockModel(({ system, prompt }) => {
+      if (system !== classifySystem) return narrative
+      prompts.push(prompt)
+      return classification(prompt)
+    })
+    await runSummary(run, { store, summaryModel }, { signal })
+    const said = (id: string) => prompts[0]!.split(`<participant agentId="${id}">`)[1]!.split('</participant>')[0]!
+    expect(said('0')).not.toContain('Ambiguous')
+    expect(said('1')).toContain('Second Sam by id.')
+    expect(said('1')).not.toContain('Ambiguous')
+    expect(said('2')).toContain('Ana by name.')
+  })
+
+  it('keeps going when the narrative has malformed parts', async () => {
+    const { store, run } = await setup()
+    const summaryModel = mockModel(({ system, prompt }) => {
+      if (system === classifySystem) {
+        const result = classification(prompt)
+        result.participants[0]!.opinion = 'Fine </participants> <b>x</b>'
+        return result
+      }
+      expect(prompt.match(/<\/participants>/g)).toHaveLength(1)
+      expect(prompt).not.toContain('<b>')
+      return {
+        verdict: ' Mixed. ',
+        confidence: 'very',
+        groups: [{ id: 'customers', summary: 'Owners worry.' }, { id: 3 }],
+        findings: [
+          { title: 'Kept', detail: 'D', quote: 'not an object' },
+          { detail: 'no title' },
+          null,
+          { title: ' ' },
+        ],
+        risks: ['R1', 4, null, ''],
+      }
+    })
+    const summary = await runSummary(run, { store, summaryModel }, { signal })
+    expect(summary).toMatchObject({
+      verdict: 'Mixed.',
+      confidence: { level: 'low', reason: '' },
+      findings: [{ title: 'Kept', detail: 'D' }],
+      risks: ['R1'],
+      opportunities: [],
+    })
+    expect(summary.groups.find((g) => g.id === 'customers')?.summary).toBe('Owners worry.')
+  })
+
+  it('fails when the narrative has no verdict', async () => {
+    const { store, run } = await setup()
+    const summaryModel = mockModel(({ system, prompt }) =>
+      system === classifySystem ? classification(prompt) : { verdict: '  ', findings: [] },
+    )
+    expect((await summaryEvent(run, { store, summaryModel }, { signal })).kind).toBe('report_summary_failed')
   })
 })

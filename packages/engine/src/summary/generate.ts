@@ -7,21 +7,46 @@ const MAX_LIST = 5
 const SAMPLE_MAX = 60
 const WRITEUP_MAX = 6000
 
-export const narrativeSchema = z.object({
+const LEVELS = ['low', 'medium', 'high'] as const
+
+const rawSchema = z.object({
   verdict: z.string(),
-  confidence: z.object({ level: z.enum(['low', 'medium', 'high']), reason: z.string() }),
-  groups: z.array(z.object({ id: z.string(), summary: z.string() })),
-  findings: z.array(
-    z.object({
-      title: z.string(),
-      detail: z.string(),
-      quote: z.object({ text: z.string(), name: z.string() }).nullable(),
-    }),
-  ),
-  risks: z.array(z.string()),
-  opportunities: z.array(z.string()),
+  confidence: z.unknown().optional(),
+  groups: z.unknown().optional(),
+  findings: z.unknown().optional(),
+  risks: z.unknown().optional(),
+  opportunities: z.unknown().optional(),
 })
-export type Narrative = z.infer<typeof narrativeSchema>
+
+const confidenceSchema = z
+  .object({ level: z.string().catch(''), reason: z.string().catch('') })
+  .catch({ level: '', reason: '' })
+const groupSchema = z.object({ id: z.string(), summary: z.string() })
+const findingSchema = z.object({
+  title: z.string(),
+  detail: z.string().catch(''),
+  quote: z
+    .object({ text: z.string(), name: z.string().catch('') })
+    .nullable()
+    .catch(null),
+})
+
+export type Narrative = {
+  verdict: string
+  confidence: { level: (typeof LEVELS)[number]; reason: string }
+  groups: Array<z.infer<typeof groupSchema>>
+  findings: Array<z.infer<typeof findingSchema>>
+  risks: string[]
+  opportunities: string[]
+}
+
+const entries = <T>(value: unknown, schema: z.ZodType<T>): T[] =>
+  Array.isArray(value) ? value.flatMap((item) => schema.safeParse(item).data ?? []) : []
+
+const strings = (value: unknown) =>
+  entries(value, z.string())
+    .map((item) => item.trim())
+    .filter(Boolean)
 
 export const generateSystem = `You write the summary of a simulated focus group for a busy senior reader.
 You get the question, the figures computed from every participant's classified answers, each participant's view and quote, and an excerpt of the long write-up.
@@ -41,22 +66,24 @@ const untrusted = (text: string) => text.replace(/[<>]/g, ' ')
 const promptFor = (question: string, aggregates: Aggregates, classified: Classified[], writeup: string) =>
   [
     `<question>\n${untrusted(question)}\n</question>`,
-    `<figures>\n${JSON.stringify(aggregates)}\n</figures>`,
+    `<figures>\n${untrusted(JSON.stringify(aggregates))}\n</figures>`,
     '<participants>',
-    JSON.stringify(
-      classified
-        .filter((c) => c.sentiment !== null)
-        .slice(0, SAMPLE_MAX)
-        .map((c) => ({
-          name: c.name,
-          group: c.groupId,
-          kind: c.kind,
-          sentiment: c.sentiment,
-          action: c.action,
-          concern: c.concern,
-          opinion: c.opinion,
-          quote: c.quote ?? null,
-        })),
+    untrusted(
+      JSON.stringify(
+        classified
+          .filter((c) => c.sentiment !== null)
+          .slice(0, SAMPLE_MAX)
+          .map((c) => ({
+            name: c.name,
+            group: c.groupId,
+            kind: c.kind,
+            sentiment: c.sentiment,
+            action: c.action,
+            concern: c.concern,
+            opinion: c.opinion,
+            quote: c.quote ?? null,
+          })),
+      ),
     ),
     '</participants>',
     `<writeup>\n${untrusted(writeup.slice(0, WRITEUP_MAX))}\n</writeup>`,
@@ -76,13 +103,21 @@ export async function generateNarrative(input: {
     model: input.model,
     system: generateSystem,
     prompt: promptFor(input.question, input.aggregates, input.classified, input.writeup),
-    output: Output.object({ schema: narrativeSchema }),
+    output: Output.object({ schema: rawSchema }),
     abortSignal: input.abortSignal,
   })
+  const verdict = output.verdict.trim()
+  if (!verdict) throw new Error('The narrative has no verdict')
+  const confidence = confidenceSchema.parse(output.confidence)
+  const level = LEVELS.find((l) => l === confidence.level.trim().toLowerCase()) ?? 'low'
   return {
-    ...output,
-    findings: output.findings.slice(0, MAX_FINDINGS),
-    risks: output.risks.slice(0, MAX_LIST),
-    opportunities: output.opportunities.slice(0, MAX_LIST),
+    verdict,
+    confidence: { level, reason: confidence.reason.trim() },
+    groups: entries(output.groups, groupSchema),
+    findings: entries(output.findings, findingSchema)
+      .filter((f) => f.title.trim())
+      .slice(0, MAX_FINDINGS),
+    risks: strings(output.risks).slice(0, MAX_LIST),
+    opportunities: strings(output.opportunities).slice(0, MAX_LIST),
   }
 }

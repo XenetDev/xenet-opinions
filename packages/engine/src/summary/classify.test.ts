@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { classify, classifySystem, NO_VIEW, type Persona, slug, verbatim } from './classify'
+import {
+  ClassifyError,
+  classify,
+  classifySystem,
+  matchGroup,
+  NO_VIEW,
+  NOT_CLASSIFIED,
+  type Persona,
+  slug,
+  verbatim,
+} from './classify'
 import { agentIdsIn, mockModel } from './test-model'
 
 const entry = (agentId: string, over: Record<string, unknown> = {}) => ({
@@ -28,10 +38,24 @@ const signal = new AbortController().signal
 
 describe('verbatim', () => {
   it('matches case- and whitespace-insensitively and strips wrapping quotes', () => {
-    expect(verbatim('"I would  PAY more"', ['Honestly, i would pay\nmore if it works.'])).toBe('I would  PAY more')
+    expect(verbatim('"I would  PAY more"', ['Honestly, i would pay\nmore if it works.'])).toBe('i would pay\nmore')
     expect(verbatim('I would pay double', ['Honestly, i would pay more.'])).toBeUndefined()
     expect(verbatim('', ['anything'])).toBeUndefined()
     expect(verbatim(null, ['anything'])).toBeUndefined()
+  })
+})
+
+describe('matchGroup', () => {
+  it('maps a label to the nearest configured group, else Other', () => {
+    const groups = ['Customers', 'Dealers/partners']
+    expect(matchGroup('customers', groups)).toBe('Customers')
+    expect(matchGroup('Customer', groups)).toBe('Customers')
+    expect(matchGroup('DEALERS-PARTNERS', groups)).toBe('Dealers/partners')
+    expect(matchGroup('Dealers', groups)).toBe('Dealers/partners')
+    expect(matchGroup('Regulators', groups)).toBe('Other')
+    expect(matchGroup(null, groups)).toBe('Other')
+    expect(matchGroup('Owners', undefined)).toBe('Owners')
+    expect(matchGroup(null, undefined)).toBe('Other')
   })
 })
 
@@ -133,10 +157,83 @@ describe('classify', () => {
     expect(result[0]).toMatchObject({ groupId: 'dealers-partners', groupLabel: 'Dealers/partners' })
   })
 
-  it('rejects when the model fails', async () => {
+  it('rejects when every batch fails', async () => {
+    const errors: unknown[] = []
     const model = mockModel(() => {
       throw new Error('rate limited')
     })
-    await expect(classify([persona('a')], { model, abortSignal: signal })).rejects.toThrow('rate limited')
+    await expect(
+      classify([persona('a')], { model, abortSignal: signal, onBatchError: (e) => errors.push(e) }),
+    ).rejects.toBeInstanceOf(ClassifyError)
+    expect(errors).toHaveLength(1)
+  })
+
+  it('marks a failed batch as not classified and keeps the others', async () => {
+    const model = mockModel(({ prompt }) => {
+      const ids = agentIdsIn(prompt)
+      if (ids.includes('10')) throw new Error('rate limited')
+      return { participants: ids.map((id) => entry(id)) }
+    })
+    const personas = Array.from({ length: 15 }, (_, i) => persona(String(i)))
+    const result = await classify(personas, { model, abortSignal: signal })
+    expect(result.slice(0, 10).every((c) => c.sentiment === 3)).toBe(true)
+    expect(result.slice(10).map((c) => c.opinion)).toEqual(Array(5).fill(NOT_CLASSIFIED))
+  })
+
+  it('costs one persona, not the batch, for malformed entries', async () => {
+    const model = mockModel(() => ({
+      participants: [
+        entry('a', { group: 'dealers / Partners', kind: 'Organization', sentiment: '-2' }),
+        entry('b', { group: 'Customer', sentiment: null }),
+        entry('c', { group: 'Martians', action: 'maybe', age: 'unknown', kind: 7 }),
+        { agentId: { bad: true } },
+        entry('d', { sentiment: 'lots', opinion: 42, quote: ['x'] }),
+        'garbage',
+      ],
+    }))
+    const result = await classify([persona('a'), persona('b'), persona('c'), persona('d'), persona('e')], {
+      model,
+      abortSignal: signal,
+      groups: ['Customers', 'Dealers/partners'],
+    })
+    expect(result[0]).toMatchObject({
+      groupLabel: 'Dealers/partners',
+      kind: 'organisation',
+      sentiment: -2,
+      action: 'n/a',
+    })
+    expect(result[1]).toMatchObject({ groupLabel: 'Customers', sentiment: null, action: 'unsure', opinion: NO_VIEW })
+    expect(result[2]).toMatchObject({ groupId: 'other', groupLabel: 'Other', kind: 'person', action: 'unsure' })
+    expect(result[2]).not.toHaveProperty('age')
+    expect(result[3]).toMatchObject({ sentiment: null, opinion: NO_VIEW })
+    expect(result[4]).toMatchObject({ sentiment: null, opinion: NOT_CLASSIFIED })
+  })
+
+  it('stops dispatching batches once a check throws', async () => {
+    const prompts: string[] = []
+    const model = mockModel(({ prompt }) => {
+      prompts.push(prompt)
+      return { participants: agentIdsIn(prompt).map((id) => entry(id)) }
+    })
+    const personas = Array.from({ length: 60 }, (_, i) => persona(String(i)))
+    let checks = 0
+    const beforeBatch = async () => {
+      if (++checks >= 2) throw new Error('cancelled')
+    }
+    await expect(classify(personas, { model, abortSignal: signal, beforeBatch })).rejects.toThrow('cancelled')
+    expect(prompts.length).toBeLessThan(6)
+  })
+
+  it('stops dispatching batches once the budget is spent', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const model = mockModel(({ prompt }) => {
+      calls++
+      controller.abort()
+      return { participants: agentIdsIn(prompt).map((id) => entry(id)) }
+    })
+    const personas = Array.from({ length: 60 }, (_, i) => persona(String(i)))
+    await expect(classify(personas, { model, abortSignal: controller.signal })).rejects.toThrow()
+    expect(calls).toBeLessThanOrEqual(3)
   })
 })

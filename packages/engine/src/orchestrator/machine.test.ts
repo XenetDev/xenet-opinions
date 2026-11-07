@@ -211,6 +211,32 @@ describe('tick', () => {
     expect(summary.headline).toMatchObject({ sentiment: 2, actShare: 1 })
   })
 
+  it('stops the summary with a lost fence when the run is cancelled mid-summary', async () => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    await store.appendEvent(run.id, {
+      kind: 'agents',
+      partId: 'agents',
+      payload: { count: 1, profiles: [{ id: '0', name: 'Maya', topics: [] }] },
+    })
+    const generate = vi.fn()
+    deps.summaryModel = mockModel(({ prompt }) => {
+      generate()
+      store.runs.set(run.id, { ...store.runs.get(run.id)!, status: 'cancelled' })
+      return { participants: agentIdsIn(prompt).map((agentId) => ({ agentId, sentiment: 1 })) }
+    })
+    await expect(tick(run, deps)).rejects.toBeInstanceOf(FenceError)
+    expect(generate).toHaveBeenCalledTimes(1)
+    expect((store.events.get(run.id) ?? []).some((e) => e.kind.startsWith('report_summary'))).toBe(false)
+  })
+
   it('lets a lost fence escape the summary step', async () => {
     const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
     vi.mocked(deps.mirofish.report.get)

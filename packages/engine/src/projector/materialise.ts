@@ -6,7 +6,10 @@ import { writeRunEvents } from './tail'
 
 const LATE = new Set(['report_summary', 'report_summary_failed'])
 
-const withLateSummaries = (events: RunEvent[]) => {
+const withLateSummaries = (all: RunEvent[]) => {
+  const events = all.some((e) => e.kind === 'report_summary')
+    ? all.filter((e) => e.kind !== 'report_summary_failed')
+    : all
   const done = events.findIndex((e) => e.kind === 'done')
   if (done < 0) return events
   const late = events.slice(done + 1).filter((e) => LATE.has(e.kind))
