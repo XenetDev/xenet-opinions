@@ -30,6 +30,12 @@ import {
   StageDataSchema,
   stagePartId,
 } from './parts'
+import {
+  type ReportSummary,
+  type ReportSummaryFailed,
+  ReportSummaryFailedSchema,
+  ReportSummarySchema,
+} from './summary/schema'
 
 export const EVENT_KINDS = [
   'stage',
@@ -44,6 +50,8 @@ export const EVENT_KINDS = [
   'interview_window',
   'interview',
   'debrief',
+  'report_summary',
+  'report_summary_failed',
   'error',
   'done',
   'cancelled',
@@ -65,6 +73,8 @@ export type RunEventPayloads = {
   interview_window: InterviewWindowData
   interview: InterviewData
   debrief: DebriefData
+  report_summary: ReportSummary
+  report_summary_failed: ReportSummaryFailed
   error: ErrorData
   done: Record<string, never>
   cancelled: CancelledData
@@ -88,6 +98,8 @@ const SCHEMAS = {
   interview_window: InterviewWindowDataSchema,
   interview: InterviewDataSchema,
   debrief: DebriefDataSchema,
+  report_summary: ReportSummarySchema,
+  report_summary_failed: ReportSummaryFailedSchema,
   error: ErrorDataSchema,
   done: DoneDataSchema,
   cancelled: CancelledDataSchema,

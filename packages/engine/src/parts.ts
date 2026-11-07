@@ -1,5 +1,6 @@
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
+import type { ReportSummary, ReportSummaryFailed } from './summary/schema'
 
 export const STAGES = [
   'ontology',
@@ -164,6 +165,8 @@ export type OpinionsDataParts = {
   interview: InterviewData
   interview_window: InterviewWindowData
   debrief: DebriefData
+  report_summary: ReportSummary
+  report_summary_failed: ReportSummaryFailed
   queue: QueueData
   cursor: CursorData
 }
@@ -173,3 +176,4 @@ export type OpinionsUIMessage = UIMessage<never, OpinionsDataParts>
 export const stagePartId = (stage: Stage) => `stage:${stage}` as const
 export const interviewPartId = (id: string) => `interview:${id}` as const
 export { MAX_INTERVIEW_AGENTS } from './follow-up/keepalive'
+export * from './summary/schema'

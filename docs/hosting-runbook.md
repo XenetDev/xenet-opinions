@@ -113,6 +113,9 @@ railway add --service worker \
   --variables "ENV_KEEPALIVE_MS=1200000" \
   --variables "ENV_SWEEP_INTERVAL_MS=60000" \
   --variables "MAX_CONCURRENT_RUNS=1" \
+  --variables "LLM_API_KEY=$LLM_API_KEY" \
+  --variables "LLM_BASE_URL=$LLM_BASE_URL" \
+  --variables "LLM_MODEL_NAME=$LLM_MODEL_NAME" \
   --variables "RAILWAY_DOCKERFILE_PATH=infra/docker/Dockerfile.worker"
 railway up . --service worker --detach
 ```

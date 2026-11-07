@@ -248,6 +248,7 @@ It listens on `:8080` (plain HTTP); the platform terminates TLS on its public UR
 | `ENV_SWEEP_INTERVAL_MS` | `60000` |
 | `WORKER_POLL_MS` | Optional, default `2000` |
 | `WORKER_ID` | Optional lease owner name, default host and pid; leave unset rather than blank |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as Vercel's. They write the structured report summary after MiroFish's report. Without `LLM_API_KEY` the run still finishes with MiroFish's report and the summary is marked as not configured; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
 
 Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABASE_URL}}`) are in [infra/railway/README.md](../infra/railway/README.md).
 
@@ -277,7 +278,7 @@ Railway-specific values (`PORT`, `RAILWAY_DOCKERFILE_PATH`, `${{Postgres.DATABAS
 | `RESEND_API_KEY`, `EMAIL_FROM`, `GOOGLE_*`, `GITHUB_*`, `APPLE_*` | Optional sign-in providers, see [Sign-in providers](#sign-in-providers) |
 | `DEMO_MAX_ROUNDS` | `3` |
 | `HEALTH_CHECK_MIROFISH` | `1` |
-| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as MiroFish's. They power the readiness check before a run, which drafts who to simulate when the brief names no people or groups. Without `LLM_API_KEY` the check is off; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL_NAME` | Optional; the same values as MiroFish's. They power the readiness check before a run, which drafts who to simulate when the brief names no people or groups, Improve prompt, and Retry summary on a finished run. Without `LLM_API_KEY` these are off; the defaults are `https://api.openai.com/v1` and `gpt-4o-mini` |
 | `EXA_API_KEY` | Optional; an [Exa](https://exa.ai) key. With it, the readiness check searches the web for the question before drafting the cast, and the sources go into the report. Without it web research is off and its toggle is hidden |
 
 ## Limits and costs

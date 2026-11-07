@@ -28,7 +28,7 @@ Secrets (`--stage` until the first deploy):
 ```sh
 flyctl secrets set LLM_API_KEY=... LLM_BASE_URL=https://api.openai.com/v1 LLM_MODEL_NAME=gpt-4o-mini ZEP_API_KEY=... -a xenet-opinions-mirofish --stage
 flyctl secrets set MIROFISH_TOKEN=... -a xenet-opinions-proxy --stage
-flyctl secrets set DATABASE_URL=... MIROFISH_TOKEN=... S3_BUCKET=xenet-opinions-seeds S3_REGION=auto S3_ENDPOINT=https://fly.storage.tigris.dev S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... S3_FORCE_PATH_STYLE=false -a xenet-opinions-worker --stage
+flyctl secrets set DATABASE_URL=... MIROFISH_TOKEN=... S3_BUCKET=xenet-opinions-seeds S3_REGION=auto S3_ENDPOINT=https://fly.storage.tigris.dev S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... S3_FORCE_PATH_STYLE=false LLM_API_KEY=... LLM_BASE_URL=https://api.openai.com/v1 LLM_MODEL_NAME=gpt-4o-mini -a xenet-opinions-worker --stage
 ```
 
 `flyctl storage create` sets `AWS_*` secrets on the worker; the worker reads `S3_*`, so set those and `flyctl secrets unset` the `AWS_*` ones.

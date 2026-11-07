@@ -11,6 +11,8 @@ import {
   QueueDataSchema,
   ReportEventDataSchema,
   ReportOutlineDataSchema,
+  ReportSummaryFailedSchema,
+  ReportSummarySchema,
   SimFeedDataSchema,
   SourcesDataSchema,
   StageDataSchema,
@@ -38,6 +40,8 @@ const dataSchemas: Record<string, z.ZodType> = {
   'data-interview': InterviewDataSchema,
   'data-interview_window': InterviewWindowDataSchema,
   'data-debrief': DebriefDataSchema,
+  'data-report_summary': ReportSummarySchema,
+  'data-report_summary_failed': ReportSummaryFailedSchema,
   'data-queue': QueueDataSchema,
 }
 

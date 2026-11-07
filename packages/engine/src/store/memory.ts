@@ -1,4 +1,4 @@
-import type { Interview, Run, RunEvent, Upload } from '@xo/db'
+import type { Interview, Research, Run, RunEvent, Upload } from '@xo/db'
 import { payloadSchemaFor, type RunEventInput } from '../events'
 import { type Fence, FenceError, type RunPatch, type RunStore } from './types'
 
@@ -10,12 +10,14 @@ export function createMemoryStore(): RunStore & {
   parts: Map<string, unknown[]>
   uploads: Map<string, Upload>
   interviews: Map<string, Interview>
+  research: Map<string, Research>
 } {
   const runs = new Map<string, Run>()
   const events = new Map<string, RunEvent[]>()
   const parts = new Map<string, unknown[]>()
   const uploads = new Map<string, Upload>()
   const interviews = new Map<string, Interview>()
+  const research = new Map<string, Research>()
   let eventId = 0
   const order = new Map<string, number>()
   let counter = 0
@@ -64,6 +66,7 @@ export function createMemoryStore(): RunStore & {
     parts,
     uploads,
     interviews,
+    research,
     async create(input) {
       for (const r of runs.values()) {
         if (r.chatId === input.chatId && ACTIVE.includes(r.status)) throw new Error('runs_one_active_per_chat')
@@ -219,6 +222,9 @@ export function createMemoryStore(): RunStore & {
         interviews.set(row.id, row)
         return row
       })
+    },
+    async getResearch(id) {
+      return research.get(id) ?? null
     },
   }
 }

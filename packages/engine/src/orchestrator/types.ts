@@ -1,6 +1,7 @@
 import type { Run } from '@xo/db'
 import type { MiroFishClient, MiroFishLocale } from '@xo/mirofish'
 import type { Storage } from '@xo/storage'
+import type { LanguageModel } from 'ai'
 import type { Stage } from '../parts'
 import type { RunStore } from '../store/types'
 
@@ -14,6 +15,7 @@ export type Deps = {
   fence?: { owner: string }
   envKeepaliveMs?: number
   locale?: MiroFishLocale
+  summaryModel?: LanguageModel
 }
 
 export type ActiveStage = Exclude<Stage, 'finished'>

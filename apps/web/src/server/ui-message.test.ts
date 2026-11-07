@@ -58,6 +58,40 @@ describe('toUIMessages', () => {
     expect(toUIMessages([row([part, bad])])[0]?.parts).toEqual([part])
   })
 
+  it('whitelists data-report_summary and data-report_summary_failed parts and drops invalid ones', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const summary = {
+      verdict: 'V',
+      confidence: { level: 'low', reason: 'R' },
+      headline: { sentiment: 1.5, actShare: 0.5, switchShare: 0.25, topConcern: { label: 'price', count: 2 } },
+      split: { positive: 2, neutral: 1, negative: 1 },
+      groups: [{ id: 'customers', label: 'Customers', people: 4, sentiment: 1.5, actShare: 0.5, summary: 'S' }],
+      findings: [{ title: 'T', detail: 'D', quote: { text: 'Q', name: 'Maya' } }],
+      risks: ['R'],
+      opportunities: ['O'],
+      participants: [
+        {
+          agentId: '0',
+          name: 'Maya',
+          group: 'customers',
+          kind: 'person',
+          sentiment: 3,
+          action: 'act',
+          opinion: 'Yes',
+          quote: 'Q',
+        },
+      ],
+      sources: [{ title: 'A', url: 'https://a.test' }],
+      method: { participants: 4, groups: 1, rounds: 3, webResearch: true },
+      writeup: '## W',
+    }
+    const part = { type: 'data-report_summary', id: 'report_summary', data: summary }
+    const failed = { type: 'data-report_summary_failed', id: 'report_summary_failed', data: { message: 'boom' } }
+    const bad = { type: 'data-report_summary', data: { ...summary, headline: { ...summary.headline, sentiment: 9 } } }
+    const badFailed = { type: 'data-report_summary_failed', data: {} }
+    expect(toUIMessages([row([part, failed, bad, badFailed])])[0]?.parts).toEqual([part, failed])
+  })
+
   it('whitelists data-interview_window parts and drops invalid ones', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const part = {

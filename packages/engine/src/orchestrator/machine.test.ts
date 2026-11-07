@@ -1,9 +1,11 @@
 import { MiroFishError } from '@xo/mirofish'
 import { StorageError } from '@xo/storage'
 import { describe, expect, it, vi } from 'vitest'
-import type { StageData } from '../parts'
+import type { ReportSummary, StageData } from '../parts'
 import { ontologyRequirement } from '../policy/seed'
 import { FenceError } from '../store/types'
+import { classifySystem } from '../summary/classify'
+import { agentIdsIn, mockModel } from '../summary/test-model'
 import { fail } from './fail'
 import { tick } from './machine'
 import { drive, driveUntil, LOGS, NOW, setupRun as setup } from './test-helpers'
@@ -75,6 +77,7 @@ describe('tick', () => {
       'report_event:3',
       'report_event:4',
       'report_text',
+      'report_summary_failed',
       'stage:report:done',
       'stage:finished:done',
       'done',
@@ -84,6 +87,7 @@ describe('tick', () => {
       { files: [{ id: 'up_1', filename: 'brief.md', mediaType: 'text/markdown', sizeBytes: 12 }] },
     ])
     expect(payloadOf('report_text')).toEqual([{ markdown: '# Report' }])
+    expect(payloadOf('report_summary_failed')).toEqual([{ message: 'Summary model not configured' }])
     expect(payloadOf('agents').at(-1)).toMatchObject({ count: 2, platform: 'reddit' })
     expect(events.some((e) => e.kind === 'interview_window' || e.partId === 'stage:interviews')).toBe(false)
     expect(deps.mirofish.simulation.interviewBatch).toHaveBeenCalledTimes(1)
@@ -142,6 +146,89 @@ describe('tick', () => {
     expect(sources?.payload).toMatchObject({ files: [{ filename: 'my brief (v2)' }] })
   })
 
+  it('emits report_summary_failed and still finishes when the summary model errors', async () => {
+    const { store, deps, run } = await setup()
+    deps.summaryModel = mockModel(() => {
+      throw new Error('model down')
+    })
+    const done = await drive(run, deps)
+    expect(done.status).toBe('done')
+    const labels = (store.events.get(run.id) ?? []).map(label)
+    expect(labels.slice(-5)).toEqual([
+      'report_text',
+      'report_summary_failed',
+      'stage:report:done',
+      'stage:finished:done',
+      'done',
+    ])
+    const failed = (store.events.get(run.id) ?? []).find((e) => e.kind === 'report_summary_failed')
+    expect(failed?.payload).toEqual({ message: 'The summary could not be written' })
+  })
+
+  it('emits report_summary after the report text when the summary model answers', async () => {
+    const { store, deps, run } = await setup()
+    deps.summaryModel = mockModel(({ system, prompt }) =>
+      system === classifySystem
+        ? {
+            participants: agentIdsIn(prompt).map((agentId) => ({
+              agentId,
+              group: 'Customers',
+              kind: 'person',
+              age: null,
+              role: null,
+              location: null,
+              sentiment: 2,
+              action: 'act',
+              concern: 'price',
+              opinion: 'Likes it.',
+              quote: null,
+            })),
+          }
+        : {
+            verdict: 'Positive.',
+            confidence: { level: 'low', reason: 'Small panel.' },
+            groups: [],
+            findings: [],
+            risks: [],
+            opportunities: [],
+          },
+    )
+    const done = await drive(run, deps)
+    expect(done.status).toBe('done')
+    const events = store.events.get(run.id) ?? []
+    expect(events.map(label).slice(-5)).toEqual([
+      'report_text',
+      'report_summary',
+      'stage:report:done',
+      'stage:finished:done',
+      'done',
+    ])
+    const summary = events.find((e) => e.kind === 'report_summary')?.payload as ReportSummary
+    expect(summary.participants.map((p) => [p.name, p.sentiment])).toEqual([
+      ['Maya', 2],
+      ['Liam', 2],
+    ])
+    expect(summary.headline).toMatchObject({ sentiment: 2, actShare: 1 })
+  })
+
+  it('lets a lost fence escape the summary step', async () => {
+    const { store, deps, run } = await setup({}, { stage: 'report', ids: { ...ids, reportId: 'rep_1' } })
+    vi.mocked(deps.mirofish.report.get)
+      .mockReset()
+      .mockResolvedValue({
+        report_id: 'rep_1',
+        simulation_id: 'sim_1',
+        status: 'completed',
+        markdown_content: '# Report',
+      } as never)
+    const append = store.appendEvent.bind(store)
+    vi.spyOn(store, 'appendEvent').mockImplementation(async (id, e, fence) => {
+      if (e.kind === 'report_summary_failed') throw new FenceError(id)
+      return append(id, e, fence)
+    })
+    await expect(tick(run, deps)).rejects.toBeInstanceOf(FenceError)
+  })
+
   it('drains the agent log once more after report completion before emitting the text', async () => {
     const { store, deps, run } = await setup(
       {
@@ -164,7 +251,7 @@ describe('tick', () => {
     const next = await tick(run, deps)
     expect(next.stage).toBe('finished')
     const labels = (store.events.get(run.id) ?? []).map(label)
-    expect(labels.slice(-3)).toEqual(['report_event:4', 'report_text', 'stage:report:done'])
+    expect(labels.slice(-4)).toEqual(['report_event:4', 'report_text', 'report_summary_failed', 'stage:report:done'])
     expect(next.cursors.agentLogLine).toBe(6)
   })
 
