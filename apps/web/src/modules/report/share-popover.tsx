@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { CheckIcon } from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -36,6 +37,13 @@ export function SharePopover({
   const [pending, setPending] = useState<'create' | 'revoke' | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
 
   const call = async (method: 'POST' | 'DELETE') => {
     const response = await fetch(`/api/chats/${chatId}/run/share`, {
@@ -73,7 +81,8 @@ export function SharePopover({
       () => true,
       () => false,
     )
-    setStatus(done ? 'Link copied.' : 'Copy the link from the box.')
+    setStatus(done ? null : 'Copy the link from the box.')
+    setCopied(!!done)
   }
 
   return (
@@ -98,8 +107,15 @@ export function SharePopover({
                 Share link
               </label>
               <Input id={inputId} readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
-              <Button size="sm" onClick={() => void copy()}>
-                Copy
+              <Button size="sm" className="min-w-20" onClick={() => void copy()}>
+                {copied ? (
+                  <>
+                    <CheckIcon data-icon="inline-start" aria-hidden="true" />
+                    Copied
+                  </>
+                ) : (
+                  'Copy'
+                )}
               </Button>
             </div>
             {confirming ? (
@@ -126,6 +142,9 @@ export function SharePopover({
         <p role="status" className="text-xs text-muted-foreground empty:hidden">
           {status}
         </p>
+        <span aria-live="polite" className="sr-only">
+          {copied ? 'Link copied' : ''}
+        </span>
       </PopoverContent>
     </Popover>
   )
