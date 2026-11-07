@@ -1,74 +1,80 @@
 import type { ReportSummary } from '@xo/engine/parts'
-import ExcelJS from 'exceljs'
-import { ACTION_LABELS, groupLabels } from '../format'
+import writeXlsxFile, { type Cell, type Row } from 'write-excel-file/universal'
+import { groupLabels, participantAction } from '../format'
 import { type ExportMeta, MIME_TYPES } from './meta'
 
 const KIND_LABELS = { person: 'Person', organisation: 'Organisation' } as const
 
-const nullable = <T>(value: T | null | undefined) => value ?? undefined
+type Column = { header: string; width: number; wrap?: boolean; format?: string }
 
-function addSheet(workbook: ExcelJS.Workbook, name: string, columns: Partial<ExcelJS.Column>[]) {
-  const sheet = workbook.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] })
-  sheet.columns = columns
-  sheet.getRow(1).font = { bold: true }
-  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } }
-  return sheet
-}
+const header = (columns: Column[]): Row => columns.map((c) => ({ value: c.header, fontWeight: 'bold' }))
 
-const wrap = { alignment: { wrapText: true, vertical: 'top' } } as const
+const row = (columns: Column[], values: (string | number | null | undefined)[]): Row =>
+  values.map((value, i): Cell => {
+    const column = columns[i]
+    if (value === null || value === undefined || value === '') return null
+    return { value, wrap: column?.wrap, alignVertical: 'top', format: column?.format }
+  })
 
-export async function exportXlsx(summary: ReportSummary, meta: ExportMeta): Promise<Blob> {
+const PARTICIPANT_COLUMNS: Column[] = [
+  { header: 'Name', width: 24 },
+  { header: 'Group', width: 18 },
+  { header: 'Kind', width: 14 },
+  { header: 'Age', width: 6 },
+  { header: 'Role', width: 30, wrap: true },
+  { header: 'Location', width: 16 },
+  { header: 'Sentiment', width: 10 },
+  { header: 'Action', width: 20 },
+  { header: 'Opinion', width: 60, wrap: true },
+  { header: 'Quote', width: 60, wrap: true },
+]
+
+const GROUP_COLUMNS: Column[] = [
+  { header: 'Group', width: 20 },
+  { header: 'People', width: 8 },
+  { header: 'Sentiment', width: 10, format: '0.0' },
+  { header: 'Would go ahead', width: 15, format: '0%' },
+  { header: 'Would go ahead (people)', width: 22 },
+  { header: 'People counted', width: 15 },
+  { header: 'What they say', width: 70, wrap: true },
+]
+
+export async function exportXlsx(summary: ReportSummary, _meta: ExportMeta): Promise<Blob> {
   const labels = groupLabels(summary)
-  const workbook = new ExcelJS.Workbook()
-  workbook.creator = 'Xenet Opinions'
-  workbook.title = meta.title
-  workbook.created = meta.date
-
-  const participants = addSheet(workbook, 'Participants', [
-    { header: 'Name', key: 'name', width: 24 },
-    { header: 'Group', key: 'group', width: 18 },
-    { header: 'Kind', key: 'kind', width: 14 },
-    { header: 'Age', key: 'age', width: 6 },
-    { header: 'Role', key: 'role', width: 30, style: wrap },
-    { header: 'Location', key: 'location', width: 16 },
-    { header: 'Sentiment', key: 'sentiment', width: 10 },
-    { header: 'Action', key: 'action', width: 20 },
-    { header: 'Opinion', key: 'opinion', width: 60, style: wrap },
-    { header: 'Quote', key: 'quote', width: 60, style: wrap },
-  ])
-  for (const p of summary.participants)
-    participants.addRow({
-      name: p.name,
-      group: labels.get(p.group) ?? p.group,
-      kind: KIND_LABELS[p.kind],
-      age: p.age,
-      role: p.role,
-      location: p.location,
-      sentiment: nullable(p.sentiment),
-      action: ACTION_LABELS[p.action] ?? 'Not applicable',
-      opinion: p.opinion,
-      quote: p.quote,
-    })
-
-  const groups = addSheet(workbook, 'Groups', [
-    { header: 'Group', key: 'group', width: 20 },
-    { header: 'People', key: 'people', width: 8 },
-    { header: 'Sentiment', key: 'sentiment', width: 10, style: { numFmt: '0.0' } },
-    { header: 'Would go ahead', key: 'actShare', width: 15, style: { numFmt: '0%' } },
-    { header: 'Would go ahead (people)', key: 'actCount', width: 22 },
-    { header: 'People counted', key: 'counted', width: 15 },
-    { header: 'What they say', key: 'summary', width: 70, style: wrap },
-  ])
-  for (const g of summary.groups)
-    groups.addRow({
-      group: g.label,
-      people: g.people,
-      sentiment: nullable(g.sentiment),
-      actShare: nullable(g.actShare),
-      actCount: g.counted ? g.actCount : undefined,
-      counted: g.counted,
-      summary: g.summary,
-    })
-
-  return new Blob([await workbook.xlsx.writeBuffer()], { type: MIME_TYPES.xlsx })
+  const participants = summary.participants.map((p) =>
+    row(PARTICIPANT_COLUMNS, [
+      p.name,
+      labels.get(p.group) ?? p.group,
+      KIND_LABELS[p.kind],
+      p.age,
+      p.role,
+      p.location,
+      p.sentiment,
+      p.kind === 'organisation' ? 'Not applicable' : participantAction(p),
+      p.opinion,
+      p.quote,
+    ]),
+  )
+  const groups = summary.groups.map((g) =>
+    row(GROUP_COLUMNS, [
+      g.label,
+      g.people,
+      g.sentiment,
+      g.actShare,
+      g.counted ? g.actCount : undefined,
+      g.counted,
+      g.summary,
+    ]),
+  )
+  const sheet = (name: string, columns: Column[], rows: Row[]) => ({
+    sheet: name,
+    data: [header(columns), ...rows],
+    columns: columns.map((c) => ({ width: c.width })),
+    stickyRowsCount: 1,
+  })
+  const blob = await writeXlsxFile([
+    sheet('Participants', PARTICIPANT_COLUMNS, participants),
+    sheet('Groups', GROUP_COLUMNS, groups),
+  ]).toBlob()
+  return new Blob([blob], { type: MIME_TYPES.xlsx })
 }

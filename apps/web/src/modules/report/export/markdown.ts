@@ -4,11 +4,14 @@ export type Block =
   | { type: 'heading'; level: 1 | 2 | 3; inline: Span[] }
   | { type: 'paragraph'; inline: Span[] }
   | { type: 'quote'; inline: Span[] }
-  | { type: 'list'; ordered: boolean; items: Span[][] }
+  | { type: 'list'; ordered: boolean; start: number; items: Span[][] }
+  | { type: 'table'; header: Span[][]; rows: Span[][][] }
+  | { type: 'code'; lines: string[] }
 
 const INLINE = /(\*\*\*|___)(.+?)\1|(\*\*|__)(.+?)\3|(?<![\w*])([*_])(?!\s)(.+?)(?<!\s)\5(?![\w*])/g
 
-const plain = (text: string) => text.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/`([^`]*)`/g, '$1')
+const plain = (text: string) =>
+  text.replace(/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/g, '$1').replace(/`([^`]*)`/g, '$1')
 
 export function parseInline(source: string): Span[] {
   const text = plain(source)
@@ -33,28 +36,58 @@ export function parseInline(source: string): Span[] {
 
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
 const BULLET = /^\s*[-*+]\s+(.*)$/
-const NUMBERED = /^\s*\d+[.)]\s+(.*)$/
+const NUMBERED = /^\s*(\d+)[.)]\s+(.*)$/
 const QUOTE = /^\s*>\s?(.*)$/
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/
+const FENCE = /^\s*(```|~~~)/
+const TABLE_ROW = /^\s*\|.*\|\s*$/
+const TABLE_DIVIDER = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/
 
 const joinLines = (lines: string[]) => lines.map((line) => line.trim()).join(' ')
 
+const cells = (line: string) =>
+  line
+    .trim()
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .map((cell) => parseInline(cell.trim()))
+
 export function parseMarkdown(source: string): Block[] {
   const blocks: Block[] = []
+  const lines = source.split(/\r?\n/)
   let paragraph: string[] = []
   let quote: string[] = []
-  let list: { ordered: boolean; items: string[] } | null = null
+  let list: { ordered: boolean; start: number; items: string[] } | null = null
 
   const flush = () => {
     if (paragraph.length) blocks.push({ type: 'paragraph', inline: parseInline(joinLines(paragraph)) })
     if (quote.length) blocks.push({ type: 'quote', inline: parseInline(joinLines(quote)) })
-    if (list) blocks.push({ type: 'list', ordered: list.ordered, items: list.items.map(parseInline) })
+    if (list)
+      blocks.push({ type: 'list', ordered: list.ordered, start: list.start, items: list.items.map(parseInline) })
     paragraph = []
     quote = []
     list = null
   }
 
-  for (const line of source.split(/\r?\n/)) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    const fence = FENCE.exec(line)
+    if (fence) {
+      flush()
+      const code: string[] = []
+      while (++i < lines.length && !(lines[i] ?? '').trim().startsWith(fence[1] ?? '```')) code.push(lines[i] ?? '')
+      if (code.length) blocks.push({ type: 'code', lines: code })
+      continue
+    }
+    if (TABLE_ROW.test(line) && TABLE_DIVIDER.test(lines[i + 1] ?? '')) {
+      flush()
+      const header = cells(line)
+      const rows: Span[][][] = []
+      i += 1
+      while (i + 1 < lines.length && TABLE_ROW.test(lines[i + 1] ?? '')) rows.push(cells(lines[++i] ?? ''))
+      blocks.push({ type: 'table', header, rows })
+      continue
+    }
     if (!line.trim() || RULE.test(line)) {
       flush()
       continue
@@ -74,14 +107,13 @@ export function parseMarkdown(source: string): Block[] {
     }
     const bullet = BULLET.exec(line)
     const numbered = bullet ? null : NUMBERED.exec(line)
-    const item = bullet ?? numbered
-    if (item) {
+    if (bullet || numbered) {
       const ordered = !!numbered
       if (!list || list.ordered !== ordered) {
         flush()
-        list = { ordered, items: [] }
+        list = { ordered, start: numbered ? Number(numbered[1]) : 1, items: [] }
       }
-      list.items.push(item[1] ?? '')
+      list.items.push((numbered ? numbered[2] : bullet?.[1]) ?? '')
       continue
     }
     if (list && /^\s{2,}/.test(line)) {

@@ -5,10 +5,19 @@ import { GROUP_COLUMNS, NO_GROUPS, NONE_RAISED, type ReportDocument, reportDocum
 import type { Block, Span } from './markdown'
 import { type ExportMeta, MIME_TYPES } from './meta'
 
-const REGULAR = 'Helvetica'
-const BOLD = 'Helvetica-Bold'
-const fontOf = (span: Span) =>
-  span.bold && span.italic ? 'Helvetica-BoldOblique' : span.bold ? BOLD : span.italic ? 'Helvetica-Oblique' : REGULAR
+const SANS = 'NotoSans'
+const CJK = 'NotoSansSC'
+const BOLD = { fontWeight: 'bold' } as const
+const ITALIC = { fontStyle: 'italic' } as const
+const FONT_FILES = [
+  { file: 'NotoSans-Regular.ttf', fontWeight: 400, fontStyle: 'normal' },
+  { file: 'NotoSans-Bold.ttf', fontWeight: 700, fontStyle: 'normal' },
+  { file: 'NotoSans-Italic.ttf', fontWeight: 400, fontStyle: 'italic' },
+  { file: 'NotoSans-BoldItalic.ttf', fontWeight: 700, fontStyle: 'italic' },
+] as const
+const CJK_FILE = 'NotoSansSC-Regular.otf'
+const CJK_TEXT = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/
+const LONG_WORD = 30
 const INK = '#111827'
 const MUTED = '#6b7280'
 const LINE = '#e5e7eb'
@@ -17,25 +26,25 @@ const SPLIT_COLOURS = { positive: '#16a34a', neutral: '#9ca3af', negative: '#dc2
 const GROUP_WIDTHS = ['19%', '9%', '12%', '17%', '43%']
 
 const s = StyleSheet.create({
-  page: { paddingTop: 48, paddingBottom: 60, paddingHorizontal: 52, fontFamily: REGULAR, fontSize: 10, color: INK },
-  title: { fontSize: 18, fontFamily: BOLD, lineHeight: 1.25 },
+  page: { paddingTop: 48, paddingBottom: 60, paddingHorizontal: 52, fontSize: 10, color: INK },
+  title: { fontSize: 18, fontWeight: 'bold', lineHeight: 1.25 },
   meta: { marginTop: 4, fontSize: 9, color: MUTED },
   section: { marginTop: 18 },
-  h2: { fontSize: 12, fontFamily: BOLD, marginBottom: 6 },
+  h2: { fontSize: 12, fontWeight: 'bold', marginBottom: 6 },
   muted: { color: MUTED },
   small: { fontSize: 9, color: MUTED },
   box: { borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10, backgroundColor: PANEL },
-  verdict: { fontSize: 12, fontFamily: BOLD, lineHeight: 1.35, marginBottom: 4 },
+  verdict: { fontSize: 12, fontWeight: 'bold', lineHeight: 1.35, marginBottom: 4 },
   tiles: { flexDirection: 'row', gap: 8 },
   tile: { flex: 1, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 8 },
-  tileValue: { fontSize: 13, fontFamily: BOLD, marginVertical: 2 },
+  tileValue: { fontSize: 13, fontWeight: 'bold', marginVertical: 2 },
   bar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: LINE, marginBottom: 6 },
   legend: { flexDirection: 'row', gap: 14, fontSize: 9, color: MUTED },
   swatch: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4, marginTop: 2 },
   row: { flexDirection: 'row', borderTopWidth: 1, borderColor: LINE },
   headRow: { flexDirection: 'row', backgroundColor: PANEL },
   cell: { paddingVertical: 5, paddingHorizontal: 6 },
-  headCell: { paddingVertical: 5, paddingHorizontal: 6, fontSize: 9, color: MUTED, fontFamily: BOLD },
+  headCell: { paddingVertical: 5, paddingHorizontal: 6, fontSize: 9, color: MUTED, fontWeight: 'bold' },
   table: { borderWidth: 1, borderColor: LINE, borderRadius: 4 },
   item: { flexDirection: 'row', marginBottom: 4 },
   marker: { width: 16 },
@@ -43,13 +52,16 @@ const s = StyleSheet.create({
   quote: { marginTop: 4, borderLeftWidth: 2, borderColor: LINE, paddingLeft: 8, color: MUTED },
   columns: { flexDirection: 'row', gap: 12 },
   column: { flex: 1 },
-  h3: { fontSize: 10, fontFamily: BOLD, marginBottom: 4 },
+  h3: { fontSize: 10, fontWeight: 'bold', marginBottom: 4 },
   participant: { marginBottom: 6 },
   link: { color: INK, textDecoration: 'underline' },
-  md1: { fontSize: 13, fontFamily: BOLD, marginTop: 10, marginBottom: 4 },
-  md2: { fontSize: 11.5, fontFamily: BOLD, marginTop: 10, marginBottom: 4 },
-  md3: { fontSize: 10.5, fontFamily: BOLD, marginTop: 8, marginBottom: 3 },
+  md1: { fontSize: 13, fontWeight: 'bold', marginTop: 10, marginBottom: 4 },
+  md2: { fontSize: 11.5, fontWeight: 'bold', marginTop: 10, marginBottom: 4 },
+  md3: { fontSize: 10.5, fontWeight: 'bold', marginTop: 8, marginBottom: 3 },
   para: { marginBottom: 6 },
+  code: { marginBottom: 6, padding: 6, backgroundColor: PANEL, borderRadius: 3, fontSize: 9 },
+  mdTable: { borderWidth: 1, borderColor: LINE, borderRadius: 3, marginBottom: 6 },
+  mdCell: { flex: 1, paddingVertical: 3, paddingHorizontal: 5 },
   footer: { position: 'absolute', bottom: 28, fontSize: 8, color: MUTED },
 })
 
@@ -66,7 +78,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Item({ marker, children }: { marker: string; children: ReactNode }) {
   return (
-    <View style={s.item} wrap={false}>
+    <View style={s.item}>
       <Text style={s.marker}>{marker}</Text>
       <View style={s.itemBody}>{children}</View>
     </View>
@@ -78,7 +90,7 @@ function Spans({ spans }: { spans: Span[] }) {
     <Text
       // biome-ignore lint/suspicious/noArrayIndexKey: spans keep their order
       key={i}
-      style={{ fontFamily: fontOf(span) }}
+      style={{ ...(span.bold ? BOLD : {}), ...(span.italic ? ITALIC : {}) }}
     >
       {span.text}
     </Text>
@@ -105,11 +117,36 @@ function Markdown({ blocks }: { blocks: Block[] }) {
         <View key={key} style={s.para}>
           {block.items.map((item, n) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: list items keep their order
-            <Item key={n} marker={block.ordered ? `${n + 1}.` : '•'}>
+            <Item key={n} marker={block.ordered ? `${block.start + n}.` : '•'}>
               <Text>
                 <Spans spans={item} />
               </Text>
             </Item>
+          ))}
+        </View>
+      )
+    if (block.type === 'code')
+      return (
+        <View key={key} style={s.code}>
+          {block.lines.map((line, n) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: code lines keep their order
+            <Text key={n}>{line || ' '}</Text>
+          ))}
+        </View>
+      )
+    if (block.type === 'table')
+      return (
+        <View key={key} style={s.mdTable}>
+          {[block.header, ...block.rows].map((row, r) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: table rows keep their order
+            <View key={r} style={r ? s.row : s.headRow}>
+              {row.map((cell, c) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: table cells keep their order
+                <Text key={c} style={[s.mdCell, r ? {} : BOLD]}>
+                  <Spans spans={cell} />
+                </Text>
+              ))}
+            </View>
           ))}
         </View>
       )
@@ -138,7 +175,7 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
   )
 }
 
-function ReportPdf({ doc }: { doc: ReportDocument }) {
+function ReportPdf({ doc, cjk }: { doc: ReportDocument; cjk: boolean }) {
   return (
     <Document
       title={doc.title}
@@ -147,12 +184,12 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
       creator="Xenet Opinions"
       producer="Xenet Opinions"
     >
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={[s.page, { fontFamily: cjk ? [SANS, CJK] : SANS }]}>
         <Text style={s.title}>{doc.title}</Text>
         <Text style={s.meta}>{doc.metaLine}</Text>
 
         <Section title={SECTION_TITLES.verdict}>
-          <View style={s.box} wrap={false}>
+          <View style={s.box}>
             <Text style={s.verdict}>{doc.verdict.text}</Text>
             <Text style={s.muted}>{doc.verdict.reason}</Text>
             <Text style={[s.small, { marginTop: 4 }]}>{`${doc.verdict.confidence} · ${doc.verdict.basis}`}</Text>
@@ -209,14 +246,14 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
                 ))}
               </View>
               {doc.groups.map((group) => (
-                <View key={group.id} style={s.row} wrap={false}>
+                <View key={group.id} style={s.row}>
                   {group.cells.map((cell, i) => (
                     <Text
                       key={GROUP_COLUMNS[i]}
                       style={[
                         s.cell,
                         { width: GROUP_WIDTHS[i] },
-                        i === 0 ? { fontFamily: BOLD } : {},
+                        i === 0 ? { fontWeight: 'bold' } : {},
                         i === 4 ? s.muted : {},
                       ]}
                     >
@@ -237,7 +274,7 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
               // biome-ignore lint/suspicious/noArrayIndexKey: findings have no id and keep their order
               <Item key={i} marker={`${i + 1}.`}>
                 <Text>
-                  <Text style={{ fontFamily: BOLD }}>{finding.title}</Text> {finding.detail}
+                  <Text style={{ fontWeight: 'bold' }}>{finding.title}</Text> {finding.detail}
                 </Text>
                 {finding.quote && (
                   <View style={s.quote}>
@@ -259,9 +296,9 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
 
         <Section title={SECTION_TITLES.participants}>
           {doc.participants.map((p) => (
-            <View key={p.id} style={s.participant} wrap={false}>
+            <View key={p.id} style={s.participant}>
               <Text>
-                <Text style={{ fontFamily: BOLD }}>{p.name}</Text>
+                <Text style={{ fontWeight: 'bold' }}>{p.name}</Text>
                 {p.details && <Text style={s.muted}>{` · ${p.details}`}</Text>}
                 <Text style={s.muted}>{` · ${p.stance}`}</Text>
               </Text>
@@ -286,7 +323,7 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
                 ) : (
                   <Text>{source.title}</Text>
                 )}
-                <Text style={s.small}>{source.url}</Text>
+                <Text style={s.small}>{source.host}</Text>
               </Item>
             ))
           ) : (
@@ -299,7 +336,7 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
         </Section>
 
         <Section title={SECTION_TITLES.writeup}>
-          <Markdown blocks={doc.writeup} />
+          {doc.writeupEmpty ? <Text style={s.muted}>{doc.writeupEmpty}</Text> : <Markdown blocks={doc.writeup} />}
         </Section>
 
         <Text style={[s.footer, { left: 52 }]} fixed>
@@ -315,19 +352,76 @@ function ReportPdf({ doc }: { doc: ReportDocument }) {
   )
 }
 
-const WIN_ANSI_FALLBACKS: Record<string, string> = { '\u2212': '\u2013', '\u2009': ' ', '\u202f': ' ', '\u00a0': ' ' }
+const SYMBOLS: Record<string, string> = {
+  '\u2192': '->',
+  '\u2190': '<-',
+  '\u2194': '<->',
+  '\u21d2': '=>',
+  '\u21d0': '<=',
+  '\u2191': '^',
+  '\u2193': 'v',
+  '\u2265': '>=',
+  '\u2264': '<=',
+  '\u2248': '~',
+  '\u2260': '!=',
+  '\u2713': '(yes)',
+  '\u2714': '(yes)',
+  '\u2717': '(no)',
+  '\u2718': '(no)',
+  '\u2605': '*',
+  '\u2606': '*',
+}
+const SYMBOL = new RegExp(`[${Object.keys(SYMBOLS).join('')}]`, 'g')
+const EMOJI = /\p{Emoji_Presentation}|\p{Extended_Pictographic}\uFE0F|[\u{1F000}-\u{1FAFF}]|\uFE0F|\u200D/gu
 
-const toWinAnsi = <T,>(value: T): T => {
-  if (typeof value === 'string')
-    return value.replace(/[\u2212\u2009\u202f\u00a0]/g, (c) => WIN_ANSI_FALLBACKS[c] ?? c) as T
-  if (Array.isArray(value)) return value.map(toWinAnsi) as T
+export const pdfText = (text: string) => text.replace(SYMBOL, (c) => SYMBOLS[c] ?? c).replace(EMOJI, '')
+
+const mapStrings = <T,>(value: T): T => {
+  if (typeof value === 'string') return pdfText(value) as T
+  if (Array.isArray(value)) return value.map(mapStrings) as T
   if (value && typeof value === 'object')
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toWinAnsi(v)])) as T
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v)])) as T
   return value
 }
 
-export async function exportPdf(summary: ReportSummary, meta: ExportMeta): Promise<Blob> {
-  Font.registerHyphenationCallback((word) => [word])
-  const blob = await pdf(<ReportPdf doc={toWinAnsi(reportDocument(summary, meta))} />).toBlob()
+const chunk = (word: string) => {
+  if (word.length <= LONG_WORD) return [word]
+  const parts: string[] = []
+  for (let i = 0; i < word.length; i += LONG_WORD) parts.push(word.slice(i, i + LONG_WORD))
+  return parts
+}
+
+const registered = new Set<string>()
+
+function registerFonts(base: string, cjk: boolean) {
+  if (!registered.has(SANS)) {
+    Font.register({
+      family: SANS,
+      fonts: FONT_FILES.map(({ file, ...style }) => ({ src: `${base}${file}`, ...style })),
+    })
+    registered.add(SANS)
+  }
+  if (cjk && !registered.has(CJK)) {
+    Font.register({
+      family: CJK,
+      fonts: [
+        { src: `${base}${CJK_FILE}`, fontWeight: 400, fontStyle: 'normal' },
+        { src: `${base}${CJK_FILE}`, fontWeight: 400, fontStyle: 'italic' },
+      ],
+    })
+    registered.add(CJK)
+  }
+  Font.registerHyphenationCallback(chunk)
+}
+
+export async function exportPdf(
+  summary: ReportSummary,
+  meta: ExportMeta,
+  options: { fontBase?: string } = {},
+): Promise<Blob> {
+  const doc = mapStrings(reportDocument(summary, meta))
+  const cjk = CJK_TEXT.test(JSON.stringify(doc))
+  registerFonts(options.fontBase ?? '/fonts/', cjk)
+  const blob = await pdf(<ReportPdf doc={doc} cjk={cjk} />).toBlob()
   return blob.type === MIME_TYPES.pdf ? blob : new Blob([blob], { type: MIME_TYPES.pdf })
 }

@@ -26,8 +26,10 @@ function useReportExport(summary: ReportSummary, title?: string, finishedAt?: st
   const onExport = async (kind: ExportKind) => {
     setExporting(kind)
     try {
-      const date = finishedAt ? new Date(finishedAt) : new Date()
-      await runExport(kind, summary, { title: title ?? 'Focus group report', date })
+      const meta = finishedAt
+        ? { title: title ?? '', date: new Date(finishedAt) }
+        : { title: title ?? '', date: new Date(), exported: true }
+      await runExport(kind, summary, meta)
     } catch (error) {
       console.error('report export failed', { kind, error })
       toast(exportFailed(kind))

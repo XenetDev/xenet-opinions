@@ -101,6 +101,8 @@ export const topConcernNote = (summary: ReportSummary) =>
 export const methodNote = (method: ReportSummary['method']) =>
   `${method.participants} AI participants in ${method.groups} groups discussed the question over ${method.rounds} rounds, then each answered a closing interview${method.webResearch ? '. Personas drew on web research' : ''}. This is a simulation: use it alongside, not instead of, research with real people for final decisions.`
 
+export const WRITEUP_EMPTY = 'No written analysis for this run.'
+
 export const sourcesEmptyNote = (method: ReportSummary['method']) =>
   method.webResearch ? 'Web research found no sources for this run.' : 'Web research was off for this run.'
 

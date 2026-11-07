@@ -407,22 +407,34 @@ describe('Chat', () => {
     expect(screen.getByRole('status').textContent).toBe('')
   })
 
-  it('exports the report with the question and the run finish time', async () => {
+  it('exports each report with its own run finish time', async () => {
     chat.messages = [
+      { id: 'u0', role: 'user', parts: [{ type: 'text', text: 'Earlier question?' }] },
+      { id: 'm0', role: 'assistant', parts: [{ type: 'data-report_summary', data: reportSummaryFixture }] },
       { id: 'u1', role: 'user', parts: [{ type: 'text', text: reportQuestion }] },
       { id: 'm1', role: 'assistant', parts: [{ type: 'data-report_summary', data: reportSummaryFixture }] },
     ]
-    renderChat({
-      id: 'r1',
-      status: 'done',
-      assistantMessageId: 'm1',
-      envState: 'closed',
-      envKeepaliveUntil: null,
-      finishedAt: '2026-11-05T16:20:00.000Z',
-    })
-    fireEvent.click(within(screen.getByTestId('report-card')).getByRole('button', { name: 'PDF' }))
+    render(
+      <Chat
+        chatId="c1"
+        initialMessages={[]}
+        activeRun={null}
+        latestRun={doneRun('closed')}
+        limits={limits}
+        runFinishedAt={{ m0: '2026-10-01T09:00:00.000Z', m1: '2026-11-05T16:20:00.000Z' }}
+      />,
+    )
+    const [older, newer] = screen.getAllByTestId('report-card')
+    fireEvent.click(within(older!).getByRole('button', { name: 'PDF' }))
     await waitFor(() =>
-      expect(runExport).toHaveBeenCalledWith('pdf', reportSummaryFixture, {
+      expect(runExport).toHaveBeenLastCalledWith('pdf', reportSummaryFixture, {
+        title: 'Earlier question?',
+        date: new Date('2026-10-01T09:00:00.000Z'),
+      }),
+    )
+    fireEvent.click(within(newer!).getByRole('button', { name: 'PDF' }))
+    await waitFor(() =>
+      expect(runExport).toHaveBeenLastCalledWith('pdf', reportSummaryFixture, {
         title: reportQuestion,
         date: new Date('2026-11-05T16:20:00.000Z'),
       }),

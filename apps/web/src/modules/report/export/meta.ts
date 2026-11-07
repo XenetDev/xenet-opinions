@@ -1,6 +1,6 @@
 import type { ExportKind } from '../format'
 
-export type ExportMeta = { title: string; date: Date }
+export type ExportMeta = { title: string; date: Date; exported?: boolean }
 
 export const MIME_TYPES: Record<ExportKind, string> = {
   pdf: 'application/pdf',

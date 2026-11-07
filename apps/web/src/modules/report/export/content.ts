@@ -22,6 +22,7 @@ import {
   splitTotal,
   topConcernNote,
   uniqueBy,
+  WRITEUP_EMPTY,
 } from '../format'
 import { type Block, parseMarkdown } from './markdown'
 import { type ExportMeta, longDate } from './meta'
@@ -52,7 +53,7 @@ export function reportDocument(summary: ReportSummary, meta: ExportMeta) {
   const labels = groupLabels(summary)
   return {
     title: meta.title || 'Focus group report',
-    metaLine: `${reportMetaLine(summary.method)} · ${longDate(meta.date)}`,
+    metaLine: `${reportMetaLine(summary.method)} · ${meta.exported ? 'Exported ' : ''}${longDate(meta.date)}`,
     verdict: {
       text: summary.verdict,
       confidence: `Confidence: ${CONFIDENCE_LABELS[summary.confidence.level]}`,
@@ -98,11 +99,13 @@ export function reportDocument(summary: ReportSummary, meta: ExportMeta) {
     sources: uniqueBy(summary.sources, (source) => source.url).map((source) => ({
       title: source.title || hostOf(source.url),
       url: source.url,
+      host: hostOf(source.url),
       link: isWebUrl(source.url),
     })),
     sourcesEmpty: sourcesEmptyNote(summary.method),
     method: methodNote(summary.method),
     writeup: parseMarkdown(summary.writeup) satisfies Block[],
+    writeupEmpty: summary.writeup.trim() ? null : WRITEUP_EMPTY,
   }
 }
 

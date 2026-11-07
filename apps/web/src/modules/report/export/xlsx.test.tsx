@@ -56,6 +56,7 @@ describe('exportXlsx', () => {
     const noView = rowValues(sheet, 13)
     expect(noView[0]).toBe('Felix Braun')
     expect(noView[6]).toBeUndefined()
+    expect(noView[7]).toBeUndefined()
     expect(noView[8]).toBe('No view expressed')
   })
 

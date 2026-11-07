@@ -47,11 +47,45 @@ describe('parseMarkdown', () => {
     expect(blocks).toEqual([
       { type: 'heading', level: 2, inline: [{ text: 'Overview' }] },
       { type: 'paragraph', inline: [{ text: 'Owners read the rise as a break.' }] },
-      { type: 'list', ordered: false, items: [[{ text: 'one' }], [{ text: 'two' }]] },
-      { type: 'list', ordered: true, items: [[{ text: 'first' }], [{ text: 'second' }]] },
+      { type: 'list', ordered: false, start: 1, items: [[{ text: 'one' }], [{ text: 'two' }]] },
+      { type: 'list', ordered: true, start: 1, items: [[{ text: 'first' }], [{ text: 'second' }]] },
       { type: 'quote', inline: [{ text: 'Five percent more and Hyundai wins.' }] },
       { type: 'heading', level: 3, inline: [{ text: 'Deep' }] },
     ])
+  })
+
+  it('keeps the start number of an ordered list', () => {
+    expect(parseMarkdown('3. third\n4. fourth')).toEqual([
+      { type: 'list', ordered: true, start: 3, items: [[{ text: 'third' }], [{ text: 'fourth' }]] },
+    ])
+  })
+
+  it('reads GFM tables as header and rows', () => {
+    expect(
+      parseMarkdown('Intro\n\n| Group | Share |\n|:---|---:|\n| **Owners** | 25% |\n| Dealers | 0% |\n\nAfter'),
+    ).toEqual([
+      { type: 'paragraph', inline: [{ text: 'Intro' }] },
+      {
+        type: 'table',
+        header: [[{ text: 'Group' }], [{ text: 'Share' }]],
+        rows: [
+          [[{ text: 'Owners', bold: true }], [{ text: '25%' }]],
+          [[{ text: 'Dealers' }], [{ text: '0%' }]],
+        ],
+      },
+      { type: 'paragraph', inline: [{ text: 'After' }] },
+    ])
+  })
+
+  it('keeps fenced code literal and drops the fence lines', () => {
+    expect(parseMarkdown('```js\n# not a heading\n- not a list\n```\nText')).toEqual([
+      { type: 'code', lines: ['# not a heading', '- not a list'] },
+      { type: 'paragraph', inline: [{ text: 'Text' }] },
+    ])
+  })
+
+  it('keeps link text when the URL has parentheses', () => {
+    expect(parseInline('See [a](https://x.test/(b)) now')).toEqual([{ text: 'See a now' }])
   })
 
   it('returns nothing for empty input', () => {

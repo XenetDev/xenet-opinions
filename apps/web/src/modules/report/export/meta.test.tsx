@@ -35,5 +35,6 @@ describe('exportFilename', () => {
     expect(exportFilename('xlsx', { title: '値上げ', date: new Date(2026, 0, 3) })).toBe(
       'opinions-report-2026-01-03.xlsx',
     )
+    expect(exportFilename('pdf', { title: '', date })).toBe('opinions-report-2026-11-07.pdf')
   })
 })

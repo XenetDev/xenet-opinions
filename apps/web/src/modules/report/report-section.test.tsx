@@ -41,7 +41,8 @@ describe('ReportBlock exports', () => {
     await waitFor(() => expect(mocks.runExport).toHaveBeenCalledOnce())
     const [kind, , meta] = mocks.runExport.mock.calls[0] ?? []
     expect(kind).toBe('docx')
-    expect(meta.title).toBe('Focus group report')
+    expect(meta.title).toBe('')
+    expect(meta.exported).toBe(true)
     expect(Math.abs(meta.date.getTime() - Date.now())).toBeLessThan(5000)
   })
 

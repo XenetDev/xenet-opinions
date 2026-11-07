@@ -175,21 +175,58 @@ function groupsTable(doc: ReportDocument) {
   ]
 }
 
+function markdownTable(header: Span[][], rows: Span[][][]) {
+  const width = 100 / Math.max(header.length, 1)
+  const tableRow = (cells: Span[][], head: boolean) =>
+    new TableRow({
+      tableHeader: head,
+      children: header.map((_, i) =>
+        cell(
+          [
+            new Paragraph({
+              children: (cells[i] ?? []).map((span) =>
+                run(span.text, { bold: head || span.bold, italics: span.italic }),
+              ),
+            }),
+          ],
+          width,
+          head ? PANEL : undefined,
+        ),
+      ),
+    })
+  return new Table({
+    width: fullWidth,
+    layout: FIXED,
+    columnWidths: header.map(() => dxa(width)),
+    borders,
+    rows: [tableRow(header, true), ...rows.map((row) => tableRow(row, false))],
+  })
+}
+
 function markdown(blocks: Block[]) {
-  let instance = 2
-  return blocks.flatMap((block) => {
+  return blocks.flatMap((block): (Paragraph | Table)[] => {
+    if (block.type === 'table') return [markdownTable(block.header, block.rows), new Paragraph({ children: [] })]
+    if (block.type === 'code')
+      return [
+        new Paragraph({
+          shading: { fill: PANEL, type: ShadingType.CLEAR, color: 'auto' },
+          children: block.lines.map((line, i) => new TextRun({ text: line, break: i ? 1 : 0, size: 19 })),
+        }),
+      ]
     if (block.type === 'heading')
       return [new Paragraph({ heading: HEADINGS[block.level - 1], keepNext: true, children: spans(block.inline) })]
     if (block.type === 'quote')
       return [quote(block.inline.map((span) => run(span.text, { bold: span.bold, italics: span.italic, muted: true })))]
-    if (block.type === 'list') {
-      instance += 1
-      return block.items.map((item) =>
+    if (block.type === 'list')
+      return block.items.map((item, n) =>
         block.ordered
-          ? new Paragraph({ numbering: { reference: NUMBERED, level: 0, instance }, children: spans(item) })
+          ? new Paragraph({
+              indent: { left: 360, hanging: 360 },
+              children: [run(`${block.start + n}.\t`), ...spans(item)],
+              tabStops: [{ type: 'left', position: 360 }],
+            })
           : bullet(spans(item)),
       )
-    }
     return [new Paragraph({ children: spans(block.inline) })]
   })
 }
@@ -275,7 +312,7 @@ function body(doc: ReportDocument) {
                       children: [new TextRun({ text: source.title, style: 'Hyperlink' })],
                     })
                   : run(source.title),
-                new TextRun({ text: source.url, break: 1, size: 18, color: MUTED }),
+                new TextRun({ text: source.host, break: 1, size: 18, color: MUTED }),
               ],
             }),
         )
@@ -285,7 +322,7 @@ function body(doc: ReportDocument) {
     new Paragraph({ children: [run(doc.method)] }),
 
     heading(SECTION_TITLES.writeup),
-    ...markdown(doc.writeup),
+    ...(doc.writeupEmpty ? [muted(doc.writeupEmpty)] : markdown(doc.writeup)),
   ]
 }
 

@@ -45,6 +45,23 @@ describe('exportDocx', () => {
     expect(text).toContain("Owners read the rise as a break with Toyota's value promise.")
   })
 
+  it('prints source hosts, the export label, list starts, tables and code', async () => {
+    const writeup = '3. third\n4. fourth\n\n| Group | Share |\n|---|---|\n| Owners | 25% |\n\n```\n# literal\n```'
+    const text = textOf(await docxXml(await exportDocx({ ...summary, writeup }, { ...meta, exported: true })))
+    expect(text).toContain('adac.de')
+    expect(text).not.toContain('https://www.adac.de/rund-ums-fahrzeug/autokatalog/')
+    expect(text).toContain('Exported 7 November 2026')
+    expect(text).toContain('3. third')
+    expect(text).toContain('4. fourth')
+    expect(text).toMatch(/Group Share.*Owners 25%/)
+    expect(text).toContain('# literal')
+  })
+
+  it('notes an empty write-up like the sheet', async () => {
+    const text = textOf(await docxXml(await exportDocx({ ...summary, writeup: '' }, meta)))
+    expect(text).toContain('No written analysis for this run.')
+  })
+
   it('numbers its pages in the footer', async () => {
     const zip = await JSZip.loadAsync(await (await exportDocx(summary, meta)).arrayBuffer())
     const footers = await Promise.all(

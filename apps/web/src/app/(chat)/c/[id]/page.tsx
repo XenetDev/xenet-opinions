@@ -15,7 +15,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   if (!chat) notFound()
 
   const { limits } = await resolveLimits(user)
-  const { initialMessages, activeRun, latestRun } = await loadChatPage(chat.id, user.id)
+  const { initialMessages, activeRun, latestRun, runFinishedAt } = await loadChatPage(chat.id, user.id)
 
   return (
     <Chat
@@ -23,14 +23,9 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       chatId={chat.id}
       initialMessages={initialMessages}
       activeRun={activeRun}
-      latestRun={
-        latestRun && {
-          ...latestRun,
-          envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null,
-          finishedAt: latestRun.finishedAt?.toISOString() ?? null,
-        }
-      }
+      latestRun={latestRun && { ...latestRun, envKeepaliveUntil: latestRun.envKeepaliveUntil?.toISOString() ?? null }}
       limits={limits}
+      runFinishedAt={runFinishedAt}
       webResearchAvailable={!!env.EXA_API_KEY}
       startedAt={chat.createdAt.toISOString()}
     />
