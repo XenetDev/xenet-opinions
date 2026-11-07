@@ -148,6 +148,7 @@ export function MessageParts({
       <ReportSection
         summary={summary}
         failed={summaryFailed}
+        writing={!!windowLive && texts.length > 0 && !summary && !summaryFailed}
         chatId={chatId}
         messageId={messageId}
         shareUrl={shareUrl}

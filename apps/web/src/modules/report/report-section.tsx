@@ -5,6 +5,8 @@ import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { Thinking } from '@/components/ui/thinking'
+import { Markdown } from '@/modules/chat/markdown'
 import { runExport } from './export/run'
 import { EXPORTS, type ExportKind } from './format'
 import { ReportCard } from './report-card'
@@ -133,6 +135,7 @@ export function RetrySummary({
 export function ReportSection({
   summary,
   failed,
+  writing = false,
   chatId,
   messageId,
   shareUrl,
@@ -142,6 +145,7 @@ export function ReportSection({
 }: {
   summary?: ReportSummary
   failed: boolean
+  writing?: boolean
   chatId?: string
   messageId?: string
   shareUrl?: string
@@ -151,23 +155,34 @@ export function ReportSection({
 }) {
   const [retried, setRetried] = useState<ReportSummary | null>(null)
   const current = summary ?? retried
-  if (current)
-    return (
-      <div data-part="report">
-        <ReportBlock
-          summary={current}
-          chatId={chatId}
-          messageId={messageId}
-          shareUrl={shareUrl}
-          title={title}
-          finishedAt={finishedAt}
-        />
-      </div>
-    )
   return (
     <>
-      {children}
-      {failed && chatId && (
+      {current ? (
+        <div data-part="report">
+          <ReportBlock
+            summary={current}
+            chatId={chatId}
+            messageId={messageId}
+            shareUrl={shareUrl}
+            title={title}
+            finishedAt={finishedAt}
+          />
+        </div>
+      ) : (
+        writing && (
+          <div data-part="summary-pending">
+            <Thinking label="Writing the summary…" />
+          </div>
+        )
+      )}
+      {current?.writeup.trim() ? (
+        <div data-part="writeup">
+          <Markdown>{current.writeup}</Markdown>
+        </div>
+      ) : (
+        children
+      )}
+      {!current && failed && chatId && (
         <div data-part="summary-retry">
           <RetrySummary chatId={chatId} messageId={messageId} onSummary={setRetried} />
         </div>

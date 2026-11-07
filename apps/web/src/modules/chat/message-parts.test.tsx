@@ -224,16 +224,55 @@ describe('MessageParts report', () => {
     expect(screen.queryByRole('button', { name: 'Retry summary' })).toBeNull()
   })
 
-  it('shows the card instead of the long report and opens the sheet on Summary', () => {
+  it('shows the card, then the cleaned write-up below it, and opens the sheet on Summary', () => {
     const { container } = render(
       <MessageParts parts={[...stageParts, report, summaryPart]} chatId="c1" question={reportQuestion} />,
     )
     expect(container.querySelector('[data-part="text"]')).toBeNull()
-    expect(screen.getByTestId('report-card')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'MiroFish report' })).toBeNull()
+    const card = container.querySelector('[data-part="report"]')
+    const writeup = container.querySelector('[data-part="writeup"]')
+    expect(card).not.toBeNull()
+    expect(writeup && within(writeup as HTMLElement).getByRole('heading', { name: 'Overview' })).toBeTruthy()
+    expect(card!.compareDocumentPosition(writeup!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Open report' }))
     const dialog = screen.getByRole('dialog', { name: reportQuestion })
     expect(within(dialog).getByRole('tab', { name: 'Summary', selected: true })).toBeTruthy()
+    expect(within(dialog).queryByRole('tab', { name: /^Full write-up/ })).toBeNull()
+  })
+
+  it('falls back to the raw report when the summary has no write-up', () => {
+    render(
+      <MessageParts
+        parts={[
+          ...stageParts,
+          report,
+          { type: 'data-report_summary', data: { ...reportSummaryFixture, writeup: ' ' } },
+        ]}
+        chatId="c1"
+      />,
+    )
+    expect(screen.getByTestId('report-card')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
+  })
+
+  it('shows the write-up and a Writing the summary line while the live run builds the summary', () => {
+    const view = render(<MessageParts parts={[report]} chatId="c1" windowLive />)
+    expect(screen.getByRole('heading', { name: 'MiroFish report' })).toBeTruthy()
+    const pending = view.container.querySelector<HTMLElement>('[data-part="summary-pending"]')
+    expect(pending && within(pending).getByRole('status').textContent).toContain('Writing the summary…')
+    expect(
+      pending!.compareDocumentPosition(view.container.querySelector('[data-part="text"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    view.rerender(<MessageParts parts={[report, summaryPart]} chatId="c1" windowLive />)
+    expect(view.container.querySelector('[data-part="summary-pending"]')).toBeNull()
+    expect(screen.getByTestId('report-card')).toBeTruthy()
+    view.rerender(<MessageParts parts={[report]} chatId="c1" />)
+    expect(view.container.querySelector('[data-part="summary-pending"]')).toBeNull()
+    view.rerender(<MessageParts parts={[report, failedPart]} chatId="c1" windowLive />)
+    expect(view.container.querySelector('[data-part="summary-pending"]')).toBeNull()
   })
 
   it('offers Retry summary when the summary failed and shows the card on success', async () => {
@@ -249,6 +288,7 @@ describe('MessageParts report', () => {
       body: JSON.stringify({ messageId: 'a1' }),
     })
     expect(screen.queryByRole('heading', { name: 'MiroFish report' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
   })
 
   it.each([

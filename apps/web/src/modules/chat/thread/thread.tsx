@@ -123,7 +123,7 @@ export function Thread({
                   />
                 </MessageScrollerItem>
                 <MessageScrollerItem className={cn('flex flex-col gap-4 [content-visibility:visible]', ENTER)}>
-                  <AssistantTurn>{pending.card}</AssistantTurn>
+                  <AssistantTurn header={false}>{pending.card}</AssistantTurn>
                 </MessageScrollerItem>
               </>
             )}

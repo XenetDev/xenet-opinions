@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ComponentProps } from 'react'
+import { type ComponentProps, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { axe } from '@/test/axe'
@@ -52,6 +52,22 @@ function renderComposer(props: Partial<Props> = {}) {
     </TooltipProvider>,
   )
   return { ...view, onSend }
+}
+
+function Controlled({ onValueChange, onSend }: Pick<Props, 'onSend'> & { onValueChange: (value: string) => void }) {
+  const [value, setValue] = useState('hello')
+  return (
+    <BoxComposer
+      chatId="c1"
+      mode="run"
+      value={value}
+      onValueChange={(next) => {
+        onValueChange(next)
+        setValue(next)
+      }}
+      onSend={onSend}
+    />
+  )
 }
 
 const textarea = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
@@ -198,18 +214,34 @@ describe('BoxComposer', () => {
     expect(click).toHaveBeenCalledTimes(1)
   })
 
-  it('toggles the pause chip, swaps its icon for a check and sends the choice', async () => {
+  it('keeps the toolbar to attach, Improve prompt and send', () => {
+    const { container } = renderComposer()
+    const toolbar = container.querySelector('[data-align="block-end"]') as HTMLElement
+    expect(
+      within(toolbar)
+        .getAllByRole('button')
+        .map((b) => b.getAttribute('aria-label') ?? b.textContent),
+    ).toEqual(['Add files', 'Improve prompt', 'Send message'])
+    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /rounds?$/ })).toBeNull()
+  })
+
+  it('sends pause and rounds chosen in Configure', async () => {
     stubUpload()
-    const { onSend } = renderComposer()
+    const { onSend } = renderComposer({ maxRounds: 5 })
     attach()
-    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
-    expect(chip.querySelector('svg.lucide-pause')).toBeTruthy()
-    fireEvent.click(chip)
-    expect(chip.getAttribute('aria-pressed')).toBe('true')
-    expect(chip.getAttribute('data-variant')).toBe('secondary')
-    expect(chip.querySelector('svg.lucide-check')).toBeTruthy()
-    expect(chip.querySelector('svg.lucide-pause')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Pause for interviews' }))
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Rounds' }), { key: 'Enter' })
+    expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
+      '1 round',
+      '2 rounds',
+      '3 rounds',
+      '4 rounds',
+      '5 rounds',
+    ])
+    fireEvent.click(screen.getByRole('option', { name: '1 round' }))
+    expect(screen.getByTestId('panel-summary').textContent).toBe('about 20 participants · 1 round · pause on · ~3 min')
     type('hello')
     fireEvent.keyDown(textarea(), { key: 'Enter' })
     await waitFor(() =>
@@ -217,61 +249,30 @@ describe('BoxComposer', () => {
         kind: 'run',
         uploadIds: ['u1'],
         files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
-        runOptions: { maxRounds: 3, pauseForInterviews: true },
+        runOptions: { maxRounds: 1, pauseForInterviews: true },
         panel: DEFAULT_PANEL,
       }),
     )
-    await waitFor(() => expect(textarea().value).toBe(''))
   })
 
-  it('turns pause off again on a second press', () => {
-    renderComposer()
-    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
-    fireEvent.click(chip)
-    fireEvent.click(chip)
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
-    expect(chip.getAttribute('data-variant')).toBe('ghost')
-  })
-
-  it('hides the pause chip when pausing is not allowed', () => {
+  it('offers no pause in Configure when pausing is not allowed', () => {
     renderComposer({ allowPause: false })
-    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    expect(screen.queryByRole('switch', { name: 'Pause for interviews' })).toBeNull()
   })
 
   it.each(['followUp', 'interview'] as const)('has no plus menu, pause or rounds in %s mode', (mode) => {
     renderComposer({ mode })
     expect(screen.queryByTestId('file-input')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Pause for interviews' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /rounds?$/ })).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Pause for interviews' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Rounds' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeTruthy()
-  })
-
-  it('reads the default rounds and offers 1 to maxRounds', async () => {
-    stubUpload()
-    const { onSend } = renderComposer({ maxRounds: 5 })
-    attach()
-    openMenu('3 rounds')
-    const items = screen.getAllByRole('menuitemradio').map((item) => item.textContent)
-    expect(items).toEqual(['1 round', '2 rounds', '3 rounds', '4 rounds', '5 rounds'])
-    fireEvent.click(screen.getByRole('menuitemradio', { name: '1 round' }))
-    expect(screen.getByRole('button', { name: '1 round' })).toBeTruthy()
-    type('hello')
-    fireEvent.keyDown(textarea(), { key: 'Enter' })
-    await waitFor(() =>
-      expect(onSend).toHaveBeenCalledWith('hello', {
-        kind: 'run',
-        uploadIds: ['u1'],
-        files: [{ id: 'u1', filename: 'brief.txt', mediaType: 'text/plain', sizeBytes: 1 }],
-        runOptions: { maxRounds: 1, pauseForInterviews: false },
-        panel: DEFAULT_PANEL,
-      }),
-    )
   })
 
   it('caps the default rounds at maxRounds', () => {
     renderComposer({ maxRounds: 2 })
-    expect(screen.getByRole('button', { name: '2 rounds' })).toBeTruthy()
+    expect(screen.getByTestId('panel-summary').textContent).toContain('· 2 rounds ·')
   })
 
   it('shows Send when idle', () => {
@@ -302,12 +303,11 @@ describe('BoxComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('disables the field, plus menu, pause, rounds and send when disabled', () => {
+  it('disables the field, plus menu, Configure and send when disabled', () => {
     renderComposer({ disabled: true })
     expect(textarea().disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Add files' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'Pause for interviews' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: '3 rounds' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: /Configure/ }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('file-input') as HTMLInputElement).disabled).toBe(true)
   })
@@ -367,6 +367,60 @@ describe('BoxComposer', () => {
     expect(send.getAttribute('aria-busy')).toBe('true')
     expect(send.querySelector('[data-slot="spinner"]')).toBeTruthy()
     expect(textarea().readOnly).toBe(true)
+    expect(textarea().value).toBe('')
+  })
+
+  it.each(['run', 'followUp', 'interview'] as const)(
+    'clears the text as soon as a %s message is sent, before it settles',
+    async (mode) => {
+      const onSend = vi.fn(() => new Promise<void>(() => {}))
+      renderComposer({ mode, onSend })
+      if (mode === 'interview') fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+      type('hello')
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+      expect(textarea().value).toBe('')
+    },
+  )
+
+  it.each(['run', 'interview'] as const)('puts the text back when a %s send fails', async (mode) => {
+    const onSend = vi.fn(async () => {
+      throw new Error('send_failed')
+    })
+    renderComposer({ mode, onSend })
+    if (mode === 'interview') fireEvent.click(screen.getByRole('button', { name: 'Pick Ada' }))
+    type('hello')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(textarea().value).toBe('hello'))
+    expect(textarea().readOnly).toBe(false)
+  })
+
+  it('puts a controlled value back through onValueChange when the send fails', async () => {
+    const onValueChange = vi.fn()
+    const onSend = vi.fn(async () => {
+      throw new Error('send_failed')
+    })
+    render(
+      <TooltipProvider>
+        <Controlled onValueChange={onValueChange} onSend={onSend} />
+      </TooltipProvider>,
+    )
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(textarea().value).toBe('hello'))
+    expect(onValueChange.mock.calls).toEqual([[''], ['hello']])
+  })
+
+  it('closes Configure when a run is sent', async () => {
+    const onSend = vi.fn(() => new Promise<void>(() => {}))
+    renderComposer({ onSend })
+    fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+    expect(screen.getByRole('slider')).toBeTruthy()
+    type('hello')
+    fireEvent.keyDown(textarea(), { key: 'Enter' })
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('slider')).toBeNull()
+    expect(screen.getByRole('button', { name: /Configure/ }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('creates the chat on attach when there is no chat yet and uploads into it', async () => {
@@ -508,7 +562,8 @@ describe('BoxComposer', () => {
       fireEvent.change(screen.getByTestId('file-input'), {
         target: { files: [new File(['x'], 'brief.txt', { type: 'text/plain' })] },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Pause for interviews' }))
+      fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
+      fireEvent.click(screen.getByRole('switch', { name: 'Pause for interviews' }))
     }
     expect(await axe(container)).toHaveNoViolations()
   })
@@ -624,6 +679,20 @@ describe('BoxComposer', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Undo improve' }))
       expect(textarea().value).toBe('raise prices?')
       expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+    })
+
+    it('clears an improved prompt on send and drops the undo', async () => {
+      answer(() => Response.json({ text: 'A brief.' }))
+      const onSend = vi.fn(() => new Promise<void>(() => {}))
+      renderComposer({ onSend })
+      type('q')
+      fireEvent.click(improve())
+      await screen.findByRole('button', { name: 'Undo improve' })
+      fireEvent.keyDown(textarea(), { key: 'Enter' })
+      await waitFor(() => expect(onSend).toHaveBeenCalledWith('A brief.', expect.objectContaining({ kind: 'run' })))
+      expect(textarea().value).toBe('')
+      expect(screen.queryByRole('button', { name: 'Undo improve' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Improve prompt' })).toBeTruthy()
     })
 
     it('reports the improved text through a controlled value', async () => {

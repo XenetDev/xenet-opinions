@@ -52,19 +52,29 @@ export function UserTurn({ message, sources }: { message: OpinionsUIMessage; sou
   )
 }
 
-export function AssistantTurn({ time, children }: { time?: string; children: ReactNode }) {
+export function AssistantTurn({
+  time,
+  header = true,
+  children,
+}: {
+  time?: string
+  header?: boolean
+  children: ReactNode
+}) {
   return (
     <Message role="group" aria-label={ASSISTANT_NAME}>
       <MessageContent className="min-w-0 gap-2">
-        <MessageHeader className="gap-x-2 pb-0.5 text-[13px]">
-          <span className="font-medium text-foreground">{ASSISTANT_NAME}</span>
-          {time && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="tabular-nums">{time}</span>
-            </>
-          )}
-        </MessageHeader>
+        {header && (
+          <MessageHeader className="gap-x-2 pb-0.5 text-[13px]">
+            <span className="font-medium text-foreground">{ASSISTANT_NAME}</span>
+            {time && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="tabular-nums">{time}</span>
+              </>
+            )}
+          </MessageHeader>
+        )}
         <Bubble variant="ghost" className="w-full min-w-0">
           <BubbleContent className="w-full min-w-0 space-y-3 text-sm/6 sm:text-[15px]/6">{children}</BubbleContent>
         </Bubble>

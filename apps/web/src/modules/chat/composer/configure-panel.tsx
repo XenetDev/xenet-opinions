@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { roundsLabel } from './run-options'
+import { PauseRow, RoundsRow, type RunOptionsValue, roundsLabel } from './run-options'
 
 export const PANEL_STORAGE_KEY = 'xo.panel'
 
@@ -77,7 +77,7 @@ export function usePanel(maxParticipants: number, webResearchAvailable: boolean)
 
 export const panelMinutes = (participants: number, rounds: number) => Math.ceil(participants / 10) + rounds
 
-export function panelSummary(panel: Panel, rounds: number, webResearchAvailable: boolean): string {
+export function panelSummary(panel: Panel, rounds: number, webResearchAvailable: boolean, pause = false): string {
   const audience = panel.audience?.trim()
   const groups = panel.groups.length
   return [
@@ -88,6 +88,7 @@ export function panelSummary(panel: Panel, rounds: number, webResearchAvailable:
     ...(groups > 0 ? [groups === 1 ? '1 group' : `${groups} groups`] : []),
     roundsLabel(rounds),
     ...(webResearchAvailable ? [`web research ${panel.webResearch ? 'on' : 'off'}`] : []),
+    ...(pause ? ['pause on'] : []),
     `~${panelMinutes(panel.participants, rounds)} min`,
   ].join(' · ')
 }
@@ -121,20 +122,30 @@ export function ConfigurePanel({
   onChange,
   maxParticipants,
   webResearchAvailable,
-  rounds,
+  runOptions,
+  onRunOptionsChange,
+  maxRounds,
+  allowPause,
   plan,
   disabled,
+  open,
+  onOpenChange,
 }: {
   value: Panel
   onChange: (panel: Panel) => void
   maxParticipants: number
   webResearchAvailable: boolean
-  rounds: number
+  runOptions: RunOptionsValue
+  onRunOptionsChange: (runOptions: RunOptionsValue) => void
+  maxRounds: number
+  allowPause: boolean
   plan?: PlanId
   disabled?: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
   const id = useId()
+  const rounds = runOptions.maxRounds
   const setParticipants = (participants: number) => {
     const next = Math.min(Math.max(participants, PANEL_MIN_PARTICIPANTS), maxParticipants)
     onChange({ ...value, participants: next, groups: value.groups.slice(0, next) })
@@ -147,7 +158,7 @@ export function ConfigurePanel({
   const groupsFull = value.groups.length >= value.participants
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-2">
+    <Collapsible open={open} onOpenChange={onOpenChange} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" disabled={disabled}>
@@ -161,7 +172,7 @@ export function ConfigurePanel({
           </Button>
         </CollapsibleTrigger>
         <p data-testid="panel-summary" className="px-2 text-xs text-muted-foreground tabular-nums">
-          {panelSummary(value, rounds, webResearchAvailable)}
+          {panelSummary(value, rounds, webResearchAvailable, allowPause && runOptions.pauseForInterviews)}
         </p>
       </div>
       <CollapsibleContent className="flex flex-col gap-4 rounded-xl border bg-card p-3.5">
@@ -266,6 +277,19 @@ export function ConfigurePanel({
               onCheckedChange={(webResearch) => onChange({ ...value, webResearch })}
             />
           </div>
+        )}
+        <RoundsRow
+          value={rounds}
+          onChange={(maxRounds) => onRunOptionsChange({ ...runOptions, maxRounds })}
+          maxRounds={maxRounds}
+          disabled={disabled}
+        />
+        {allowPause && (
+          <PauseRow
+            checked={runOptions.pauseForInterviews}
+            onChange={(pauseForInterviews) => onRunOptionsChange({ ...runOptions, pauseForInterviews })}
+            disabled={disabled}
+          />
         )}
       </CollapsibleContent>
     </Collapsible>

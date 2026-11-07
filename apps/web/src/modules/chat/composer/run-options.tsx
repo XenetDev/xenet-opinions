@@ -1,14 +1,9 @@
 'use client'
 
-import { CheckIcon, PauseIcon, RepeatIcon } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { InputGroupButton } from '@/components/ui/input-group'
+import { useId } from 'react'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 
 export const DEFAULT_ROUNDS = 3
 
@@ -17,7 +12,7 @@ export const roundsLabel = (rounds: number) => (rounds === 1 ? '1 round' : `${ro
 
 export type RunOptionsValue = { maxRounds: number; pauseForInterviews: boolean }
 
-export function RoundsPicker({
+export function RoundsRow({
   value,
   onChange,
   maxRounds,
@@ -28,28 +23,32 @@ export function RoundsPicker({
   maxRounds: number
   disabled?: boolean
 }) {
+  const id = useId()
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <InputGroupButton size="sm" variant="ghost" disabled={disabled}>
-          <RepeatIcon data-icon="inline-start" aria-hidden="true" />
-          {roundsLabel(value)}
-        </InputGroupButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-72 w-36">
-        <DropdownMenuRadioGroup value={String(value)} onValueChange={(next) => onChange(Number(next))}>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor={id}>Rounds</Label>
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          How many rounds participants post and reply in the simulation.
+        </p>
+      </div>
+      <Select value={String(value)} onValueChange={(next) => onChange(Number(next))} disabled={disabled}>
+        <SelectTrigger id={id} size="sm" aria-describedby={`${id}-hint`} className="shrink-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper" align="end" className="max-h-72">
           {Array.from({ length: maxRounds }, (_, index) => index + 1).map((rounds) => (
-            <DropdownMenuRadioItem key={rounds} value={String(rounds)}>
+            <SelectItem key={rounds} value={String(rounds)}>
               {roundsLabel(rounds)}
-            </DropdownMenuRadioItem>
+            </SelectItem>
           ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 
-export function PauseToggle({
+export function PauseRow({
   checked,
   onChange,
   disabled,
@@ -58,22 +57,22 @@ export function PauseToggle({
   onChange: (checked: boolean) => void
   disabled?: boolean
 }) {
+  const id = useId()
   return (
-    <InputGroupButton
-      size="sm"
-      variant={checked ? 'secondary' : 'ghost'}
-      aria-pressed={checked}
-      aria-label="Pause for interviews"
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-    >
-      {checked ? (
-        <CheckIcon data-icon="inline-start" aria-hidden="true" />
-      ) : (
-        <PauseIcon data-icon="inline-start" aria-hidden="true" />
-      )}
-      <span className="sm:hidden">Pause</span>
-      <span className="max-sm:hidden">Pause for interviews</span>
-    </InputGroupButton>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-0.5">
+        <Label htmlFor={id}>Pause for interviews</Label>
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          Stops after the simulation so you can question participants before the report.
+        </p>
+      </div>
+      <Switch
+        id={id}
+        aria-describedby={`${id}-hint`}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+      />
+    </div>
   )
 }

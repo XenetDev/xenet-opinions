@@ -136,8 +136,10 @@ describe('ReportSheet', () => {
     expect(screen.getByText('Internal memo').closest('a')).toBeNull()
   })
 
-  it('renders the full write-up', () => {
-    render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" />)
+  it('leaves the full write-up to the chat for the owner and keeps it read-only', () => {
+    const view = render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" />)
+    expect(screen.queryByRole('tab', { name: /^Full write-up/ })).toBeNull()
+    view.rerender(<ReportSheet summary={summary} open onOpenChange={() => {}} readOnly />)
     selectTab(/^Full write-up/)
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy()
   })
@@ -166,7 +168,7 @@ describe('ReportSheet', () => {
   it.each([/^Summary/, /^Groups/, /^Participants/, /^Sources/, /^Full write-up/])(
     'has no axe violations on the %s tab',
     async (name) => {
-      render(<ReportSheet summary={summary} open onOpenChange={() => {}} chatId="c1" title={reportQuestion} />)
+      render(<ReportSheet summary={summary} open onOpenChange={() => {}} readOnly title={reportQuestion} />)
       selectTab(name)
       expect(await axe(document.body)).toHaveNoViolations()
     },

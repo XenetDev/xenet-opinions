@@ -447,18 +447,14 @@ export function Chat({
                       text: pendingRun.text,
                       files: pendingRun.files,
                       card: pendingRun.checking ? (
-                        pendingRun.panel ? (
-                          <div className="flex flex-col gap-1">
-                            <Thinking />
-                            <p className="text-xs text-muted-foreground">
-                              {webResearchAvailable && pendingRun.panel.webResearch
+                        <Thinking
+                          {...(pendingRun.panel && {
+                            label:
+                              webResearchAvailable && pendingRun.panel.webResearch
                                 ? 'Researching and building your panel…'
-                                : 'Building your panel…'}
-                            </p>
-                          </div>
-                        ) : (
-                          <Thinking />
-                        )
+                                : 'Building your panel…',
+                          })}
+                        />
                       ) : (
                         <ContextCard
                           pending={status === 'submitted' || status === 'streaming'}

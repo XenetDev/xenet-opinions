@@ -34,7 +34,7 @@ export function SharedReport({
       </header>
       <main className="min-w-0">
         <h2 className="sr-only">Report</h2>
-        <ReportView summary={summary} contentClassName="pt-4" />
+        <ReportView summary={summary} writeup contentClassName="pt-4" />
       </main>
       <footer className="mt-auto border-t pt-4 text-xs text-muted-foreground text-pretty">
         {BYLINE}. Participants are AI personas, not real people.

@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { defaultRounds, PauseToggle, RoundsPicker, roundsLabel } from './run-options'
+import { defaultRounds, PauseRow, RoundsRow, roundsLabel } from './run-options'
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture ??= () => false
@@ -23,30 +23,31 @@ describe('run options', () => {
     expect(defaultRounds(2)).toBe(2)
   })
 
-  it('offers every round up to maxRounds and reports the pick', () => {
+  it('offers every round up to maxRounds in a labelled select and reports the pick', () => {
     const onChange = vi.fn()
-    render(<RoundsPicker value={3} onChange={onChange} maxRounds={4} />)
-    fireEvent.keyDown(screen.getByRole('button', { name: '3 rounds' }), { key: 'Enter' })
-    expect(screen.getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
+    render(<RoundsRow value={3} onChange={onChange} maxRounds={4} />)
+    const select = screen.getByRole('combobox', { name: 'Rounds' })
+    expect(select.textContent).toBe('3 rounds')
+    fireEvent.keyDown(select, { key: 'Enter' })
+    expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
       '1 round',
       '2 rounds',
       '3 rounds',
       '4 rounds',
     ])
-    expect(screen.getByRole('menuitemradio', { name: '3 rounds' }).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(screen.getByRole('menuitemradio', { name: '4 rounds' }))
+    fireEvent.click(screen.getByRole('option', { name: '4 rounds' }))
     expect(onChange).toHaveBeenCalledWith(4)
   })
 
-  it('reports the flipped pause state and marks it pressed', () => {
+  it('reports the flipped pause state from a labelled switch', () => {
     const onChange = vi.fn()
-    const { rerender } = render(<PauseToggle checked={false} onChange={onChange} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Pause for interviews' }))
+    const { rerender } = render(<PauseRow checked={false} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('switch', { name: 'Pause for interviews' }))
     expect(onChange).toHaveBeenCalledWith(true)
-    rerender(<PauseToggle checked onChange={onChange} />)
-    const chip = screen.getByRole('button', { name: 'Pause for interviews' })
-    expect(chip.getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(chip)
+    rerender(<PauseRow checked onChange={onChange} />)
+    const toggle = screen.getByRole('switch', { name: 'Pause for interviews' })
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(toggle)
     expect(onChange).toHaveBeenLastCalledWith(false)
   })
 })

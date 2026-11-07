@@ -15,8 +15,10 @@ export function ReportView({
   className,
   listClassName,
   contentClassName,
+  writeup = false,
 }: {
   summary: ReportSummary
+  writeup?: boolean
   className?: string
   listClassName?: string
   contentClassName?: string
@@ -31,7 +33,7 @@ export function ReportView({
       body: <ParticipantsTab summary={summary} filter={group} onFilterChange={setGroup} />,
     },
     { value: 'sources', label: `Sources (${summary.sources.length})`, body: <SourcesTab summary={summary} /> },
-    { value: 'writeup', label: 'Full write-up', body: <WriteupTab summary={summary} /> },
+    ...(writeup ? [{ value: 'writeup', label: 'Full write-up', body: <WriteupTab summary={summary} /> }] : []),
   ]
 
   return (

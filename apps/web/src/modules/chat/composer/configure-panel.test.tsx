@@ -6,8 +6,12 @@ import { type ComponentProps, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { axe } from '@/test/axe'
 import { ConfigurePanel, clampPanel, defaultPanel, PANEL_STORAGE_KEY, panelSummary, usePanel } from './configure-panel'
+import type { RunOptionsValue } from './run-options'
 
 beforeAll(() => {
+  Element.prototype.hasPointerCapture ??= () => false
+  Element.prototype.releasePointerCapture ??= () => {}
+  Element.prototype.scrollIntoView ??= () => {}
   globalThis.ResizeObserver ??= class {
     observe() {}
     unobserve() {}
@@ -20,17 +24,32 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-type Props = Omit<ComponentProps<typeof ConfigurePanel>, 'value' | 'onChange'> & { initial?: Panel }
+type Props = Omit<
+  ComponentProps<typeof ConfigurePanel>,
+  'value' | 'onChange' | 'runOptions' | 'onRunOptionsChange' | 'open' | 'onOpenChange'
+> & { initial?: Panel; rounds?: number }
 
-function Harness({ initial, ...props }: Props) {
+function Harness({ initial, rounds = 5, ...props }: Props) {
   const [value, setValue] = useState<Panel>(
     initial ?? defaultPanel(props.maxParticipants, props.webResearchAvailable ?? true),
   )
-  return <ConfigurePanel value={value} onChange={setValue} {...props} />
+  const [runOptions, setRunOptions] = useState<RunOptionsValue>({ maxRounds: rounds, pauseForInterviews: false })
+  const [open, setOpen] = useState(false)
+  return (
+    <ConfigurePanel
+      value={value}
+      onChange={setValue}
+      runOptions={runOptions}
+      onRunOptionsChange={setRunOptions}
+      open={open}
+      onOpenChange={setOpen}
+      {...props}
+    />
+  )
 }
 
 const renderPanel = (props: Partial<Props> = {}) =>
-  render(<Harness maxParticipants={25} webResearchAvailable rounds={5} plan="starter" {...props} />)
+  render(<Harness maxParticipants={25} webResearchAvailable maxRounds={40} allowPause plan="starter" {...props} />)
 const open = () => fireEvent.click(screen.getByRole('button', { name: /Configure/ }))
 const summary = () => screen.getByTestId('panel-summary').textContent
 const chip = (name: string) => screen.getByRole('button', { name })
@@ -52,6 +71,14 @@ describe('panelSummary', () => {
     expect(panelSummary({ participants: 20, groups: [], webResearch: true }, 3, false)).toBe(
       'about 20 participants · 3 rounds · ~5 min',
     )
+  })
+
+  it('adds pause on only when pausing is on', () => {
+    const panel: Panel = { participants: 20, groups: [], webResearch: true }
+    expect(panelSummary(panel, 3, true, true)).toBe(
+      'about 20 participants · 3 rounds · web research on · pause on · ~5 min',
+    )
+    expect(panelSummary(panel, 3, true, false)).not.toContain('pause')
   })
 
   it('names the audience when set', () => {
@@ -199,8 +226,49 @@ describe('ConfigurePanel', () => {
     cleanup()
     renderPanel({ webResearchAvailable: false })
     open()
-    expect(screen.queryByRole('switch')).toBeNull()
+    expect(screen.queryByRole('switch', { name: 'Web research' })).toBeNull()
     expect(summary()).not.toContain('web research')
+  })
+
+  it('sets rounds from a select capped at the plan rounds', () => {
+    renderPanel({ maxRounds: 4, rounds: 3 })
+    open()
+    const select = screen.getByRole('combobox', { name: 'Rounds' })
+    expect(select.textContent).toBe('3 rounds')
+    fireEvent.keyDown(select, { key: 'Enter' })
+    expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
+      '1 round',
+      '2 rounds',
+      '3 rounds',
+      '4 rounds',
+    ])
+    fireEvent.click(screen.getByRole('option', { name: '2 rounds' }))
+    expect(summary()).toContain('· 2 rounds ·')
+  })
+
+  it('toggles pause for interviews and hides it when the plan does not allow pausing', () => {
+    renderPanel()
+    open()
+    const pause = screen.getByRole('switch', { name: 'Pause for interviews' })
+    expect(pause.getAttribute('aria-checked')).toBe('false')
+    expect(summary()).not.toContain('pause')
+    fireEvent.click(pause)
+    expect(pause.getAttribute('aria-checked')).toBe('true')
+    expect(summary()).toBe('about 20 participants · 5 rounds · web research on · pause on · ~7 min')
+    cleanup()
+    renderPanel({ allowPause: false })
+    open()
+    expect(screen.queryByRole('switch', { name: 'Pause for interviews' })).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Rounds' })).toBeTruthy()
+  })
+
+  it('disables rounds and pause with the rest of the panel', () => {
+    const props = { maxParticipants: 25, webResearchAvailable: true, maxRounds: 40, allowPause: true }
+    const view = render(<Harness {...props} />)
+    open()
+    view.rerender(<Harness {...props} disabled />)
+    expect((screen.getByRole('combobox', { name: 'Rounds' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('switch', { name: 'Pause for interviews' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('has no accessibility violations when open', async () => {

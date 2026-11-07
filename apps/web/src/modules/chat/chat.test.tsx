@@ -881,7 +881,12 @@ describe('Chat', () => {
   describe('checking the brief before a run', () => {
     const card = () => screen.queryByTestId('context-card')
     const runOptions = { maxRounds: 1, pauseForInterviews: false }
-    const checking = () => screen.queryAllByRole('status').find((el) => el.textContent?.startsWith('Thinking'))
+    const checking = () =>
+      screen
+        .queryAllByRole('status')
+        .find((el) =>
+          /^(Thinking|Building your panel…|Researching and building your panel…)/.test(el.textContent ?? ''),
+        )
 
     it('asks for context when the check cannot be reached for a short prompt, and sends nothing', async () => {
       fetchSpy.mockRejectedValue(new TypeError('Failed to fetch'))
@@ -1099,7 +1104,9 @@ describe('Chat', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: 'Send panel run' }))
       await waitFor(() => expect(checking()).toBeTruthy())
-      expect(screen.getByText('Researching and building your panel…')).toBeTruthy()
+      expect(checking()?.textContent).toMatch(/^Researching and building your panel…\d/)
+      expect(screen.queryByText('Thinking')).toBeNull()
+      expect(screen.queryByText('Xenet Opinions')).toBeNull()
     })
 
     it.each([
@@ -1119,7 +1126,8 @@ describe('Chat', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: button }))
       await waitFor(() => expect(checking()).toBeTruthy())
-      expect(screen.getByText('Building your panel…')).toBeTruthy()
+      expect(checking()?.textContent).toMatch(/^Building your panel…\d/)
+      expect(screen.queryByText('Thinking')).toBeNull()
       expect(screen.queryByText('Researching and building your panel…')).toBeNull()
     })
 

@@ -51,6 +51,7 @@ export function ReportSheet({ summary, open, onOpenChange, title, onExport, expo
         </SheetHeader>
         <ReportView
           summary={summary}
+          writeup={rest.readOnly}
           className="min-h-0 flex-1"
           listClassName="px-4 sm:px-6"
           contentClassName="min-h-0 overflow-y-auto px-4 pt-4 pb-8 sm:px-6"

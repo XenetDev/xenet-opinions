@@ -17,7 +17,7 @@ import { useInterviewSelection } from '../interview-selection'
 import { useAnnounce } from '../notice-region'
 import { FileChips, PersonaChips } from './chips'
 import { ConfigurePanel, usePanel } from './configure-panel'
-import { defaultRounds, PauseToggle, RoundsPicker, type RunOptionsValue } from './run-options'
+import { defaultRounds, type RunOptionsValue } from './run-options'
 import { useUploads } from './use-uploads'
 
 const ACCEPT = '.pdf,.md,.txt,application/pdf,text/markdown,text/plain'
@@ -103,6 +103,7 @@ export function BoxComposer({
   const [undoText, setUndoText] = useState<string | null>(null)
   const [improving, setImproving] = useState(false)
   const setText = (next: string) => {
+    textRef.current = next
     setOwnText(next)
     setUndoText(null)
     onValueChange?.(next)
@@ -112,6 +113,7 @@ export function BoxComposer({
     pauseForInterviews: false,
   })
   const [panel, setPanel] = usePanel(maxParticipants, webResearchAvailable)
+  const [configOpen, setConfigOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const sendingRef = useRef(false)
@@ -127,19 +129,31 @@ export function BoxComposer({
   const runBlocked = mode === 'run' ? blocked : undefined
 
   const deliver = async (value: string) => {
+    const clear = () => {
+      setConfigOpen(false)
+      setText('')
+    }
+    const restore = () => {
+      if (!textRef.current) setText(value)
+    }
     if (mode !== 'run') {
       if (mode === 'interview' && personas.length === 0) {
         setNotice(NO_PERSONAS)
         return
       }
       setNotice(null)
-      await onSend(value, {
-        kind: 'followUp',
-        target: mode === 'interview' ? 'agents' : 'report',
-        agentIds: personas.map((p) => p.id),
-      })
+      clear()
+      try {
+        await onSend(value, {
+          kind: 'followUp',
+          target: mode === 'interview' ? 'agents' : 'report',
+          agentIds: personas.map((p) => p.id),
+        })
+      } catch (error) {
+        restore()
+        throw error
+      }
       if (mode === 'interview') selection?.clear()
-      setText('')
       return
     }
     if (files.some((f) => f.status === 'error')) {
@@ -147,18 +161,23 @@ export function BoxComposer({
       return
     }
     setNotice(null)
-    const uploadIds = await uploadAll()
-    await onSend(value, {
-      kind: 'run',
-      uploadIds,
-      files: files.flatMap(({ file }, i) =>
-        uploadIds[i] ? [{ id: uploadIds[i], filename: file.name, mediaType: file.type, sizeBytes: file.size }] : [],
-      ),
-      runOptions: { ...runOptions, pauseForInterviews: allowPause && runOptions.pauseForInterviews },
-      panel: { ...panel, webResearch: webResearchAvailable && panel.webResearch },
-    })
+    clear()
+    try {
+      const uploadIds = await uploadAll()
+      await onSend(value, {
+        kind: 'run',
+        uploadIds,
+        files: files.flatMap(({ file }, i) =>
+          uploadIds[i] ? [{ id: uploadIds[i], filename: file.name, mediaType: file.type, sizeBytes: file.size }] : [],
+        ),
+        runOptions: { ...runOptions, pauseForInterviews: allowPause && runOptions.pauseForInterviews },
+        panel: { ...panel, webResearch: webResearchAvailable && panel.webResearch },
+      })
+    } catch (error) {
+      restore()
+      throw error
+    }
     reset()
-    setText('')
   }
 
   const send = async () => {
@@ -220,9 +239,14 @@ export function BoxComposer({
           onChange={setPanel}
           maxParticipants={maxParticipants}
           webResearchAvailable={webResearchAvailable}
-          rounds={runOptions.maxRounds}
+          runOptions={runOptions}
+          onRunOptionsChange={setRunOptions}
+          maxRounds={maxRounds}
+          allowPause={allowPause}
           plan={plan}
           disabled={disabled}
+          open={configOpen}
+          onOpenChange={setConfigOpen}
         />
       )}
       {notice && (
@@ -316,19 +340,6 @@ export function BoxComposer({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    {allowPause && (
-                      <PauseToggle
-                        checked={runOptions.pauseForInterviews}
-                        onChange={(pauseForInterviews) => setRunOptions((prev) => ({ ...prev, pauseForInterviews }))}
-                        disabled={disabled}
-                      />
-                    )}
-                    <RoundsPicker
-                      value={runOptions.maxRounds}
-                      onChange={(rounds) => setRunOptions((prev) => ({ ...prev, maxRounds: rounds }))}
-                      maxRounds={maxRounds}
-                      disabled={disabled}
-                    />
                     {undoText === null ? (
                       <InputGroupButton
                         size="sm"
