@@ -93,6 +93,14 @@ describe('cast limits', () => {
     expect(castGroups(many)).toHaveLength(12)
   })
 
+  it('treats bulleted headings as groups, not people, and cleans labels', () => {
+    const actors =
+      '- Customers:\n- Ana Ruiz, 41, nurse, Madrid: unsure\n- **Dealers:**\n- Tom Hale, 50, dealer, Leeds: against'
+    expect(castPeople(actors)).toBe(2)
+    expect(castGroups(actors)).toEqual(['Customers', 'Dealers'])
+    expect(castGroups(`<b>${'x'.repeat(80)}</b>:`)).toEqual([`b${'x'.repeat(59)}`])
+  })
+
   it('allows the plan maximum plus a slack of max(2, 10%)', () => {
     expect(castWithinPlan(cast({ A: 12 }), 10)).toBe(true)
     expect(castWithinPlan(cast({ A: 13 }), 10)).toBe(false)

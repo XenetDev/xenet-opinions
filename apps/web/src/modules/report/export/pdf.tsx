@@ -139,7 +139,7 @@ function Markdown({ blocks }: { blocks: Block[] }) {
         <View key={key} style={s.mdTable}>
           {[block.header, ...block.rows].map((row, r) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: table rows keep their order
-            <View key={r} style={r ? s.row : s.headRow}>
+            <View key={r} style={r ? s.row : s.headRow} wrap={false}>
               {row.map((cell, c) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: table cells keep their order
                 <Text key={c} style={[s.mdCell, r ? {} : BOLD]}>
@@ -246,7 +246,7 @@ function ReportPdf({ doc, cjk }: { doc: ReportDocument; cjk: boolean }) {
                 ))}
               </View>
               {doc.groups.map((group) => (
-                <View key={group.id} style={s.row}>
+                <View key={group.id} style={s.row} wrap={false}>
                   {group.cells.map((cell, i) => (
                     <Text
                       key={GROUP_COLUMNS[i]}

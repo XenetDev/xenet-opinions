@@ -7,15 +7,27 @@ export const CAST_GROUPS_MAX = 12
 
 const castLines = (actors: string) => actors.split(/\r?\n/).map((line) => line.trim())
 
-export const castPeople = (actors: string) => castLines(actors).filter((line) => line.startsWith('- ')).length
+export const CAST_GROUP_LABEL_MAX = 60
+
+const groupHeading = (line: string) => {
+  const bare = line.replace(/^[-#*_\s]+|[*_\s]+$/g, '')
+  return bare.endsWith(':')
+    ? bare
+        .slice(0, -1)
+        .replace(/[*_<>]/g, '')
+        .trim()
+        .slice(0, CAST_GROUP_LABEL_MAX)
+    : null
+}
+
+export const castPeople = (actors: string) =>
+  castLines(actors).filter((line) => line.startsWith('- ') && groupHeading(line) === null).length
 
 export function castGroups(actors: string): string[] {
   const groups: string[] = []
   for (const line of castLines(actors)) {
-    if (line.startsWith('-')) continue
-    const bare = line.replace(/^[#*_\s]+|[*_\s]+$/g, '')
-    if (!bare.endsWith(':')) continue
-    const label = bare.slice(0, -1).trim()
+    if (line.startsWith('-') && !line.endsWith(':') && !line.endsWith(':**')) continue
+    const label = groupHeading(line)
     if (label && !groups.includes(label)) groups.push(label)
     if (groups.length === CAST_GROUPS_MAX) break
   }
