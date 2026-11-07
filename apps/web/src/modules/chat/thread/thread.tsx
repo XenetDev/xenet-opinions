@@ -1,7 +1,7 @@
 'use client'
 
 import type { OpinionsUIMessage, SourcesData } from '@xo/engine/parts'
-import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Marker, MarkerContent } from '@/components/ui/marker'
 import {
   MessageScroller,
@@ -56,6 +56,9 @@ function FollowOnSend({ lastUserId }: { lastUserId?: string }) {
   return null
 }
 
+const textOf = (message: OpinionsUIMessage) =>
+  message.parts.map((part) => (part.type === 'text' ? part.text : '')).join('')
+
 const clock = (date: Date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
 export function Thread({
@@ -64,6 +67,7 @@ export function Thread({
   startedAt,
   pending,
   trailing,
+  trailingHeader = true,
   className,
 }: {
   messages: OpinionsUIMessage[]
@@ -71,12 +75,21 @@ export function Thread({
   startedAt?: string
   pending?: { text: string; files?: SourcesData['files']; card: ReactNode }
   trailing?: ReactNode
+  trailingHeader?: boolean
   className?: string
 }) {
   const arrivals = useArrivals(messages.map((message) => message.id))
   const sources = sourcesByTurn(messages)
+  const handedOff = useRef<string | undefined>(undefined)
+  if (pending) handedOff.current = pending.text
   const first = messages[0]
-  const startDate = startedAt ? new Date(startedAt) : first ? arrivals.get(first.id) : undefined
+  const startDate = startedAt
+    ? new Date(startedAt)
+    : first
+      ? (arrivals.get(first.id) ?? new Date())
+      : pending
+        ? new Date()
+        : undefined
 
   return (
     <MessageScrollerProvider autoScroll>
@@ -95,11 +108,15 @@ export function Thread({
             )}
             {messages.map((message) => {
               const arrived = arrivals.get(message.id)
+              const replacesPending = message.role === 'user' && textOf(message) === handedOff.current
               return (
                 <MessageScrollerItem
                   key={message.id}
                   messageId={message.id}
-                  className={cn('flex flex-col gap-4 [content-visibility:visible]', arrived && ENTER)}
+                  className={cn(
+                    'flex flex-col gap-4 [content-visibility:visible]',
+                    arrived && !replacesPending && ENTER,
+                  )}
                 >
                   {message.role === 'user' ? (
                     <UserTurn message={message} sources={sources.get(message.id)} />
@@ -111,7 +128,7 @@ export function Thread({
             })}
             {trailing && (
               <MessageScrollerItem className={cn('flex flex-col gap-4 [content-visibility:visible]', ENTER)}>
-                <AssistantTurn>{trailing}</AssistantTurn>
+                <AssistantTurn header={trailingHeader}>{trailing}</AssistantTurn>
               </MessageScrollerItem>
             )}
             {pending && (

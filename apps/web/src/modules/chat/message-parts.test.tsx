@@ -202,6 +202,11 @@ describe('MessageParts', () => {
     expect(screen.getByTestId('run-console').getAttribute('data-status')).toBe('queued')
   })
 
+  it('shows no queue row when nothing is ahead, since the run is about to start', () => {
+    render(<MessageParts parts={[{ type: 'data-queue', data: { position: 1 } }]} />)
+    expect(screen.queryByText(/in queue/)).toBeNull()
+  })
+
   it('drops the queued row once stage parts exist and shows no console for position 0 alone', () => {
     const { container, rerender } = render(<MessageParts parts={[{ type: 'data-queue', data: { position: 0 } }]} />)
     expect(container.querySelector('[data-part="console"]')).toBeNull()

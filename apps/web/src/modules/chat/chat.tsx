@@ -57,7 +57,10 @@ type PendingRun = {
   files: SourcesData['files']
   draft?: SeedContext
   checking: boolean
+  label?: string
 }
+
+const STARTING = 'Starting the simulation…'
 
 const seedFrom = (draft: SeedContext): SeedContext | undefined => {
   const seed = Object.fromEntries(
@@ -303,7 +306,7 @@ export function Chat({
   const startPending = (seed?: SeedContext) => {
     if (!pendingRun) return
     const pending = pendingRun
-    setPendingRun(null)
+    setPendingRun({ ...pending, checking: true, label: STARTING })
     setNotice(null)
     startingRef.current = true
     startRun(pending.text, {
@@ -315,11 +318,14 @@ export function Chat({
     }).then(
       () => {
         startingRef.current = false
+        setPendingRun(null)
       },
       (error: Error) => {
         startingRef.current = false
-        if (error.message === 'aborted') setDraft(pending.text)
-        else setPendingRun((current) => current ?? pending)
+        if (error.message === 'aborted') {
+          setPendingRun(null)
+          setDraft(pending.text)
+        } else setPendingRun(pending)
       },
     )
   }
@@ -347,8 +353,12 @@ export function Chat({
     const sized = { ...(panel && { panel }), ...(researchId && { researchId }) }
     if (result.readiness.ready) {
       const seed = result.readiness.seed && seedFrom(result.readiness.seed)
-      setPendingRun(null)
-      await startRun(text, { uploadIds, runOptions, ...(seed && { seed }), ...sized })
+      setPendingRun((current) => current && { ...current, label: STARTING })
+      try {
+        await startRun(text, { uploadIds, runOptions, ...(seed && { seed }), ...sized })
+      } finally {
+        setPendingRun(null)
+      }
       return
     }
     setPendingRun({
@@ -424,6 +434,8 @@ export function Chat({
     run.status === 'failed' ||
     (run.status === 'none' && !!lastMessage?.parts.some((part) => part.type === 'data-error'))
   const failedCode = lastMessage?.parts.findLast((part) => part.type === 'data-error')?.data.code
+  const awaitingFirstStep =
+    watching && !pendingRun && !latestFailed && run.stage !== 'interviews' && lastMessage?.role === 'user'
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
@@ -439,7 +451,7 @@ export function Chat({
           ) : (
             <Thread
               className="min-h-0 flex-1"
-              messages={messages}
+              messages={pendingRun ? [] : messages}
               startedAt={startedAt}
               pending={
                 pendingRun
@@ -448,12 +460,14 @@ export function Chat({
                       files: pendingRun.files,
                       card: pendingRun.checking ? (
                         <Thinking
-                          {...(pendingRun.panel && {
-                            label:
-                              webResearchAvailable && pendingRun.panel.webResearch
-                                ? 'Researching and building your panel…'
-                                : 'Building your panel…',
-                          })}
+                          {...(pendingRun.label
+                            ? { label: pendingRun.label }
+                            : pendingRun.panel && {
+                                label:
+                                  webResearchAvailable && pendingRun.panel.webResearch
+                                    ? 'Researching and building your panel…'
+                                    : 'Building your panel…',
+                              })}
                         />
                       ) : (
                         <ContextCard
@@ -467,7 +481,9 @@ export function Chat({
                   : undefined
               }
               trailing={
-                !latestFailed ? undefined : actorsCard === 'checking' ? (
+                awaitingFirstStep ? (
+                  <Thinking label={STARTING} />
+                ) : !latestFailed ? undefined : actorsCard === 'checking' ? (
                   <Thinking />
                 ) : actorsCard ? (
                   <ContextCard
@@ -478,6 +494,7 @@ export function Chat({
                   />
                 ) : undefined
               }
+              trailingHeader={!awaitingFirstStep}
               renderAssistant={(message) => {
                 const question = messages.slice(0, messages.indexOf(message)).findLast((m) => m.role === 'user')
                 const asked = question && messageText(question)
@@ -503,6 +520,13 @@ export function Chat({
                   />
                 )
                 const next = messages[messages.indexOf(message) + 1]
+                const starting =
+                  message === lastMessage &&
+                  (status === 'submitted' || status === 'streaming' || runActive) &&
+                  message.parts.every(
+                    (part) => part.type === 'step-start' || (part.type === 'data-queue' && part.data.position < 2),
+                  )
+                if (starting) return <Thinking label={STARTING} />
                 return next?.role === 'assistant' ? (
                   <SupersededAttempt parts={message.parts}>{parts}</SupersededAttempt>
                 ) : (

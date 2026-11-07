@@ -192,7 +192,7 @@ export function deriveConsole(parts: Parts, live: ConsoleLive): ConsoleModel {
     .sort((a, b) => a.n - b.n)
   const folded = parts.some((part) => part.type === 'text')
 
-  if (byStage.size === 0 && errors.size === 0 && !window && queue && queue.position >= 1) {
+  if (byStage.size === 0 && errors.size === 0 && !window && queue && queue.position >= 2) {
     return {
       status: 'queued',
       rows: [
